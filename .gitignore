@@ -1,0 +1,16 @@
+node_modules
+.env
+.env.*
+dist
+build
+.cache
+.DS_Store
+
+.idea
+.vscode
+
+.react-router
+
+/shopify.web.toml
+
+coverage
