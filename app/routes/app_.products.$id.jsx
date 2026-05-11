@@ -83,12 +83,31 @@ export const loader = async ({ request, params }) => {
     allProductTypes = [...new Set(nodes.map((node) => node.productType).filter(Boolean))].sort();
   } catch (e) { /* falls API nicht verfügbar: leer */ }
 
+  let allCollections = [];
+  try {
+    const collectionsRes = await admin.graphql(`
+      query {
+        collections(first: 250) {
+          edges {
+            node {
+              id
+              title
+              image { url altText }
+            }
+          }
+        }
+      }
+    `);
+    const collectionsJson = await collectionsRes.json();
+    allCollections = collectionsJson.data?.collections?.edges?.map((edge) => edge.node) ?? [];
+  } catch (e) { /* falls API nicht verfügbar: leer */ }
+
   // Lager-Location (erste Location)
   const locRes = await admin.graphql(`query { locations(first: 1) { edges { node { id } } } }`);
   const locJson = await locRes.json();
   const locationId = locJson.data.locations.edges[0]?.node?.id ?? null;
 
-  return { product: data.data.product, allTags, allVendors, allProductTypes, locationId, shop };
+  return { product: data.data.product, allTags, allVendors, allProductTypes, allCollections, locationId, shop };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
@@ -388,12 +407,13 @@ function PositionedDropdown({ anchorRef, open, children }) {
 // ─── Komponente ────────────────────────────────────────────────────────────────
 
 export default function ProductDetail() {
-  const { product, allTags = [], allVendors = [], allProductTypes = [], locationId, shop } = useLoaderData();
+  const { product, allTags = [], allVendors = [], allProductTypes = [], allCollections = [], locationId, shop } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = location.state?.from ?? `/app/products${location.search}`;
   const fetcher = useFetcher();
   const collectionFetcher = useFetcher();
+  const collectionSearchFetcher = useFetcher();
 
   // ── Refs für Portal-Dropdowns ──
   const collectionInputRef = useRef(null);
@@ -511,9 +531,7 @@ export default function ProductDetail() {
   useEffect(() => {
     if (!collectionFetcher.data) return;
     const d = collectionFetcher.data;
-    if (d.type === "searchCollections") {
-      setCollectionResults(d.collections ?? []);
-    } else if (d.type === "addToCollection") {
+    if (d.type === "addToCollection") {
       if (d.collection) {
         setLocalCollections(prev =>
           prev.find(c => c.id === d.collection.id) ? prev : [...prev, d.collection]
@@ -524,20 +542,22 @@ export default function ProductDetail() {
     }
   }, [collectionFetcher.data]);
 
-  // Debounced collection search
   useEffect(() => {
-    if (collectionSearch.length < 2) {
-      setCollectionResults([]);
-      return;
+    if (collectionSearchFetcher.data?.type === "searchCollections") {
+      setCollectionResults(collectionSearchFetcher.data.collections ?? []);
     }
+  }, [collectionSearchFetcher.data]);
+
+  useEffect(() => {
+    if (!showCollectionSearch) return;
     const t = setTimeout(() => {
-      collectionFetcher.submit(
+      collectionSearchFetcher.submit(
         { action: "searchCollections", query: collectionSearch },
         { method: "POST" }
       );
-    }, 400);
+    }, collectionSearch.trim().length > 0 ? 250 : 0);
     return () => clearTimeout(t);
-  }, [collectionSearch, collectionFetcher]);
+  }, [collectionSearch, showCollectionSearch, collectionSearchFetcher]);
 
   // ── Handler ──
   const handleDelete = () => {
@@ -652,15 +672,37 @@ export default function ProductDetail() {
   };
 
   const handleCollectionAdd = (col) => {
-    if (localCollections.find(c => c.id === col.id)) return;
-    setLocalCollections(prev => [...prev, col]);
+    setLocalCollections((prev) => {
+      if (prev.find((collection) => collection.id === col.id)) return prev;
+      return [...prev, col];
+    });
     collectionFetcher.submit(
       { action: "addToCollection", collectionId: col.id, collectionTitle: col.title, productId: product.id },
       { method: "POST" }
     );
     setCollectionSearch("");
-    setCollectionResults([]);
   };
+
+  const handleCollectionSelect = (selected) => {
+    const selectedIds = Array.isArray(selected) ? selected : [selected];
+    const nextCollections = collectionResults.filter(
+      (collection) =>
+        selectedIds.includes(collection.id) &&
+        !localCollections.find((localCollection) => localCollection.id === collection.id)
+    );
+
+    nextCollections.forEach((collection) => {
+      handleCollectionAdd(collection);
+    });
+
+    setCollectionSearch("");
+    setShowCollectionSearch(false);
+  };
+
+  const filteredCollectionSuggestions = collectionResults
+    .filter((collection) =>
+      !localCollections.find((localCollection) => localCollection.id === collection.id)
+    );
 
   const handleCollectionRemove = (colId) => {
     setLocalCollections(prev => prev.filter(c => c.id !== colId));
@@ -921,7 +963,7 @@ export default function ProductDetail() {
                 </InlineStack>
                 <Divider />
 
-                <div style={{ display: "grid", gap: 16, gridTemplateColumns: "1fr" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16 }}>
                   <TextField
                     label="SEO Titel"
                     value={seoDraft.seoTitle}
@@ -933,6 +975,17 @@ export default function ProductDetail() {
                     maxLength={70}
                     showCharacterCount
                     helpText="Empfohlen: bis 60 Zeichen"
+                  />
+
+                  <TextField
+                    label="URL Handle"
+                    value={seoDraft.handle}
+                    onChange={(value) => {
+                      setSeoDraft((prev) => ({ ...prev, handle: slugifyHandle(value) }));
+                      setSeoDirty(true);
+                    }}
+                    autoComplete="off"
+                    helpText="Nur Kleinbuchstaben, Zahlen und Bindestriche"
                   />
 
                   <TextField
@@ -949,39 +1002,28 @@ export default function ProductDetail() {
                     helpText="Empfohlen: bis 155 Zeichen"
                   />
 
-                  <TextField
-                    label="URL Handle"
-                    value={seoDraft.handle}
-                    onChange={(value) => {
-                      setSeoDraft((prev) => ({ ...prev, handle: slugifyHandle(value) }));
-                      setSeoDirty(true);
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 10,
+                      border: "1px solid var(--p-color-border-subdued)",
+                      borderRadius: 8,
+                      background: "var(--p-color-bg-surface-secondary)",
+                      padding: 16,
+                      minWidth: 0,
                     }}
-                    autoComplete="off"
-                    helpText="Nur Kleinbuchstaben, Zahlen und Bindestriche"
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 10,
-                    border: "1px solid var(--p-color-border-subdued)",
-                    borderRadius: 8,
-                    background: "var(--p-color-bg-surface-secondary)",
-                    padding: 16,
-                    minWidth: 0,
-                  }}
-                >
-                  <Text variant="bodySm" tone="subdued">Live Vorschau</Text>
-                  <BlockStack gap="050">
-                    <Text variant="bodySm" tone="subdued">
-                      <span style={{ wordBreak: "break-word" }}>{previewUrl}</span>
-                    </Text>
-                    <Text variant="headingSm">{seoDraft.seoTitle || product.title}</Text>
-                    <Text variant="bodySm" tone="subdued">
-                      {seoDraft.seoDescription || product.description || "Keine Meta Description hinterlegt."}
-                    </Text>
-                  </BlockStack>
+                  >
+                    <Text variant="bodySm" tone="subdued">Live Vorschau</Text>
+                    <BlockStack gap="050">
+                      <Text variant="bodySm" tone="subdued">
+                        <span style={{ wordBreak: "break-word" }}>{previewUrl}</span>
+                      </Text>
+                      <Text variant="headingSm">{seoDraft.seoTitle || product.title}</Text>
+                      <Text variant="bodySm" tone="subdued">
+                        {seoDraft.seoDescription || product.description || "Keine Meta Description hinterlegt."}
+                      </Text>
+                    </BlockStack>
+                  </div>
                 </div>
               </BlockStack>
             </Card>
@@ -1041,7 +1083,13 @@ export default function ProductDetail() {
                           </button>
                         </span>
                       ))}
-                      <Button size="micro" onClick={() => { setShowCollectionSearch(true); }}>
+                      <Button size="micro" onClick={() => {
+                        setShowCollectionSearch(true);
+                        collectionSearchFetcher.submit(
+                          { action: "searchCollections", query: "" },
+                          { method: "POST" }
+                        );
+                      }}>
                         +
                       </Button>
                     </div>
@@ -1060,24 +1108,35 @@ export default function ProductDetail() {
                         </div>
                         <PositionedDropdown
                           anchorRef={collectionInputRef}
-                          open={collectionResults.filter(c => !localCollections.find(lc => lc.id === c.id)).length > 0}
+                          open={showCollectionSearch}
                         >
-                          {collectionResults
-                            .filter(c => !localCollections.find(lc => lc.id === c.id))
-                            .map(c => (
+                          {filteredCollectionSuggestions.length > 0 ? (
+                            filteredCollectionSuggestions.map((collection) => (
                               <div
-                                key={c.id}
-                                onMouseDown={(e) => { e.preventDefault(); handleCollectionAdd(c); }}
+                                key={collection.id}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  handleCollectionAdd(collection);
+                                }}
                                 style={{
-                                  padding: "8px 12px", cursor: "pointer", fontSize: 13,
+                                  padding: "8px 12px",
+                                  cursor: "pointer",
+                                  fontSize: 13,
                                   borderBottom: "1px solid var(--p-color-border-subdued)",
                                 }}
-                                onMouseEnter={e => e.currentTarget.style.background = "var(--p-color-bg-surface-hover)"}
-                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                                onMouseEnter={(e) => e.currentTarget.style.background = "var(--p-color-bg-surface-hover)"}
+                                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                               >
-                                {c.title}
+                                {collection.title}
                               </div>
-                            ))}
+                            ))
+                          ) : (
+                            <div style={{ padding: 12 }}>
+                              <Text variant="bodySm" tone="subdued">
+                                Keine Collections gefunden
+                              </Text>
+                            </div>
+                          )}
                         </PositionedDropdown>
                       </div>
                     )}
@@ -1131,14 +1190,17 @@ export default function ProductDetail() {
                               onChange={setTagInput}
                               autoComplete="off"
                               onFocus={() => setShowTagSuggestions(true)}
-                              onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                              onBlur={() => setTimeout(() => {
+                                setShowTagSuggestions(false);
+                                setShowTagSearch(false);
+                              }, 150)}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter") { handleTagAdd(); setShowTagSuggestions(false); }
+                                if (e.key === "Enter") { handleTagAdd(); setShowTagSuggestions(false); setShowTagSearch(false); }
                                 if (e.key === "Escape") { setShowTagSearch(false); setShowTagSuggestions(false); }
                               }}
                             />
                           </div>
-                          <Button onClick={() => { handleTagAdd(); setShowTagSuggestions(false); }} disabled={!tagInput.trim()}>+</Button>
+                          <Button onClick={() => { handleTagAdd(); setShowTagSuggestions(false); setShowTagSearch(false); }} disabled={!tagInput.trim()}>+</Button>
                         </div>
                         <PositionedDropdown
                           anchorRef={tagInputRef}
