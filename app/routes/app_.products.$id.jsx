@@ -2,7 +2,7 @@ import { useLoaderData, useNavigate, useLocation, useFetcher } from "react-route
 import { authenticate } from "../shopify.server";
 import {
   Page, Layout, Card, BlockStack, Text, Button, InlineStack,
-  Badge, Divider, TextField, Box, Spinner, Modal, Icon,
+  Badge, Divider, TextField, Box, Spinner, Modal, Icon, Tabs,
 } from "@shopify/polaris";
 import { EditIcon, XIcon } from "@shopify/polaris-icons";
 import { useEffect, useRef, useState } from "react";
@@ -12,11 +12,14 @@ import { createPortal } from "react-dom";
 
 export const loader = async ({ request, params }) => {
   const { admin } = await authenticate.admin(request);
+  const requestUrl = new URL(request.url);
+  const shop = requestUrl.searchParams.get("shop");
 
   const res = await admin.graphql(`
     query getProduct($id: ID!) {
       product(id: $id) {
-        id title status description vendor productType createdAt updatedAt tags
+        id title handle status description vendor productType createdAt updatedAt tags
+        seo { title description }
         featuredImage { url altText }
         images(first: 10) {
           edges { node { id url altText } }
@@ -25,6 +28,9 @@ export const loader = async ({ request, params }) => {
           edges { node { id title } }
         }
         options { id name values }
+        metafields(first: 20) {
+          edges { node { id namespace key type value } }
+        }
         variants(first: 50) {
           edges {
             node {
@@ -32,7 +38,7 @@ export const loader = async ({ request, params }) => {
               inventoryQuantity barcode sku
               selectedOptions { name value }
               image { url altText }
-              inventoryItem { id }
+              inventoryItem { id requiresShipping tracked }
             }
           }
         }
@@ -58,12 +64,31 @@ export const loader = async ({ request, params }) => {
     allTags = tagsJson.data?.productTags?.edges?.map(e => e.node) ?? [];
   } catch (e) { /* falls API nicht verfügbar: leer */ }
 
+  let allVendors = [];
+  let allProductTypes = [];
+  try {
+    const metaRes = await admin.graphql(`
+      query {
+        products(first: 100) {
+          nodes {
+            vendor
+            productType
+          }
+        }
+      }
+    `);
+    const metaJson = await metaRes.json();
+    const nodes = metaJson.data?.products?.nodes ?? [];
+    allVendors = [...new Set(nodes.map((node) => node.vendor).filter(Boolean))].sort();
+    allProductTypes = [...new Set(nodes.map((node) => node.productType).filter(Boolean))].sort();
+  } catch (e) { /* falls API nicht verfügbar: leer */ }
+
   // Lager-Location (erste Location)
   const locRes = await admin.graphql(`query { locations(first: 1) { edges { node { id } } } }`);
   const locJson = await locRes.json();
   const locationId = locJson.data.locations.edges[0]?.node?.id ?? null;
 
-  return { product: data.data.product, allTags, locationId };
+  return { product: data.data.product, allTags, allVendors, allProductTypes, locationId, shop };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
@@ -145,6 +170,68 @@ export const action = async ({ request }) => {
     return { ok: true, type: "updateDescription" };
   }
 
+  if (type === "updateOrganization") {
+    const res = await admin.graphql(`
+      mutation($input: ProductInput!) {
+        productUpdate(input: $input) {
+          product {
+            id
+            vendor
+            productType
+          }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        input: {
+          id: formData.get("id"),
+          vendor: formData.get("vendor") || null,
+          productType: formData.get("productType") || null,
+        },
+      },
+    });
+    const data = await res.json();
+    return {
+      ok: true,
+      type: "updateOrganization",
+      product: data?.data?.productUpdate?.product ?? null,
+      userErrors: data?.data?.productUpdate?.userErrors ?? [],
+    };
+  }
+
+  if (type === "updateSeo") {
+    const product = {
+      id: formData.get("id"),
+      handle: formData.get("handle") || null,
+      seo: {
+        title: formData.get("seoTitle") || null,
+        description: formData.get("seoDescription") || null,
+      },
+    };
+
+    const res = await admin.graphql(`
+      mutation($product: ProductUpdateInput!) {
+        productUpdate(product: $product) {
+          userErrors { field message }
+          product {
+            id
+            handle
+            seo { title description }
+          }
+        }
+      }
+    `, { variables: { product } });
+
+    const data = await res.json();
+    return {
+      ok: true,
+      type: "updateSeo",
+      product: data?.data?.productUpdate?.product ?? null,
+      userErrors: data?.data?.productUpdate?.userErrors ?? [],
+    };
+  }
+
   // Tags
   if (type === "updateTags") {
     const tags = JSON.parse(formData.get("tags"));
@@ -220,10 +307,34 @@ export const action = async ({ request }) => {
 
 const STATUS_TONE = { ACTIVE: "success", DRAFT: "info", ARCHIVED: "warning" };
 const STATUS_LABEL = { ACTIVE: "Aktiv", DRAFT: "Entwurf", ARCHIVED: "Archiviert" };
+const STOCK_TONE = { healthy: "success", low: "warning", out: "critical" };
+const STOCK_LABEL = { healthy: "In Ordnung", low: "Niedrig", out: "Ausverkauft" };
 
 function formatDate(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function getVariantStockState(quantity) {
+  const stock = Number(quantity) || 0;
+  if (stock <= 0) return { key: "out", label: STOCK_LABEL.out, tone: STOCK_TONE.out };
+  if (stock <= 5) return { key: "low", label: STOCK_LABEL.low, tone: STOCK_TONE.low };
+  return { key: "healthy", label: STOCK_LABEL.healthy, tone: STOCK_TONE.healthy };
+}
+
+function slugifyHandle(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function getProductPreviewUrl(shop, handle) {
+  const safeHandle = handle || "product-handle";
+  return shop ? `https://${shop}/products/${safeHandle}` : `/products/${safeHandle}`;
 }
 
 // Kleines ✕-Tag
@@ -277,15 +388,18 @@ function PositionedDropdown({ anchorRef, open, children }) {
 // ─── Komponente ────────────────────────────────────────────────────────────────
 
 export default function ProductDetail() {
-  const { product, allTags = [], locationId } = useLoaderData();
+  const { product, allTags = [], allVendors = [], allProductTypes = [], locationId, shop } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
+  const returnTo = location.state?.from ?? `/app/products${location.search}`;
   const fetcher = useFetcher();
   const collectionFetcher = useFetcher();
 
   // ── Refs für Portal-Dropdowns ──
   const collectionInputRef = useRef(null);
   const tagInputRef = useRef(null);
+  const vendorInputRef = useRef(null);
+  const typeInputRef = useRef(null);
 
   // ── Basis-State ──
   const [selectedImage, setSelectedImage] = useState(0);
@@ -295,11 +409,28 @@ export default function ProductDetail() {
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState(product.description ?? "");
 
+  // ── SEO ──
+  const [seoDraft, setSeoDraft] = useState({
+    seoTitle: product.seo?.title ?? product.title ?? "",
+    seoDescription: product.seo?.description ?? "",
+    handle: product.handle ?? "",
+  });
+  const [seoDirty, setSeoDirty] = useState(false);
+
+  // ── Organisation ──
+  const [organizationDraft, setOrganizationDraft] = useState({
+    vendor: product.vendor ?? "",
+    productType: product.productType ?? "",
+  });
+  const [organizationDirty, setOrganizationDirty] = useState(false);
+
   // ── Tags ──
   const [localTags, setLocalTags] = useState(product.tags ?? []);
   const [tagInput, setTagInput] = useState("");
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [showTagSearch, setShowTagSearch] = useState(false);
+  const [showVendorSearch, setShowVendorSearch] = useState(false);
+  const [showTypeSearch, setShowTypeSearch] = useState(false);
 
   // ── Collections ──
   const initCollections = product.collections?.edges?.map(e => e.node) ?? [];
@@ -307,6 +438,7 @@ export default function ProductDetail() {
   const [collectionSearch, setCollectionSearch] = useState("");
   const [collectionResults, setCollectionResults] = useState([]);
   const [showCollectionSearch, setShowCollectionSearch] = useState(false);
+  const [selectedDetailTab, setSelectedDetailTab] = useState(0);
 
   // ── Varianten (lokaler State für optimistic UI) ──
   const [localVariants, setLocalVariants] = useState(
@@ -314,11 +446,30 @@ export default function ProductDetail() {
   );
 
   const images = product.images?.edges?.map(e => e.node) ?? [];
+  const metafields = product.metafields?.edges?.map(e => e.node) ?? [];
   const hasVariants = localVariants.length > 1 || localVariants[0]?.title !== "Default Title";
+  const defaultVariant = localVariants.length === 1 && localVariants[0]?.title === "Default Title" ? localVariants[0] : null;
   const totalStock = localVariants.reduce((sum, v) => sum + (v.inventoryQuantity ?? 0), 0);
   const hasZeroStock = localVariants.some(v => (v.inventoryQuantity ?? 0) === 0);
+  const variantStockRows = localVariants.map((variant) => {
+    const stock = Number(variant.inventoryQuantity) || 0;
+    const stockState = getVariantStockState(stock);
+    return {
+      ...variant,
+      stock,
+      stockState,
+      isSale: variant.compareAtPrice && parseFloat(variant.compareAtPrice) > parseFloat(variant.price),
+    };
+  });
 
   const isSaving = fetcher.state !== "idle";
+
+  const vendorSuggestions = organizationDraft.vendor.length > 0
+    ? allVendors.filter((v) => v.toLowerCase().includes(organizationDraft.vendor.toLowerCase())).slice(0, 8)
+    : allVendors.slice(0, 8);
+  const productTypeSuggestions = organizationDraft.productType.length > 0
+    ? allProductTypes.filter((v) => v.toLowerCase().includes(organizationDraft.productType.toLowerCase())).slice(0, 8)
+    : allProductTypes.slice(0, 8);
 
   // Tags-Autocomplete: alle Store-Tags gefiltert nach Eingabe + noch nicht vergeben
   const filteredTagSuggestions = tagInput.length > 0
@@ -331,6 +482,29 @@ export default function ProductDetail() {
   useEffect(() => {
     if (fetcher.data?.type === "updateTags") {
       setLocalTags((prev) => fetcher.data.tags ?? prev);
+    }
+  }, [fetcher.data]);
+
+  useEffect(() => {
+    if (fetcher.data?.type === "updateSeo" && fetcher.data?.product) {
+      const next = fetcher.data.product;
+      setSeoDraft({
+        seoTitle: next.seo?.title ?? "",
+        seoDescription: next.seo?.description ?? "",
+        handle: next.handle ?? "",
+      });
+      setSeoDirty(false);
+    }
+  }, [fetcher.data]);
+
+  useEffect(() => {
+    if (fetcher.data?.type === "updateOrganization" && fetcher.data?.product) {
+      const next = fetcher.data.product;
+      setOrganizationDraft({
+        vendor: next.vendor ?? "",
+        productType: next.productType ?? "",
+      });
+      setOrganizationDirty(false);
     }
   }, [fetcher.data]);
 
@@ -369,7 +543,7 @@ export default function ProductDetail() {
   const handleDelete = () => {
     fetcher.submit({ action: "delete", id: product.id }, { method: "POST" });
     setDeleteModalOpen(false);
-    navigate(`/app${location.search}`);
+    navigate(returnTo);
   };
 
   const handleStatusToggle = () => {
@@ -394,24 +568,29 @@ export default function ProductDetail() {
 
   const handleVariantSave = (v) => {
     const qty = parseInt(variantDraft.inventoryQuantity, 10);
+    const safePrice = variantDraft.price ?? String(v.price ?? "");
+    const safeCompareAtPrice = variantDraft.compareAtPrice ?? "";
+    const safeSku = variantDraft.sku ?? "";
+    const safeBarcode = variantDraft.barcode ?? "";
+    const safeQuantity = String(isNaN(qty) ? (v.inventoryQuantity ?? 0) : qty);
     fetcher.submit({
       action: "updateVariantAll",
       productId: product.id,
       variantId: v.id,
-      price: variantDraft.price,
-      compareAtPrice: variantDraft.compareAtPrice,
-      sku: variantDraft.sku,
-      barcode: variantDraft.barcode,
-      quantity: String(isNaN(qty) ? (v.inventoryQuantity ?? 0) : qty),
+      price: safePrice,
+      compareAtPrice: safeCompareAtPrice,
+      sku: safeSku,
+      barcode: safeBarcode,
+      quantity: safeQuantity,
       inventoryItemId: v.inventoryItem?.id ?? "",
       locationId: locationId ?? "",
     }, { method: "POST" });
     setLocalVariants(prev => prev.map(lv => lv.id === v.id ? {
       ...lv,
-      price: variantDraft.price,
-      compareAtPrice: variantDraft.compareAtPrice || null,
-      sku: variantDraft.sku,
-      barcode: variantDraft.barcode,
+      price: safePrice,
+      compareAtPrice: safeCompareAtPrice || null,
+      sku: safeSku,
+      barcode: safeBarcode,
       inventoryQuantity: isNaN(qty) ? lv.inventoryQuantity : qty,
     } : lv));
     setEditingVariantId(null);
@@ -424,6 +603,38 @@ export default function ProductDetail() {
     );
     setEditingDescription(false);
   };
+
+  const handleSeoSave = () => {
+    fetcher.submit(
+      {
+        action: "updateSeo",
+        id: product.id,
+        handle: seoDraft.handle,
+        seoTitle: seoDraft.seoTitle,
+        seoDescription: seoDraft.seoDescription,
+      },
+      { method: "POST" }
+    );
+  };
+
+  const handleOrganizationSave = () => {
+    fetcher.submit(
+      {
+        action: "updateOrganization",
+        id: product.id,
+        vendor: organizationDraft.vendor,
+        productType: organizationDraft.productType,
+      },
+      { method: "POST" }
+    );
+  };
+
+  const previewUrl = getProductPreviewUrl(shop, seoDraft.handle);
+  const detailTabs = [
+    { id: "variants", content: `Varianten${localVariants.length ? ` (${localVariants.length})` : ""}` },
+    { id: "shipping", content: "Shipping" },
+    { id: "metafields", content: "Metafields" },
+  ];
 
   const handleTagAdd = () => {
     const tag = tagInput.trim();
@@ -461,9 +672,10 @@ export default function ProductDetail() {
 
   return (
     <Page
+      fullWidth
       title={product.title}
       titleMetadata={<Badge tone={STATUS_TONE[product.status]}>{STATUS_LABEL[product.status]}</Badge>}
-      backAction={{ onAction: () => navigate(`/app${location.search}`) }}
+      backAction={{ onAction: () => navigate(returnTo) }}
       primaryAction={{
         content: product.status === "ACTIVE" ? "Auf Entwurf setzen" : "Aktivieren",
         onAction: handleStatusToggle,
@@ -559,159 +771,83 @@ export default function ProductDetail() {
                     <Text tone="subdued" variant="bodySm">{label}</Text>
                     <Text variant="bodySm">{value}</Text>
                   </InlineStack>
-                ))}
+                ))} 
               </BlockStack>
             </Card>
 
-            {/* ── Collections (editierbar) ── */}
+            {/* ── Varianten-Detail-Stock-View ── */}
             <Card>
               <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingSm">Collections</Text>
-                  <Button
-                    size="micro"
-                    onClick={() => setShowCollectionSearch(p => !p)}
-                  >
-                    {showCollectionSearch ? "Schließen" : "+ Hinzufügen"}
-                  </Button>
+                  <Text variant="headingSm">Varianten-Detail-Stock-View</Text>
+                  <Text tone="subdued" variant="bodySm">{variantStockRows.length} Varianten</Text>
                 </InlineStack>
                 <Divider />
 
-                {/* Vorhandene Collections */}
-                {localCollections.length > 0 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {localCollections.map(c => (
-                      <RemovableTag
-                        key={c.id}
-                        label={c.title}
-                        color="var(--p-color-bg-fill-info-secondary)"
-                        textColor="var(--p-color-text-info)"
-                        onRemove={() => handleCollectionRemove(c.id)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <Text tone="subdued" variant="bodySm">Keine Collections zugewiesen</Text>
-                )}
-
-                {/* Suche */}
-                {showCollectionSearch && (
-                  <div style={{ position: "relative" }}>
-                    <div ref={collectionInputRef}>
-                      <TextField
-                        label="" labelHidden
-                        placeholder="Collection suchen…"
-                        value={collectionSearch}
-                        onChange={setCollectionSearch}
-                        autoComplete="off"
-                      />
-                    </div>
-                    <PositionedDropdown
-                      anchorRef={collectionInputRef}
-                      open={collectionResults.filter(c => !localCollections.find(lc => lc.id === c.id)).length > 0}
+                <div style={{ display: "grid", gap: 10 }}>
+                  {variantStockRows.map((variant) => (
+                    <div
+                      key={variant.id}
+                      style={{
+                        display: "grid",
+                        gap: 10,
+                        padding: "12px",
+                        borderRadius: 8,
+                        border: "1px solid var(--p-color-border-subdued)",
+                        background: variant.stockState.key === "out"
+                          ? "var(--p-color-bg-surface-secondary)"
+                          : "var(--p-color-bg-surface)",
+                      }}
                     >
-                      {collectionResults
-                        .filter(c => !localCollections.find(lc => lc.id === c.id))
-                        .map(c => (
-                          <div
-                            key={c.id}
-                            onMouseDown={(e) => { e.preventDefault(); handleCollectionAdd(c); }}
-                            style={{
-                              padding: "8px 12px", cursor: "pointer", fontSize: 13,
-                              borderBottom: "1px solid var(--p-color-border-subdued)",
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = "var(--p-color-bg-surface-hover)"}
-                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                          >
-                            {c.title}
-                          </div>
-                        ))}
-                    </PositionedDropdown>
-                  </div>
-                )}
-              </BlockStack>
-            </Card>
+                      <InlineStack align="space-between" blockAlign="start" wrap>
+                        <BlockStack gap="100">
+                          <InlineStack gap="200" blockAlign="center" wrap>
+                            <Text variant="bodySm" fontWeight="semibold">{variant.title || "Standard"}</Text>
+                            <Badge tone={variant.stockState.tone}>{variant.stockState.label}</Badge>
+                            {variant.isSale && <Badge tone="success">SALE</Badge>}
+                          </InlineStack>
+                          <Text variant="bodySm" tone="subdued">
+                            SKU: {variant.sku || "—"} · Barcode: {variant.barcode || "—"}
+                          </Text>
+                        </BlockStack>
+                        <BlockStack gap="050" align="end">
+                          <Text variant="headingSm">{variant.stock}</Text>
+                          <Text variant="bodySm" tone="subdued">Einheiten</Text>
+                        </BlockStack>
+                      </InlineStack>
 
-            {/* ── Tags (editierbar) ── */}
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingSm">Tags</Text>
-                  <Button
-                    size="micro"
-                    onClick={() => { setShowTagSearch(p => !p); setTagInput(""); setShowTagSuggestions(false); }}
-                  >
-                    {showTagSearch ? "Schließen" : "+ Hinzufügen"}
-                  </Button>
-                </InlineStack>
-                <Divider />
-
-                {localTags.length > 0 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {[...localTags].sort().map((tag) => (
-                      <RemovableTag
-                        key={tag}
-                        label={tag}
-                        onRemove={() => handleTagRemove(tag)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <Text tone="subdued" variant="bodySm">Keine Tags</Text>
-                )}
-
-                {/* Tag hinzufügen */}
-                {showTagSearch && (
-                  <div style={{ position: "relative" }}>
-                    <div style={{ display: "flex", gap: 8 }} ref={tagInputRef}>
-                      <div style={{ flex: 1 }}>
-                        <TextField
-                          label="" labelHidden
-                          placeholder="Tag suchen oder eingeben…"
-                          value={tagInput}
-                          onChange={setTagInput}
-                          autoComplete="off"
-                          onFocus={() => setShowTagSuggestions(true)}
-                          onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") { handleTagAdd(); setShowTagSuggestions(false); }
-                            if (e.key === "Escape") { setShowTagSearch(false); setShowTagSuggestions(false); }
+                      <div style={{ height: 8, borderRadius: 999, background: "var(--p-color-bg-surface-secondary)", overflow: "hidden" }}>
+                        <div
+                          style={{
+                            width: `${Math.min(100, Math.max(8, variant.stock * 12))}%`,
+                            height: "100%",
+                            borderRadius: 999,
+                            background:
+                              variant.stockState.key === "out"
+                                ? "var(--p-color-text-critical)"
+                                : variant.stockState.key === "low"
+                                  ? "var(--p-color-text-warning)"
+                                  : "var(--p-color-text-success)",
+                            transition: "width 160ms ease",
                           }}
                         />
                       </div>
-                      <Button onClick={() => { handleTagAdd(); setShowTagSuggestions(false); }} disabled={!tagInput.trim()}>+</Button>
+
+                      <InlineStack align="space-between" blockAlign="center" wrap>
+                        <Text variant="bodySm" tone="subdued">
+                          Preis: €{parseFloat(variant.price).toFixed(2)}
+                        </Text>
+                        <Text variant="bodySm" tone={variant.stockState.key === "out" ? "critical" : undefined}>
+                          {variant.stockState.key === "out"
+                            ? "Diese Variante ist ausverkauft"
+                            : variant.stockState.key === "low"
+                              ? "Nachbestellen prüfen"
+                              : "Bestand ist gesund"}
+                        </Text>
+                      </InlineStack>
                     </div>
-                    <PositionedDropdown
-                      anchorRef={tagInputRef}
-                      open={showTagSuggestions && filteredTagSuggestions.length > 0}
-                    >
-                      {filteredTagSuggestions.map(tag => (
-                        <div
-                          key={tag}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            const newTags = [...localTags, tag];
-                            setLocalTags(newTags);
-                            setTagInput("");
-                            setShowTagSuggestions(false);
-                            fetcher.submit(
-                              { action: "updateTags", id: product.id, tags: JSON.stringify(newTags) },
-                              { method: "POST" }
-                            );
-                          }}
-                          style={{
-                            padding: "8px 12px", cursor: "pointer", fontSize: 13,
-                            borderBottom: "1px solid var(--p-color-border-subdued)",
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = "var(--p-color-bg-surface-hover)"}
-                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                        >
-                          {tag}
-                        </div>
-                      ))}
-                    </PositionedDropdown>
-                  </div>
-                )}
+                  ))}
+                </div>
               </BlockStack>
             </Card>
 
@@ -764,193 +900,699 @@ export default function ProductDetail() {
               </BlockStack>
             </Card>
 
-            {/* Optionen */}
-            {product.options?.filter(o => o.name !== "Title").length > 0 && (
-              <Card>
-                <BlockStack gap="200">
-                  <Text variant="headingSm">Optionen</Text>
-                  <Divider />
-                  {product.options.filter(o => o.name !== "Title").map(o => (
-                    <InlineStack key={o.id} gap="300" blockAlign="start">
-                      <Text variant="bodySm" tone="subdued" as="span">{o.name}:</Text>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {o.values.map((v, i) => (
-                          <span key={i} style={{
-                            fontSize: "12px", borderRadius: 4,
-                            border: "1px solid var(--p-color-border)",
-                            padding: "1px 8px",
-                          }}>
-                            {v}
-                          </span>
-                        ))}
-                      </div>
-                    </InlineStack>
-                  ))}
-                </BlockStack>
-              </Card>
-            )}
-
-
-            {/* ── Varianten ── */}
             <Card>
               <BlockStack gap="300">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingSm">
-                    {hasVariants ? `Varianten (${localVariants.length})` : "Preis & Lager"}
-                  </Text>
-                  {isSaving && <Spinner size="small" />}
+                <InlineStack align="space-between" blockAlign="center" wrap>
+                  <BlockStack gap="050">
+                    <Text variant="headingSm">SEO</Text>
+                    <Text variant="bodySm" tone="subdued">
+                      Titel, Description und Handle mit Live-Vorschau.
+                    </Text>
+                  </BlockStack>
+                  <Button
+                    variant="primary"
+                    size="slim"
+                    loading={fetcher.state !== "idle" && fetcher.formData?.get("action") === "updateSeo"}
+                    onClick={handleSeoSave}
+                    disabled={!seoDirty}
+                  >
+                    Speichern
+                  </Button>
                 </InlineStack>
                 <Divider />
 
-                {(() => {
-                  // Einmal definiert, von Header + allen Zeilen verwendet
-                  const cols = "32px 1fr 85px 95px 80px 80px 50px 32px";
+                <div style={{ display: "grid", gap: 16, gridTemplateColumns: "1fr" }}>
+                  <TextField
+                    label="SEO Titel"
+                    value={seoDraft.seoTitle}
+                    onChange={(value) => {
+                      setSeoDraft((prev) => ({ ...prev, seoTitle: value }));
+                      setSeoDirty(true);
+                    }}
+                    autoComplete="off"
+                    maxLength={70}
+                    showCharacterCount
+                    helpText="Empfohlen: bis 60 Zeichen"
+                  />
 
-                  const cellStyle = (align = "left") => ({
-                    fontSize: 13,
-                    textAlign: align,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  });
+                  <TextField
+                    label="Meta Description"
+                    value={seoDraft.seoDescription}
+                    onChange={(value) => {
+                      setSeoDraft((prev) => ({ ...prev, seoDescription: value }));
+                      setSeoDirty(true);
+                    }}
+                    autoComplete="off"
+                    multiline={4}
+                    maxLength={160}
+                    showCharacterCount
+                    helpText="Empfohlen: bis 155 Zeichen"
+                  />
 
-                  return (
-                    <BlockStack gap="0">
-                      {/* ── Header ── */}
-                      <div style={{
-                        display: "grid", gridTemplateColumns: cols,
-                        gap: 8, alignItems: "center",
-                        padding: "0 4px 6px",
-                        borderBottom: "1px solid var(--p-color-border-subdued)",
-                      }}>
-                        <div />
-                        <Text variant="bodySm" tone="subdued">Variante</Text>
-                        <Text variant="bodySm" tone="subdued">SKU</Text>
-                        <Text variant="bodySm" tone="subdued">Barcode</Text>
-                        <div style={{ textAlign: "right" }}><Text variant="bodySm" tone="subdued">Preis</Text></div>
-                        <div style={{ textAlign: "right" }}><Text variant="bodySm" tone="subdued">Vgl.preis</Text></div>
-                        <div style={{ textAlign: "right" }}><Text variant="bodySm" tone="subdued">Lager</Text></div>
-                        <div />
+                  <TextField
+                    label="URL Handle"
+                    value={seoDraft.handle}
+                    onChange={(value) => {
+                      setSeoDraft((prev) => ({ ...prev, handle: slugifyHandle(value) }));
+                      setSeoDirty(true);
+                    }}
+                    autoComplete="off"
+                    helpText="Nur Kleinbuchstaben, Zahlen und Bindestriche"
+                  />
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 10,
+                    border: "1px solid var(--p-color-border-subdued)",
+                    borderRadius: 8,
+                    background: "var(--p-color-bg-surface-secondary)",
+                    padding: 16,
+                    minWidth: 0,
+                  }}
+                >
+                  <Text variant="bodySm" tone="subdued">Live Vorschau</Text>
+                  <BlockStack gap="050">
+                    <Text variant="bodySm" tone="subdued">
+                      <span style={{ wordBreak: "break-word" }}>{previewUrl}</span>
+                    </Text>
+                    <Text variant="headingSm">{seoDraft.seoTitle || product.title}</Text>
+                    <Text variant="bodySm" tone="subdued">
+                      {seoDraft.seoDescription || product.description || "Keine Meta Description hinterlegt."}
+                    </Text>
+                  </BlockStack>
+                </div>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center" wrap>
+                  <BlockStack gap="050">
+                    <Text variant="headingSm">Organisation</Text>
+                    <Text variant="bodySm" tone="subdued">
+                      Collections und Tags als Pills, Vendor und Produkttyp darunter.
+                    </Text>
+                  </BlockStack>
+                  <Button
+                    variant="primary"
+                    size="slim"
+                    loading={fetcher.state !== "idle" && fetcher.formData?.get("action") === "updateOrganization"}
+                    onClick={handleOrganizationSave}
+                    disabled={!organizationDirty}
+                  >
+                    Speichern
+                  </Button>
+                </InlineStack>
+                <Divider />
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16 }}>
+                  <BlockStack gap="200">
+                    <Text variant="bodySm" fontWeight="semibold">Collections</Text>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                      {localCollections.map((c) => (
+                        <span
+                          key={c.id}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "5px 10px",
+                            borderRadius: 999,
+                            border: "1px solid var(--p-color-border)",
+                            background: "var(--p-color-bg-surface-secondary)",
+                            fontSize: 12,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {c.title}
+                          <button
+                            onClick={() => handleCollectionRemove(c.id)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              cursor: "pointer",
+                              padding: 0,
+                              color: "var(--p-color-text-subdued)",
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                      <Button size="micro" onClick={() => { setShowCollectionSearch(true); }}>
+                        +
+                      </Button>
+                    </div>
+                    {showCollectionSearch && (
+                      <div style={{ position: "relative" }}>
+                        <div ref={collectionInputRef}>
+                          <TextField
+                            label="" labelHidden
+                            placeholder="Collection suchen…"
+                            value={collectionSearch}
+                            onChange={setCollectionSearch}
+                            autoComplete="off"
+                            onFocus={() => setShowCollectionSearch(true)}
+                            onBlur={() => setTimeout(() => setShowCollectionSearch(false), 150)}
+                          />
+                        </div>
+                        <PositionedDropdown
+                          anchorRef={collectionInputRef}
+                          open={collectionResults.filter(c => !localCollections.find(lc => lc.id === c.id)).length > 0}
+                        >
+                          {collectionResults
+                            .filter(c => !localCollections.find(lc => lc.id === c.id))
+                            .map(c => (
+                              <div
+                                key={c.id}
+                                onMouseDown={(e) => { e.preventDefault(); handleCollectionAdd(c); }}
+                                style={{
+                                  padding: "8px 12px", cursor: "pointer", fontSize: 13,
+                                  borderBottom: "1px solid var(--p-color-border-subdued)",
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = "var(--p-color-bg-surface-hover)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                              >
+                                {c.title}
+                              </div>
+                            ))}
+                        </PositionedDropdown>
                       </div>
+                    )}
+                  </BlockStack>
 
-                      {/* ── Zeilen ── */}
-                      {localVariants.map((v) => {
-                        const isSale = v.compareAtPrice && parseFloat(v.compareAtPrice) > parseFloat(v.price);
-                        const isEditing = editingVariantId === v.id;
-                        const outOfStock = (v.inventoryQuantity ?? 0) === 0;
+                  <BlockStack gap="200">
+                    <Text variant="bodySm" fontWeight="semibold">Tags</Text>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                      {localTags.map((tag) => (
+                        <span
+                          key={tag}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "5px 10px",
+                            borderRadius: 999,
+                            border: "1px solid var(--p-color-border)",
+                            background: "var(--p-color-bg-surface-secondary)",
+                            fontSize: 12,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {tag}
+                          <button
+                            onClick={() => handleTagRemove(tag)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              cursor: "pointer",
+                              padding: 0,
+                              color: "var(--p-color-text-subdued)",
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                      <Button size="micro" onClick={() => { setShowTagSearch(true); setShowTagSuggestions(true); }}>
+                        +
+                      </Button>
+                    </div>
+                    {showTagSearch && (
+                      <div style={{ position: "relative" }}>
+                        <div style={{ display: "flex", gap: 8 }} ref={tagInputRef}>
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="" labelHidden
+                              placeholder="Tag suchen oder eingeben…"
+                              value={tagInput}
+                              onChange={setTagInput}
+                              autoComplete="off"
+                              onFocus={() => setShowTagSuggestions(true)}
+                              onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { handleTagAdd(); setShowTagSuggestions(false); }
+                                if (e.key === "Escape") { setShowTagSearch(false); setShowTagSuggestions(false); }
+                              }}
+                            />
+                          </div>
+                          <Button onClick={() => { handleTagAdd(); setShowTagSuggestions(false); }} disabled={!tagInput.trim()}>+</Button>
+                        </div>
+                        <PositionedDropdown
+                          anchorRef={tagInputRef}
+                          open={showTagSuggestions && filteredTagSuggestions.length > 0}
+                        >
+                          {filteredTagSuggestions.map(tag => (
+                            <div
+                              key={tag}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                const newTags = [...localTags, tag];
+                                setLocalTags(newTags);
+                                setTagInput("");
+                                setShowTagSuggestions(false);
+                                fetcher.submit(
+                                  { action: "updateTags", id: product.id, tags: JSON.stringify(newTags) },
+                                  { method: "POST" }
+                                );
+                              }}
+                              style={{
+                                padding: "8px 12px", cursor: "pointer", fontSize: 13,
+                                borderBottom: "1px solid var(--p-color-border-subdued)",
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = "var(--p-color-bg-surface-hover)"}
+                              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                            >
+                              {tag}
+                            </div>
+                          ))}
+                        </PositionedDropdown>
+                      </div>
+                    )}
+                  </BlockStack>
+                </div>
+
+                <Divider />
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16 }}>
+                  <BlockStack gap="200">
+                    <Text variant="bodySm" fontWeight="semibold">Vendor</Text>
+                    <div style={{ position: "relative" }}>
+                      <div ref={vendorInputRef}>
+                        <TextField
+                          label="" labelHidden
+                          value={organizationDraft.vendor}
+                          onChange={(value) => {
+                            setOrganizationDraft((prev) => ({ ...prev, vendor: value }));
+                            setOrganizationDirty(true);
+                          }}
+                          onFocus={() => setShowVendorSearch(true)}
+                          onBlur={() => setTimeout(() => setShowVendorSearch(false), 150)}
+                          autoComplete="off"
+                          placeholder="Vendor wählen"
+                        />
+                      </div>
+                      <PositionedDropdown anchorRef={vendorInputRef} open={showVendorSearch && vendorSuggestions.length > 0}>
+                        {vendorSuggestions.map((vendor) => (
+                          <div
+                            key={vendor}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setOrganizationDraft((prev) => ({ ...prev, vendor }));
+                              setOrganizationDirty(true);
+                              setShowVendorSearch(false);
+                            }}
+                            style={{
+                              padding: "8px 12px", cursor: "pointer", fontSize: 13,
+                              borderBottom: "1px solid var(--p-color-border-subdued)",
+                            }}
+                          >
+                            {vendor}
+                          </div>
+                        ))}
+                      </PositionedDropdown>
+                    </div>
+                  </BlockStack>
+
+                  <BlockStack gap="200">
+                    <Text variant="bodySm" fontWeight="semibold">Produkttyp</Text>
+                    <div style={{ position: "relative" }}>
+                      <div ref={typeInputRef}>
+                        <TextField
+                          label="" labelHidden
+                          value={organizationDraft.productType}
+                          onChange={(value) => {
+                            setOrganizationDraft((prev) => ({ ...prev, productType: value }));
+                            setOrganizationDirty(true);
+                          }}
+                          onFocus={() => setShowTypeSearch(true)}
+                          onBlur={() => setTimeout(() => setShowTypeSearch(false), 150)}
+                          autoComplete="off"
+                          placeholder="Produkttyp wählen"
+                        />
+                      </div>
+                      <PositionedDropdown anchorRef={typeInputRef} open={showTypeSearch && productTypeSuggestions.length > 0}>
+                        {productTypeSuggestions.map((productType) => (
+                          <div
+                            key={productType}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setOrganizationDraft((prev) => ({ ...prev, productType }));
+                              setOrganizationDirty(true);
+                              setShowTypeSearch(false);
+                            }}
+                            style={{
+                              padding: "8px 12px", cursor: "pointer", fontSize: 13,
+                              borderBottom: "1px solid var(--p-color-border-subdued)",
+                            }}
+                          >
+                            {productType}
+                          </div>
+                        ))}
+                      </PositionedDropdown>
+                    </div>
+                  </BlockStack>
+                </div>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="300">
+                <Tabs tabs={detailTabs} selected={selectedDetailTab} onSelect={setSelectedDetailTab} />
+              </BlockStack>
+            </Card>
+
+            {selectedDetailTab === 0 ? (
+              <>
+                {product.options?.filter(o => o.name !== "Title").length > 0 && (
+                  <Card>
+                    <BlockStack gap="200">
+                      <Text variant="headingSm">Optionen</Text>
+                      <Divider />
+                      {product.options.filter(o => o.name !== "Title").map(o => (
+                        <InlineStack key={o.id} gap="300" blockAlign="start">
+                          <Text variant="bodySm" tone="subdued" as="span">{o.name}:</Text>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {o.values.map((v, i) => (
+                              <span key={i} style={{
+                                fontSize: "12px", borderRadius: 4,
+                                border: "1px solid var(--p-color-border)",
+                                padding: "1px 8px",
+                              }}>
+                                {v}
+                              </span>
+                            ))}
+                          </div>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
+                  </Card>
+                )}
+
+                <Card>
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text variant="headingSm">
+                        {hasVariants ? `Varianten (${localVariants.length})` : "Preis & Lager"}
+                      </Text>
+                      {isSaving && <Spinner size="small" />}
+                    </InlineStack>
+                    <Divider />
+
+                    {!hasVariants && defaultVariant ? (
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between" blockAlign="center" wrap>
+                          <InlineStack gap="200" blockAlign="center" wrap>
+                            <Text variant="bodySm" fontWeight="semibold">Standard</Text>
+                            <Badge tone={getVariantStockState(defaultVariant.inventoryQuantity).tone}>
+                              {getVariantStockState(defaultVariant.inventoryQuantity).label}
+                            </Badge>
+                          </InlineStack>
+                          <Text tone="subdued" variant="bodySm">
+                            SKU: {defaultVariant.sku || "—"} · Barcode: {defaultVariant.barcode || "—"}
+                          </Text>
+                        </InlineStack>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+                          <TextField
+                            label="Preis (€)"
+                            value={variantDraft.price || String(defaultVariant.price ?? "")}
+                            onChange={(val) => setVariantDraft((draft) => ({ ...draft, price: val }))}
+                            type="number"
+                            autoComplete="off"
+                          />
+                          <TextField
+                            label="Vergleichspreis (€)"
+                            value={variantDraft.compareAtPrice || String(defaultVariant.compareAtPrice ?? "")}
+                            onChange={(val) => setVariantDraft((draft) => ({ ...draft, compareAtPrice: val }))}
+                            type="number"
+                            autoComplete="off"
+                            placeholder="leer = kein SALE"
+                          />
+                          <TextField
+                            label="Lagerbestand"
+                            value={variantDraft.inventoryQuantity || String(defaultVariant.inventoryQuantity ?? 0)}
+                            onChange={(val) => setVariantDraft((draft) => ({ ...draft, inventoryQuantity: val }))}
+                            type="number"
+                            autoComplete="off"
+                          />
+                          <TextField
+                            label="SKU"
+                            value={variantDraft.sku || String(defaultVariant.sku ?? "")}
+                            onChange={(val) => setVariantDraft((draft) => ({ ...draft, sku: val }))}
+                            autoComplete="off"
+                          />
+                          <TextField
+                            label="Barcode"
+                            value={variantDraft.barcode || String(defaultVariant.barcode ?? "")}
+                            onChange={(val) => setVariantDraft((draft) => ({ ...draft, barcode: val }))}
+                            autoComplete="off"
+                          />
+                        </div>
+
+                        <InlineStack gap="200">
+                          <Button
+                            variant="primary"
+                            size="slim"
+                            onClick={() => handleVariantSave(defaultVariant)}
+                            loading={isSaving}
+                          >
+                            Speichern
+                          </Button>
+                          <Button
+                            size="slim"
+                            onClick={() => setVariantDraft({
+                              price: String(defaultVariant.price ?? ""),
+                              compareAtPrice: String(defaultVariant.compareAtPrice ?? ""),
+                              inventoryQuantity: String(defaultVariant.inventoryQuantity ?? 0),
+                              sku: defaultVariant.sku ?? "",
+                              barcode: defaultVariant.barcode ?? "",
+                            })}
+                          >
+                            Zurücksetzen
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+                    ) : (
+                      (() => {
+                        const cols = "32px 1fr 85px 95px 80px 80px 50px 32px";
+                        const cellStyle = (align = "left") => ({
+                          fontSize: 13,
+                          textAlign: align,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        });
 
                         return (
-                          <div key={v.id} style={{
-                            borderBottom: "1px solid var(--p-color-border-subdued)",
-                            background: outOfStock && !isEditing ? "#fff7ed" : "transparent",
-                          }}>
-                            {/* Display-Zeile */}
+                          <BlockStack gap="0">
                             <div style={{
                               display: "grid", gridTemplateColumns: cols,
                               gap: 8, alignItems: "center",
-                              padding: "8px 4px",
+                              padding: "0 4px 6px",
+                              borderBottom: "1px solid var(--p-color-border-subdued)",
                             }}>
-                              {/* Bild — immer anzeigen, Fallback auf featuredImage */}
-                              <div style={{
-                                width: 32, height: 32, borderRadius: 4, overflow: "hidden",
-                                border: "1px solid var(--p-color-border)",
-                                background: "var(--p-color-bg-surface-secondary)", flexShrink: 0,
-                              }}>
-                                {(v.image?.url ?? product.featuredImage?.url)
-                                  ? <img src={v.image?.url ?? product.featuredImage?.url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                  : <div style={{ width: "100%", height: "100%" }} />}
-                              </div>
-
-                              {/* Variante */}
-                              <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                                <span style={{ ...cellStyle(), color: outOfStock ? "#f97316" : "inherit" }}>
-                                  {hasVariants ? v.title : "Standard"}
-                                </span>
-                                {outOfStock && <span style={{ fontSize: 11, flexShrink: 0 }}>⚠</span>}
-                                {isSale && <span style={{ fontSize: "9px", background: "#fee2e2", color: "#dc2626", borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>SALE</span>}
-                              </div>
-
-                              {/* SKU */}
-                              <span style={{ ...cellStyle(), color: "var(--p-color-text-secondary)" }}>
-                                {v.sku || "—"}
-                              </span>
-
-                              {/* Barcode */}
-                              <span style={{ ...cellStyle(), color: "var(--p-color-text-secondary)" }}>
-                                {v.barcode || "—"}
-                              </span>
-
-                              {/* Preis */}
-                              <div style={{ textAlign: "right" }}>
-                                {isSale && (
-                                  <div style={{ fontSize: 11, color: "#9ca3af", textDecoration: "line-through", lineHeight: 1.2 }}>
-                                    €{parseFloat(v.compareAtPrice).toFixed(2)}
-                                  </div>
-                                )}
-                                <span style={{ fontSize: 13, color: isSale ? "#dc2626" : "inherit" }}>
-                                  €{parseFloat(v.price).toFixed(2)}
-                                </span>
-                              </div>
-
-                              {/* Vgl.preis */}
-                              <span style={{ ...cellStyle("right"), color: "var(--p-color-text-secondary)", textDecoration: isSale ? "line-through" : "none" }}>
-                                {v.compareAtPrice ? `€${parseFloat(v.compareAtPrice).toFixed(2)}` : "—"}
-                              </span>
-
-                              {/* Lager */}
-                              <span style={{ ...cellStyle("right"), color: outOfStock ? "#f97316" : "var(--p-color-text-secondary)" }}>
-                                {v.inventoryQuantity ?? 0}
-                              </span>
-
-                              {/* Edit-Toggle */}
-                              <button
-                                onClick={() => isEditing ? setEditingVariantId(null) : openVariantEdit(v)}
-                                style={{
-                                  background: isEditing ? "var(--p-color-bg-fill-brand)" : "transparent",
-                                  border: "1px solid var(--p-color-border)",
-                                  borderRadius: 4, cursor: "pointer",
-                                  width: 28, height: 28,
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  padding: 0,
-                                }}
-                                title={isEditing ? "Schließen" : "Bearbeiten"}
-                              >
-                                <Icon source={isEditing ? XIcon : EditIcon} tone={isEditing ? "base" : "subdued"} />
-                              </button>
+                              <div />
+                              <Text variant="bodySm" tone="subdued">Variante</Text>
+                              <Text variant="bodySm" tone="subdued">SKU</Text>
+                              <Text variant="bodySm" tone="subdued">Barcode</Text>
+                              <div style={{ textAlign: "right" }}><Text variant="bodySm" tone="subdued">Preis</Text></div>
+                              <div style={{ textAlign: "right" }}><Text variant="bodySm" tone="subdued">Vgl.preis</Text></div>
+                              <div style={{ textAlign: "right" }}><Text variant="bodySm" tone="subdued">Lager</Text></div>
+                              <div />
                             </div>
 
-                            {/* Edit-Panel */}
-                            {isEditing && (
-                              <div style={{
-                                padding: "12px 8px 16px",
-                                borderTop: "1px solid var(--p-color-border-subdued)",
-                                background: "var(--p-color-bg-surface-secondary)",
-                              }}>
-                                <BlockStack gap="300">
-                                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                                    <TextField label="Preis (€)" value={variantDraft.price} onChange={val => setVariantDraft(d => ({ ...d, price: val }))} type="number" autoComplete="off" />
-                                    <TextField label="Vergleichspreis (€)" value={variantDraft.compareAtPrice} onChange={val => setVariantDraft(d => ({ ...d, compareAtPrice: val }))} type="number" autoComplete="off" placeholder="leer = kein SALE" />
-                                    <TextField label="Lagerbestand" value={variantDraft.inventoryQuantity} onChange={val => setVariantDraft(d => ({ ...d, inventoryQuantity: val }))} type="number" autoComplete="off" />
+                            {localVariants.map((v) => {
+                              const isSale = v.compareAtPrice && parseFloat(v.compareAtPrice) > parseFloat(v.price);
+                              const isEditing = editingVariantId === v.id;
+                              const outOfStock = (v.inventoryQuantity ?? 0) === 0;
+
+                              return (
+                                <div key={v.id} style={{
+                                  borderBottom: "1px solid var(--p-color-border-subdued)",
+                                  background: outOfStock && !isEditing ? "#fff7ed" : "transparent",
+                                }}>
+                                  <div style={{
+                                    display: "grid", gridTemplateColumns: cols,
+                                    gap: 8, alignItems: "center",
+                                    padding: "8px 4px",
+                                  }}>
+                                    <div style={{
+                                      width: 32, height: 32, borderRadius: 4, overflow: "hidden",
+                                      border: "1px solid var(--p-color-border)",
+                                      background: "var(--p-color-bg-surface-secondary)", flexShrink: 0,
+                                    }}>
+                                      {(v.image?.url ?? product.featuredImage?.url)
+                                        ? <img src={v.image?.url ?? product.featuredImage?.url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                        : <div style={{ width: "100%", height: "100%" }} />}
+                                    </div>
+
+                                    <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+                                      <span style={{ ...cellStyle(), color: outOfStock ? "#f97316" : "inherit" }}>
+                                        {hasVariants ? v.title : "Standard"}
+                                      </span>
+                                      {outOfStock && <span style={{ fontSize: 11, flexShrink: 0 }}>⚠</span>}
+                                      {isSale && <span style={{
+                                        fontSize: "10px",
+                                        background: "#fee2e2",
+                                        color: "#dc2626",
+                                        borderRadius: 999,
+                                        padding: "3px 8px",
+                                        fontWeight: 600,
+                                        letterSpacing: "0.3px",
+                                        flexShrink: 0
+                                      }}>SALE</span>}
+                                    </div>
+
+                                    <span style={{ ...cellStyle(), color: "var(--p-color-text-secondary)" }}>
+                                      {v.sku || "—"}
+                                    </span>
+
+                                    <span style={{ ...cellStyle(), color: "var(--p-color-text-secondary)" }}>
+                                      {v.barcode || "—"}
+                                    </span>
+
+                                    <div style={{ textAlign: "right" }}>
+                                      {isSale && (
+                                        <div style={{ fontSize: 11, color: "#9ca3af", textDecoration: "line-through", lineHeight: 1.2 }}>
+                                          €{parseFloat(v.compareAtPrice).toFixed(2)}
+                                        </div>
+                                      )}
+                                      <span style={{ fontSize: 13, color: isSale ? "#dc2626" : "inherit" }}>
+                                        €{parseFloat(v.price).toFixed(2)}
+                                      </span>
+                                    </div>
+
+                                    <span style={{ ...cellStyle("right"), color: "var(--p-color-text-secondary)", textDecoration: isSale ? "line-through" : "none" }}>
+                                      {v.compareAtPrice ? `€${parseFloat(v.compareAtPrice).toFixed(2)}` : "—"}
+                                    </span>
+
+                                    <span style={{ ...cellStyle("right"), color: outOfStock ? "#f97316" : "var(--p-color-text-secondary)" }}>
+                                      {v.inventoryQuantity ?? 0}
+                                    </span>
+
+                                    <button
+                                      onClick={() => isEditing ? setEditingVariantId(null) : openVariantEdit(v)}
+                                      style={{
+                                        background: isEditing ? "var(--p-color-bg-fill-brand)" : "transparent",
+                                        border: "1px solid var(--p-color-border)",
+                                        borderRadius: 4, cursor: "pointer",
+                                        width: 28, height: 28,
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        padding: 0,
+                                      }}
+                                      title={isEditing ? "Schließen" : "Bearbeiten"}
+                                    >
+                                      <Icon source={isEditing ? XIcon : EditIcon} tone={isEditing ? "base" : "subdued"} />
+                                    </button>
                                   </div>
-                                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                                    <TextField label="SKU" value={variantDraft.sku} onChange={val => setVariantDraft(d => ({ ...d, sku: val }))} autoComplete="off" />
-                                    <TextField label="Barcode" value={variantDraft.barcode} onChange={val => setVariantDraft(d => ({ ...d, barcode: val }))} autoComplete="off" />
-                                  </div>
-                                  <InlineStack gap="200">
-                                    <Button variant="primary" size="slim" onClick={() => handleVariantSave(v)} loading={isSaving}>Speichern</Button>
-                                    <Button size="slim" onClick={() => setEditingVariantId(null)}>Abbrechen</Button>
-                                  </InlineStack>
-                                </BlockStack>
-                              </div>
-                            )}
-                          </div>
+
+                                  {isEditing && (
+                                    <div style={{
+                                      padding: "12px 8px 16px",
+                                      borderTop: "1px solid var(--p-color-border-subdued)",
+                                      background: "var(--p-color-bg-surface-secondary)",
+                                    }}>
+                                      <BlockStack gap="300">
+                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                                          <TextField label="Preis (€)" value={variantDraft.price} onChange={val => setVariantDraft(d => ({ ...d, price: val }))} type="number" autoComplete="off" />
+                                          <TextField label="Vergleichspreis (€)" value={variantDraft.compareAtPrice} onChange={val => setVariantDraft(d => ({ ...d, compareAtPrice: val }))} type="number" autoComplete="off" placeholder="leer = kein SALE" />
+                                          <TextField label="Lagerbestand" value={variantDraft.inventoryQuantity} onChange={val => setVariantDraft(d => ({ ...d, inventoryQuantity: val }))} type="number" autoComplete="off" />
+                                        </div>
+                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                          <TextField label="SKU" value={variantDraft.sku} onChange={val => setVariantDraft(d => ({ ...d, sku: val }))} autoComplete="off" />
+                                          <TextField label="Barcode" value={variantDraft.barcode} onChange={val => setVariantDraft(d => ({ ...d, barcode: val }))} autoComplete="off" />
+                                        </div>
+                                        <InlineStack gap="200">
+                                          <Button variant="primary" size="slim" onClick={() => handleVariantSave(v)} loading={isSaving}>Speichern</Button>
+                                          <Button size="slim" onClick={() => setEditingVariantId(null)}>Abbrechen</Button>
+                                        </InlineStack>
+                                      </BlockStack>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </BlockStack>
                         );
-                      })}
+                      })()
+                    )}
+                  </BlockStack>
+                </Card>
+              </>
+            ) : selectedDetailTab === 1 ? (
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingSm">Shipping</Text>
+                    <Text variant="bodySm" tone="subdued">Versand pro Variante</Text>
+                  </InlineStack>
+                  <Divider />
+                  <BlockStack gap="200">
+                    {localVariants.map((variant) => (
+                      <div
+                        key={variant.id}
+                        style={{
+                          display: "grid",
+                          gap: 8,
+                          padding: 12,
+                          borderRadius: 8,
+                          border: "1px solid var(--p-color-border-subdued)",
+                        }}
+                      >
+                        <InlineStack align="space-between" blockAlign="center" wrap>
+                          <Text variant="bodySm" fontWeight="semibold">{variant.title || "Standard"}</Text>
+                          <Badge tone={variant.inventoryItem?.requiresShipping ? "success" : "warning"}>
+                            {variant.inventoryItem?.requiresShipping ? "Versand erforderlich" : "Kein Versand"}
+                          </Badge>
+                        </InlineStack>
+                        <Text variant="bodySm" tone="subdued">
+                          {variant.inventoryItem?.tracked ? "Inventar wird verfolgt" : "Inventar wird nicht verfolgt"}
+                        </Text>
+                      </div>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            ) : (
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingSm">Metafields</Text>
+                    <Text variant="bodySm" tone="subdued">{metafields.length} Einträge</Text>
+                  </InlineStack>
+                  <Divider />
+                  {metafields.length > 0 ? (
+                    <BlockStack gap="200">
+                      {metafields.map((field) => (
+                        <div
+                          key={field.id}
+                          style={{
+                            display: "grid",
+                            gap: 4,
+                            padding: 12,
+                            borderRadius: 8,
+                            border: "1px solid var(--p-color-border-subdued)",
+                          }}
+                        >
+                          <Text variant="bodySm" fontWeight="semibold">
+                            {field.namespace}.{field.key}
+                          </Text>
+                          <Text variant="bodySm" tone="subdued">
+                            {field.type}
+                          </Text>
+                          <Text variant="bodySm">{field.value || "—"}</Text>
+                        </div>
+                      ))}
                     </BlockStack>
-                  );
-                })()}
-              </BlockStack>
-            </Card>
+                  ) : (
+                    <Text tone="subdued" variant="bodySm">Keine Metafields hinterlegt</Text>
+                  )}
+                </BlockStack>
+              </Card>
+            )}
 
           </BlockStack>
         </Layout.Section>

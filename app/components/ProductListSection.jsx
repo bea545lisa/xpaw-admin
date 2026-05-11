@@ -47,20 +47,24 @@ export default function ProductListSection({
       <style>{`
         .product-grid {
           display: grid;
-          grid-template-columns: 1fr 80px 60px 50px 90px;
-          gap: 8px;
-          align-items: center;
+          grid-template-columns: minmax(0, 1fr) 92px 72px 100px 48px;
+          gap: 10px;
+          align-items: start;
           width: 100%;
           position: relative;
         }
       `}</style>
       <Box paddingInline="200" paddingBlock="200">
-        <div className="product-grid">
-          <div style={{ paddingLeft: 82 }}><Text variant="headingSm" tone="subdued">Produkt</Text></div>
-          <div style={{ textAlign: "right" }}><Text variant="headingSm" tone="subdued">Preis</Text></div>
-          <div style={{ textAlign: "right" }}><Text variant="headingSm" tone="subdued">Lager</Text></div>
-          <div style={{ textAlign: "center" }}><Text variant="headingSm" tone="subdued">Aktionen</Text></div>
-          <div style={{ textAlign: "center" }}><Text variant="headingSm" tone="subdued">Status</Text></div>
+        <div className="product-grid" 
+        style={{
+          transition: "all 0.2s ease",
+          borderRadius: 12,
+        }}>
+          <div style={{ paddingLeft: 82, paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Produkt</Text></div>
+          <div style={{ textAlign: "right", alignSelf: "start", paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Preis</Text></div>
+          <div style={{ textAlign: "right", alignSelf: "start", paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Inventar</Text></div>
+          <div style={{ textAlign: "center", alignSelf: "start", paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Status</Text></div>
+          <div style={{ textAlign: "center", alignSelf: "start", paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Aktionen</Text></div>
         </div>
       </Box>
 

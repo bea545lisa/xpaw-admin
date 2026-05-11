@@ -4,6 +4,7 @@
   "scripts": {
     "build": "react-router build",
     "dev": "shopify app dev --use-localhost",
+    "dev:win": "set NODE_OPTIONS=--max-old-space-size=8192 && npm run dev",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
     "deploy": "shopify app deploy",

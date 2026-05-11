@@ -8,19 +8,53 @@ import {
   EditIcon,
   NoteIcon,
   DuplicateIcon,
-  DeleteIcon
+  DeleteIcon,
+  CategoriesIcon,
+  HashtagIcon,
+  VariantIcon,
+  CartSaleIcon,
+  AlertTriangleIcon,
 } from "@shopify/polaris-icons";
 
+const pillMuted = {
+  fontSize: "10px",
+  background: "#f4f4f5",
+  color: "#52525b",
+  borderRadius: 999,
+  padding: "3px 8px",
+  fontWeight: 500,
+};
+
+function formatTemplateSuffix(raw) {
+  if (!raw || !String(raw).trim()) return null;
+  return String(raw)
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function SectionHeading({ icon, label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+      <span style={{ display: "flex", width: 16, height: 16 }}>
+        <Icon source={icon} tone="subdued" />
+      </span>
+      <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--p-color-text-secondary)" }}>{label}</span>
+    </div>
+  );
+}
+
 function StatusBadge({ status, onClick }) {
-  const toneMap = { ACTIVE: "success", DRAFT: "info", ARCHIVED: "warning" };
   const labelMap = { ACTIVE: "Aktiv", DRAFT: "Entwurf", ARCHIVED: "Archiviert" };
+  const toneMap = { ACTIVE: "success", DRAFT: "info", ARCHIVED: "warning" };
   return (
     <button
       onClick={onClick}
       style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
       title="Status ändern"
     >
-      <Badge tone={toneMap[status] ?? "info"}>{labelMap[status] ?? status}</Badge>
+      <span style={{ display: "inline-flex", transform: "scale(1.12)", transformOrigin: "center" }}>
+        <Badge tone={toneMap[status] ?? "info"}>{labelMap[status] ?? status}</Badge>
+      </span>
     </button>
   );
 }
@@ -108,6 +142,27 @@ export default function ProductItem({
     }
   }, [editingTitle]);
 
+  const collectionNodes = product.node.collections?.edges?.map(({ node: c }) => c) ?? [];
+  const sortedTags = [...(product.node.tags ?? [])].sort();
+  const nonTitleOptions = (product.node.options ?? []).filter((o) => o.name !== "Title");
+  const variants = product.node.variants?.edges ?? [];
+  const variantCount = variants.length;
+  const hasSale = variants.some(
+    (e) => e.node.compareAtPrice && parseFloat(e.node.compareAtPrice) > parseFloat(e.node.price)
+  );
+  const templateBadge = formatTemplateSuffix(product.node.templateSuffix);
+  const metaLine = product.node.metafields?.edges
+    ?.slice(0, 3)
+    .map((e) => `${e.node.namespace}: ${e.node.value}`)
+    .join("  ·  ");
+  const showMetaRow = Boolean(metaLine);
+  const zeroStockValues =
+    variants
+      ?.filter((e) => (e.node.inventoryQuantity ?? 0) === 0)
+      ?.flatMap((e) => e.node.selectedOptions?.map((so) => so.value) ?? []) ?? [];
+
+  const COL_PILL_CAP = 2;
+
   return (
     <motion.div
       layout
@@ -124,172 +179,331 @@ export default function ProductItem({
         <Box paddingInline="200" paddingBlock="100" borderBlockStartWidth="025" borderColor="border-subdued">
           <div className="product-grid">
 
-            {/* Spalte 1: Titel */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-              <Checkbox label="" labelHidden checked={selected} onChange={onSelect} />
-
-              {/* ── Produktbild ── */}
-              <ImageStrip
-                product={product}
-                onClick={() => {
-                  const id = product.node.id.split("/").pop();
-                  navigate(`/app/products/${id}${location.search}`);
+            {/* Spalte 1: Produkt (Karte mit Unterbereichen) */}
+            <div style={{ minWidth: 0, display: "flex", alignItems: "stretch" }}>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  borderRadius: 10,
+                  border: "1px solid var(--p-color-border-subdued)",
+                  background: "var(--p-color-bg-surface)",
+                  overflow: "hidden",
                 }}
-              />
-
-              <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                {editingTitle ? (
-                  <div style={{ display: "flex", gap: 4, alignItems: "center", width: "100%" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <TextField
-                        label="" labelHidden
-                        value={titleValue}
-                        onChange={setTitleValue}
-                        onKeyDown={handleTitleKeyDown}
-                        autoComplete="off"
-                      />
-                    </div>
-                    <Button size="slim" onClick={handleTitleSave}>✓</Button>
-                    <Button size="slim" onClick={() => { setTitleValue(product.node.title); setEditingTitle(false); }}>✕</Button>
+              >
+                {/* Kopfzeile: Auswahl, Bild, Titel, Badge, Attribute */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 12,
+                    padding: "10px 12px",
+                  }}
+                >
+                  <Checkbox label="" labelHidden checked={selected} onChange={onSelect} />
+                  <ImageStrip
+                    product={product}
+                    onClick={() => {
+                      const id = product.node.id.split("/").pop();
+                       navigate(`/app/products/${id}${location.search}`, {
+                         state: { from: `${location.pathname}${location.search}` },
+                       });
+                    }}
+                  />
+                  <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: 3 }}>
+                    {editingTitle ? (
+                      <div style={{ display: "flex", gap: 4, alignItems: "center", width: "100%" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <TextField
+                            label="" labelHidden
+                            value={titleValue}
+                            onChange={setTitleValue}
+                            onKeyDown={handleTitleKeyDown}
+                            autoComplete="off"
+                          />
+                        </div>
+                        <Button size="slim" onClick={handleTitleSave}>✓</Button>
+                        <Button size="slim" onClick={() => { setTitleValue(product.node.title); setEditingTitle(false); }}>✕</Button>
+                      </div>
+                    ) : (
+                      <Text variant="bodyMd" fontWeight="semibold">
+                        <span
+                          style={{
+                            cursor: "pointer",
+                            color: "#111827",
+                          }}
+                          onClick={handleTitleClick}
+                          title="Klicken zum Bearbeiten"
+                        >
+                          {product.node.title}
+                        </span>
+                      </Text>
+                    )}
+                    {(templateBadge || nonTitleOptions.length > 0 || showMetaRow) && (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "row",
+                          flexWrap: "nowrap",
+                          alignItems: "center",
+                          gap: 12,
+                          minWidth: 0,
+                          maxWidth: "100%",
+                          overflowX: "auto",
+                          scrollbarWidth: "thin",
+                        }}
+                      >
+                        {templateBadge && (
+                          <span style={{ flexShrink: 0 }}>
+                            <Badge tone="info">{templateBadge}</Badge>
+                          </span>
+                        )}
+                        {nonTitleOptions.map((o, i) => (
+                          <span
+                            key={o.id ?? i}
+                            style={{
+                              flexShrink: 0,
+                              fontSize: "11px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <strong style={{ color: "var(--p-color-text-secondary)" }}>{o.name}</strong>
+                            {": "}
+                            {o.values.map((v, vi) => (
+                              <span
+                                key={vi}
+                                style={{
+                                  color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
+                                }}
+                              >
+                                {vi > 0 && ", "}
+                                {v}
+                              </span>
+                            ))}
+                          </span>
+                        ))}
+                        {showMetaRow && (
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              fontSize: "10px",
+                              color: "#9ca3af",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {metaLine}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <Text>
-                    <span
-                      style={{ cursor: "pointer", textDecoration: "underline" }}
-                      onClick={handleTitleClick}
-                      title="Klicken zum Bearbeiten"
-                    >
-                      {product.node.title}
-                    </span>
-                  </Text>
-                )}
-
-                <div style={{ marginTop: -4 }}>
-                  <span style={{ fontSize: "11px", color: "var(--p-color-text-secondary)" }}>
-                    {product.node.metafields?.edges?.map(e => `${e.node.namespace}: ${e.node.value}`).join("  |  ")}
-                  </span>
                 </div>
 
-                {/* Collections */}
-                {product.node.collections?.edges?.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                    {product.node.collections.edges.map(({ node: c }) => (
-                      <span key={c.id} style={{
-                        fontSize: "10px",
-                        background: "var(--p-color-bg-fill-info-secondary)",
-                        color: "var(--p-color-text-info)",
-                        borderRadius: 4,
-                        padding: "1px 6px",
-                      }}>
-                        {c.title}
-                      </span>
-                    ))}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                    borderTop: "1px solid var(--p-color-border-subdued)",
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      borderRight: "1px solid var(--p-color-border-subdued)",
+                      minWidth: 0,
+                    }}
+                  >
+                    <SectionHeading icon={CategoriesIcon} label="Kollektionen" />
+                    {collectionNodes.length > 0 ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {collectionNodes.slice(0, COL_PILL_CAP).map((c) => (
+                          <span key={c.id} style={pillMuted}>{c.title}</span>
+                        ))}
+                        {collectionNodes.length > COL_PILL_CAP && (
+                          <span style={pillMuted}>+{collectionNodes.length - COL_PILL_CAP}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "11px", color: "#9ca3af" }}>—</span>
+                    )}
                   </div>
-                )}
-
-                {/* Tags */}
-                {product.node.tags?.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                    {[...product.node.tags].sort().map((tag, i) => (
-                      <span key={i} style={{
-                        fontSize: "10px",
-                        background: "var(--p-color-bg-fill-secondary)",
-                        color: "var(--p-color-text-secondary)",
-                        borderRadius: 4,
-                        padding: "1px 6px",
-                      }}>
-                        {tag}
-                      </span>
-                    ))}
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      borderRight: "1px solid var(--p-color-border-subdued)",
+                      minWidth: 0,
+                    }}
+                  >
+                    <SectionHeading icon={HashtagIcon} label="Tags" />
+                    {sortedTags.length > 0 ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {sortedTags.slice(0, COL_PILL_CAP).map((tag) => (
+                          <span key={tag} style={pillMuted}>{tag}</span>
+                        ))}
+                        {sortedTags.length > COL_PILL_CAP && (
+                          <span style={pillMuted}>+{sortedTags.length - COL_PILL_CAP}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "11px", color: "#9ca3af" }}>—</span>
+                    )}
                   </div>
-                )}
-
-                {product.node.options?.filter(o => o.name !== "Title").length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2, marginTop: 5 }}>
-                    {product.node.options.filter(o => o.name !== "Title").map((o, i) => {
-                      const zeroStockValues = product.node.variants?.edges
-                        ?.filter(e => (e.node.inventoryQuantity ?? 0) === 0)
-                        ?.flatMap(e => e.node.selectedOptions?.map(so => so.value) ?? []) ?? [];
-                      return (
-                        <span key={i} style={{ fontSize: "11px" }}>
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      borderRight: "1px solid var(--p-color-border-subdued)",
+                      minWidth: 0,
+                    }}
+                  >
+                    <SectionHeading icon={VariantIcon} label="Varianten" />
+                    <div style={{ fontSize: "11px", lineHeight: 1.45, color: "var(--p-color-text-secondary)" }}>
+                      {nonTitleOptions.map((o, i) => (
+                        <span key={o.id ?? i} style={{ display: "block" }}>
                           <strong style={{ color: "var(--p-color-text-secondary)" }}>{o.name}</strong>
                           {": "}
                           {o.values.map((v, vi) => (
-                            <span key={vi} style={{ color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)" }}>
-                              {vi > 0 && ", "}{v}
+                            <span
+                              key={vi}
+                              style={{
+                                color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
+                              }}
+                            >
+                              {vi > 0 && ", "}
+                              {v}
                             </span>
                           ))}
                         </span>
-                      );
-                    })}
-                    {/* SALE Badge */}
-                    {product.node.variants?.edges?.some(e =>
-                      e.node.compareAtPrice && parseFloat(e.node.compareAtPrice) > parseFloat(e.node.price)
-                    ) && (
-                      <span style={{
-                        fontSize: "9px", background: "#fee2e2", color: "#dc2626",
-                        borderRadius: 3, padding: "1px 4px", display: "inline-block",
-                        marginTop: 2, width: "fit-content",
-                      }}>SALE</span>
-                    )}
+                      ))}
+                      <span style={{ color: "#9ca3af" }}>
+                        {" · "}
+                        {variantCount} {variantCount === 1 ? "Variante" : "Varianten"}
+                      </span>
+                    </div>
                   </div>
-                )}
+                  <div style={{ padding: "8px 12px", minWidth: 0 }}>
+                    <SectionHeading icon={CartSaleIcon} label="Sale" />
+                    <div style={{ marginTop: 4 }}>
+                      {hasSale ? (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            background: "#fee2e2",
+                            color: "#dc2626",
+                            borderRadius: 999,
+                            padding: "3px 8px",
+                            fontWeight: 600,
+                            letterSpacing: "0.3px",
+                            display: "inline-block",
+                          }}
+                        >
+                          SALE
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "11px", color: "#9ca3af" }}>—</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Spalte 2: Preis */}
-            <div style={{ textAlign: "right" }}>
-              <Text tone="subdued" variant="bodySm">
-                {(() => {
-                  const prices = product.node.variants?.edges?.map(e => parseFloat(e.node.price)) ?? [];
-                  const comparePrices = product.node.variants?.edges?.map(e => parseFloat(e.node.compareAtPrice)).filter(p => !isNaN(p) && p > 0) ?? [];
-                  const minPrice = Math.min(...prices);
-                  const maxPrice = Math.max(...prices);
-                  const hasCompare = comparePrices.length > 0;
-                  const priceLabel = prices.length <= 1
-                    ? `€${prices[0]?.toFixed(2) ?? "0.00"}`
-                    : minPrice === maxPrice ? `€${minPrice.toFixed(2)}` : `ab €${minPrice.toFixed(2)}`;
-
-                  return (
-                    <div style={{ textAlign: "right" }}>
-                      {hasCompare && (
-                        <div style={{ fontSize: "10px", color: "#9ca3af", textDecoration: "line-through" }}>
-                          €{Math.min(...comparePrices).toFixed(2)}
-                        </div>
-                      )}
-                      <Text tone={hasCompare ? "critical" : "subdued"} variant="bodySm">{priceLabel}</Text>
-                      {hasCompare && (
-                        <div style={{ fontSize: "9px", background: "#fee2e2", color: "#dc2626", borderRadius: 3, padding: "1px 4px", display: "inline-block" }}>
-                          SALE
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </Text>
-            </div>
-
-            {/* Spalte 3: Lager */}
-            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center" }}>
+            <div
+            style={{
+              textAlign: "right",
+              display: "flex",
+              justifyContent: "flex-end",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: 3,
+              paddingTop: "16px",
+            }}
+          >
               {(() => {
-                const variants = product.node.variants?.edges ?? [];
-                const total = variants.reduce((sum, e) => sum + (e.node.inventoryQuantity ?? 0), 0);
-                const hasZero = variants.some(e => (e.node.inventoryQuantity ?? 0) === 0);
+                const prices = product.node.variants?.edges?.map((e) => parseFloat(e.node.price)) ?? [];
+                const comparePrices = product.node.variants?.edges
+                  ?.map((e) => parseFloat(e.node.compareAtPrice))
+                  .filter((p) => !isNaN(p) && p > 0) ?? [];
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                const hasCompare = comparePrices.length > 0;
+                const priceLabel = prices.length <= 1
+                  ? `€${prices[0]?.toFixed(2) ?? "0.00"}`
+                  : minPrice === maxPrice ? `€${minPrice.toFixed(2)}` : `ab €${minPrice.toFixed(2)}`;
+
                 return (
                   <>
-                    <span style={{ display: "inline-block", width: 24, textAlign: "right", color: hasZero ? "#f97316" : "var(--p-color-text-secondary)", fontSize: "12px" }}>
-                      {total}
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color: hasCompare ? "#dc2626" : "var(--p-color-text-secondary)",
+                      }}
+                    >
+                      {priceLabel}
                     </span>
-                    <span style={{ display: "inline-block", width: 14, fontSize: "12px" }}>
-                      {hasZero ? "⚠" : ""}
-                    </span>
+                    {hasCompare && (
+                      <div style={{ fontSize: "11px", color: "#9ca3af", textDecoration: "line-through" }}>
+                        €{Math.min(...comparePrices).toFixed(2)}
+                      </div>
+                    )}
                   </>
                 );
               })()}
             </div>
 
-            {/* Spalte 4: Radiales Aktionsmenü */}
-            <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center",
+            {/* Spalte 3: Inventar */}
+            <div
+              style={{
+                textAlign: "right",
+                display: "flex",
+                justifyContent: "flex-end",
+                paddingTop: "16px",
+              }}
+            >
+              {(() => {
+                const v = product.node.variants?.edges ?? [];
+                const total = v.reduce((sum, e) => sum + (e.node.inventoryQuantity ?? 0), 0);
+                const hasZero = v.some((e) => (e.node.inventoryQuantity ?? 0) === 0);
+                return (
+                  <>
+                    <span
+                      style={{
+                        textAlign: "right",
+                        color: hasZero ? "#f97316" : "var(--p-color-text-secondary)",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {total}
+                    </span>
+                    {hasZero ? (
+                      <span style={{ display: "flex", alignItems: "center", width: 16, height: 16 }}>
+                        <Icon source={AlertTriangleIcon} tone="warning" />
+                      </span>
+                    ) : (
+                      <span style={{ width: 16 }} />
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Spalte 4: Status */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "flex-start",
+                paddingTop: "16px",
+              }}
+            >
+              <StatusBadge status={product.node.status} onClick={() => onStatusToggle(product.node.id, product.node.status)} />
+            </div>
+
+            {/* Spalte 5: Aktionsmenü */}
+            <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "flex-start",
+              paddingTop: "16px",
               zIndex: isMenuOpen ? 100 : 1,
               overflow: "visible" }}>
               <div style={{
@@ -318,7 +532,7 @@ export default function ProductItem({
               {/* Radiale Buttons */}
               {!isPendingDelete && (() => {
                 const actions = [
-                  { icon: ViewIcon, label: "Vorschau", tone: undefined, onClick: () => { const id = product.node.id.split("/").pop(); navigate(`/app/products/${id}${location.search}`); } },
+                   { icon: ViewIcon, label: "Vorschau", tone: undefined, onClick: () => { const id = product.node.id.split("/").pop(); navigate(`/app/products/${id}${location.search}`, { state: { from: `${location.pathname}${location.search}` } }); } },
                   { icon: NoteIcon, label: "Metafields", tone: undefined, onClick: () => onMetafields(product.node.id) },
                   { icon: DuplicateIcon, label: "Duplizieren", tone: undefined, onClick: () => onDuplicate(product) },
                   { icon: EditIcon, label: "Bearbeiten", tone: undefined, onClick: () => onEdit(product) },
@@ -391,11 +605,6 @@ export default function ProductItem({
                   onClick={() => setOpenMenuId(null)}
                 />
               )}
-            </div>
-
-            {/* Spalte 5: Status */}
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <StatusBadge status={product.node.status} onClick={() => onStatusToggle(product.node.id, product.node.status)} />
             </div>
 
           </div>

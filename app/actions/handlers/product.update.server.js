@@ -8,7 +8,7 @@ export async function handleUpdate(admin, formData, services) {
   await admin.graphql(`
     mutation($id: ID!, $title: String!, $descriptionHtml: String!) {
       productUpdate(input: { id: $id, title: $title, descriptionHtml: $descriptionHtml }) {
-        product { id }
+        product { id title createdAt updatedAt }
         userErrors { field message }
       }
     }
@@ -99,7 +99,7 @@ export async function handleUpdate(admin, formData, services) {
   const productData = await admin.graphql(`
     query($id: ID!) {
       product(id: $id) {
-        id title status description tags
+        id title status createdAt updatedAt description tags
         metafields(first: 5) {
           edges { node { id namespace key value } }
         }
@@ -177,7 +177,7 @@ export async function handleUpdateTitle(admin, formData) {
   const res = await admin.graphql(`
     mutation($id: ID!, $title: String!) {
       productUpdate(input: { id: $id, title: $title }) {
-        product { id title }
+        product { id title createdAt updatedAt }
         userErrors { field message }
       }
     }
@@ -190,7 +190,7 @@ export async function handleUpdateTags(admin, formData) {
   const res = await admin.graphql(`
     mutation($id: ID!, $tags: [String!]!) {
       productUpdate(input: { id: $id, tags: $tags }) {
-        product { id tags }
+        product { id title createdAt updatedAt tags }
         userErrors { field message }
       }
     }
@@ -200,6 +200,8 @@ export async function handleUpdateTags(admin, formData) {
 }
 
 export async function handleDuplicate(admin, formData) {
+  const sourceTitle = String(formData.get("title") ?? "").trim();
+  const duplicatedTitle = `${sourceTitle} *** KOPIE ***`;
   const res = await admin.graphql(`
     mutation($productId: ID!, $newTitle: String!) {
       productDuplicate(productId: $productId, newTitle: $newTitle, includeImages: true) {
@@ -233,9 +235,39 @@ export async function handleDuplicate(admin, formData) {
   `, {
     variables: {
       productId: formData.get("id"),
-      newTitle: `${formData.get("title")} *** KOPIE ***`,
+      newTitle: duplicatedTitle,
     }
   });
   const data = await res.json();
-  return { ok: true, type: "duplicate", product: data.data.productDuplicate.newProduct };
+  const duplicatedProduct = data?.data?.productDuplicate?.newProduct;
+  if (!duplicatedProduct?.id) {
+    return Response.json({
+      ok: false,
+      type: "duplicate",
+      error: data?.data?.productDuplicate?.userErrors?.[0]?.message ?? "Duplikat konnte nicht erstellt werden.",
+    }, { status: 400 });
+  }
+
+  let finalTitle = duplicatedProduct.title ?? duplicatedTitle;
+
+  if (finalTitle !== duplicatedTitle) {
+    const updateRes = await admin.graphql(`
+      mutation($id: ID!, $title: String!) {
+        productUpdate(input: { id: $id, title: $title }) {
+          product { id title status createdAt updatedAt }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        id: duplicatedProduct.id,
+        title: duplicatedTitle,
+      },
+    });
+
+    const updateJson = await updateRes.json();
+    finalTitle = updateJson?.data?.productUpdate?.product?.title ?? duplicatedTitle;
+  }
+
+  return { ok: true, type: "duplicate", product: { ...duplicatedProduct, title: finalTitle } };
 }

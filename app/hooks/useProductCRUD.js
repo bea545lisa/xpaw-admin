@@ -60,12 +60,27 @@ export function useProductCRUD({
         setLocalProducts(prev => prev.filter(p => p.node.id !== data.id));
       }
       if (data.type === "create") {
-        setToast(`Produkt ${data.product.title} erstellt 🎉`);
-        setLocalProducts(prev => [{ node: data.product }, ...prev]);
+        const product = {
+          ...data.product,
+          status: data.product?.status ?? "DRAFT",
+          createdAt: data.product?.createdAt ?? new Date().toISOString(),
+          updatedAt: data.product?.updatedAt ?? new Date().toISOString(),
+        };
+        setToast(`Produkt ${product.title} erstellt 🎉`);
+        setLocalProducts(prev => [{ node: product }, ...prev]);
       }
       if (data.type === "duplicate") {
-        setToast(`${data.product.title} erstellt 🎉`);
-        setLocalProducts(prev => [{ node: data.product }, ...prev]);
+        const product = {
+          ...data.product,
+          status: data.product?.status ?? "DRAFT",
+          createdAt: data.product?.createdAt ?? new Date().toISOString(),
+          updatedAt: data.product?.updatedAt ?? new Date().toISOString(),
+          title: String(data.product?.title ?? "").includes("*** KOPIE ***")
+            ? data.product.title
+            : `${String(data.product?.title ?? "").trim()} *** KOPIE ***`,
+        };
+        setToast(`${product.title} erstellt 🎉`);
+        setLocalProducts(prev => [{ node: product }, ...prev]);
       }
     }
     prevState.current = fetcher.state;

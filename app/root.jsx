@@ -8,18 +8,24 @@ import {
 
 import { AppProvider } from "@shopify/polaris";
 import "@shopify/polaris/build/esm/styles.css";
+import "./app.css";
+
+import AppLayout from "./components/layout/AppLayout";
 
 export default function Root() {
   return (
-    <html>
+    <html lang="de">
       <head>
         <meta charSet="utf-8" />
         <Meta />
         <Links />
       </head>
       <body>
+
         <AppProvider i18n={{}}>
-          <Outlet />
+          <AppLayout>
+            <Outlet />
+          </AppLayout>
         </AppProvider>
 
         <ScrollRestoration />

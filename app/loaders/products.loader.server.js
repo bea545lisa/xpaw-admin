@@ -16,10 +16,13 @@ export const loader = async ({ request }) => {
         products(first: 50, after: $cursor) {
           edges {
             cursor
-            node {
-              id title status
-              description
-              tags
+              node {
+                id title status
+                createdAt
+                updatedAt
+                templateSuffix
+                description
+                tags
               featuredImage { url altText }
               collections(first: 10) {
                 edges {

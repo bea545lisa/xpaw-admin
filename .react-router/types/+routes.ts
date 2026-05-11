@@ -39,6 +39,9 @@ type Pages = {
   "/app/additional": {
     params: {};
   };
+  "/app/products": {
+    params: {};
+  };
   "/app/upload": {
     params: {};
   };
@@ -47,7 +50,7 @@ type Pages = {
 type RouteFiles = {
   "root.jsx": {
     id: "root";
-    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/products/:id" | "/auth/login" | "/auth/*" | "/app" | "/app/additional" | "/app/upload";
+    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/products/:id" | "/auth/login" | "/auth/*" | "/app" | "/app/additional" | "/app/products" | "/app/upload";
   };
   "routes/webhooks.app.scopes_update.jsx": {
     id: "routes/webhooks.app.scopes_update";
@@ -75,11 +78,15 @@ type RouteFiles = {
   };
   "routes/app.jsx": {
     id: "routes/app";
-    page: "/app" | "/app/additional" | "/app/upload";
+    page: "/app" | "/app/additional" | "/app/products" | "/app/upload";
   };
   "routes/app.additional.jsx": {
     id: "routes/app.additional";
     page: "/app/additional";
+  };
+  "routes/app.products.jsx": {
+    id: "routes/app.products";
+    page: "/app/products";
   };
   "routes/app.upload.jsx": {
     id: "routes/app.upload";
@@ -101,6 +108,7 @@ type RouteModules = {
   "routes/_index": typeof import("./app/routes/_index/route.jsx");
   "routes/app": typeof import("./app/routes/app.jsx");
   "routes/app.additional": typeof import("./app/routes/app.additional.jsx");
+  "routes/app.products": typeof import("./app/routes/app.products.jsx");
   "routes/app.upload": typeof import("./app/routes/app.upload.jsx");
   "routes/app._index": typeof import("./app/routes/app._index.jsx");
 };

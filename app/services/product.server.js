@@ -73,12 +73,12 @@ export async function createProduct(admin) {
   const art = ["Shirt", "Hoodie", "Pants", "Boots", "Cap"];
   const adjectives = ["Schneller", "Goldener", "Mystischer", "Schöner", "Wilder", "Cooler"];
   const nouns = ["Leopard", "Drachen", "Jaguar", "Tervueren", "Löwe", "Tiger"];
-  const randomTitle = `${art[Math.floor(Math.random() * art.length)]} ${adjectives[Math.floor(Math.random() * adjectives.length)]} ${nouns[Math.floor(Math.random() * nouns.length)]}`;
+  const randomTitle = `${art[Math.floor(Math.random() * art.length)]} ${adjectives[Math.floor(Math.random() * adjectives.length)]} ${nouns[Math.floor(Math.random() * nouns.length)]} *** NEU ***`;
 
   const res = await admin.graphql(`
     mutation createProduct($title: String!) {
-      productCreate(input: { title: $title }) {
-        product { id title }
+      productCreate(input: { title: $title, status: DRAFT }) {
+        product { id title status createdAt updatedAt }
       }
     }
   `, { variables: { title: randomTitle } });
@@ -91,7 +91,7 @@ export async function updateProduct(admin, id, title) {
   const res = await admin.graphql(
     `mutation ($input: ProductInput!) {
       productUpdate(input: $input) {
-        product { id title }
+        product { id title createdAt updatedAt }
       }
     }`,
     { variables: { input: { id, title } } }

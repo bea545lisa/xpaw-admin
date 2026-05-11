@@ -25,17 +25,17 @@ export default function ProductSkeleton({ rows = 8 }) {
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <div style={{ height: 12, borderRadius: 4, background: "#e5e7eb", width: 48 }} />
           </div>
-          {/* Lager */}
+          {/* Inventar */}
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <div style={{ height: 12, borderRadius: 4, background: "#e5e7eb", width: 24 }} />
           </div>
-          {/* Aktionen */}
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <div style={{ height: 12, borderRadius: 4, background: "#e5e7eb", width: 20 }} />
-          </div>
           {/* Status */}
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", alignSelf: "stretch" }}>
             <div style={{ height: 20, borderRadius: 10, background: "#e5e7eb", width: 60 }} />
+          </div>
+          {/* Aktionen */}
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", alignSelf: "stretch" }}>
+            <div style={{ height: 12, borderRadius: 4, background: "#e5e7eb", width: 20 }} />
           </div>
         </div>
       ))}

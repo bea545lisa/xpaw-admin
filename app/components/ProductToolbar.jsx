@@ -1,6 +1,51 @@
-import { TextField, InlineStack, Button, BlockStack, Select } from '@shopify/polaris';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BlockStack, Button, ChoiceList, InlineStack, Select } from "@shopify/polaris";
+import { ArrowDownIcon, ArrowUpIcon, DeleteIcon, PlusIcon, SearchIcon } from "@shopify/polaris-icons";
 
-const STATUS_LABELS = { ALL: "Alle", ACTIVE: "Aktiv", DRAFT: "Entwurf", ARCHIVED: "Archiviert" };
+const STATUS_LABELS = { ACTIVE: "Aktiv", DRAFT: "Entwurf", ARCHIVED: "Archiviert" };
+const OPERATOR_OPTIONS = [
+  { label: "enthält", value: "is" },
+  { label: "enthält nicht", value: "isNot" },
+];
+const SORT_OPTIONS = [
+  { label: "Erstellt", value: "createdAt" },
+  { label: "Aktualisiert", value: "updatedAt" },
+  { label: "Titel", value: "title" },
+  { label: "Preis", value: "price" },
+];
+
+function getOptionLabel(options, value) {
+  return options.find((o) => o.value === value)?.label ?? value;
+}
+
+function FilterPill({ title, operator, value, onClick, onRemove }) {
+  return (
+    <button type="button" className="toolbar-pill" onClick={onClick}>
+      <span className="toolbar-pill-title">{title}</span>
+      <span className="toolbar-pill-operator">{operator}</span>
+      <span className="toolbar-pill-value">{value}</span>
+      <span
+        role="button"
+        tabIndex={0}
+        className="toolbar-pill-remove"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            onRemove();
+          }
+        }}
+        aria-label={`${title} entfernen`}
+      >
+        ×
+      </span>
+    </button>
+  );
+}
 
 export default function ProductToolbar({
   query, setQuery,
@@ -10,92 +55,374 @@ export default function ProductToolbar({
   allTags, tagFilter, setTagFilter,
   saleFilter, setSaleFilter,
   lowStockFilter, setLowStockFilter,
-  shop, onExport
+  noImagesFilter, setNoImagesFilter,
+  onExport,
+  sortBy, setSortBy,
+  sortDirection, setSortDirection,
+  onImport,
+  onMoreActions,
 }) {
-  const collectionOptions = [
-    { label: "Alle Collections", value: "" },
-    { label: "Ohne Collection", value: "NONE" },
-    ...(collections ?? []).map(c => ({ label: c.title, value: c.id })),
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [activeEditor, setActiveEditor] = useState("status");
+  const [overlayPosition, setOverlayPosition] = useState({ left: 8, top: 46 });
+  const [isFilterBarActive, setIsFilterBarActive] = useState(false);
+  const toolbarShellRef = useRef(null);
+  const toolbarFilterRef = useRef(null);
+  const overlayRef = useRef(null);
+
+  const collectionOptions = useMemo(
+    () => [{ label: "Ohne Collection", value: "NONE" }, ...(collections ?? []).map((c) => ({ label: c.title, value: c.id }))],
+    [collections],
+  );
+  const tagOptions = useMemo(
+    () => [{ label: "Ohne Tag", value: "NONE" }, ...allTags.map((t) => ({ label: t, value: t }))],
+    [allTags],
+  );
+
+  const resetAllFilters = () => {
+    setQuery("");
+    setStatusFilter({ operator: "is", values: [] });
+    setCollectionFilter({ operator: "is", values: [] });
+    setTagFilter({ operator: "is", values: [] });
+    setSaleFilter(false);
+    setLowStockFilter(false);
+    setNoImagesFilter?.(false);
+    setActiveEditor("status");
+  };
+
+  const closeOverlay = () => {
+    setOverlayOpen(false);
+    setIsFilterBarActive(false);
+  };
+
+  const openOverlay = (editor, anchorElement) => {
+    if (editor) {
+      setActiveEditor(editor);
+    }
+
+    const shellRect = toolbarShellRef.current?.getBoundingClientRect();
+    const anchorRect = anchorElement?.getBoundingClientRect();
+    if (shellRect && anchorRect) {
+      const width = Math.min(540, shellRect.width - 16);
+      const desiredLeft = anchorRect.left - shellRect.left - 28;
+      const maxLeft = Math.max(8, shellRect.width - width - 8);
+      const left = Math.min(Math.max(8, desiredLeft), maxLeft);
+      const top = anchorRect.bottom - shellRect.top + 8;
+      setOverlayPosition({ left, top });
+    }
+
+    setOverlayOpen(true);
+    setIsFilterBarActive(true);
+  };
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!overlayOpen) return;
+      const target = event.target;
+      const shell = toolbarShellRef.current;
+      const overlay = overlayRef.current;
+      if (shell?.contains(target) || overlay?.contains(target)) {
+        return;
+      }
+      closeOverlay();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [overlayOpen]);
+
+  const appliedFilters = [
+    ...statusFilter.values.map((value) => ({
+      key: `status-${value}`,
+      type: "status",
+      title: "Status",
+      operator: statusFilter.operator === "isNot" ? "enthält nicht" : "enthält",
+      value: STATUS_LABELS[value] ?? value,
+      onRemove: () => setStatusFilter((prev) => ({ ...prev, values: prev.values.filter((v) => v !== value) })),
+    })),
+    ...collectionFilter.values.map((value) => ({
+      key: `collection-${value}`,
+      type: "collection",
+      title: "Collection",
+      operator: collectionFilter.operator === "isNot" ? "enthält nicht" : "enthält",
+      value: getOptionLabel(collectionOptions, value),
+      onRemove: () => setCollectionFilter((prev) => ({ ...prev, values: prev.values.filter((v) => v !== value) })),
+    })),
+    ...tagFilter.values.map((value) => ({
+      key: `tag-${value}`,
+      type: "tag",
+      title: "Tag",
+      operator: tagFilter.operator === "isNot" ? "enthält nicht" : "enthält",
+      value: getOptionLabel(tagOptions, value),
+      onRemove: () => setTagFilter((prev) => ({ ...prev, values: prev.values.filter((v) => v !== value) })),
+    })),
+    ...(saleFilter ? [{ key: "sale", type: "sale", title: "Sale", operator: "ist", value: "aktiv", onRemove: () => setSaleFilter(false) }] : []),
+    ...(lowStockFilter ? [{ key: "lowStock", type: "lowStock", title: "Lagerbestand", operator: "ist", value: "leer", onRemove: () => setLowStockFilter(false) }] : []),
+    ...(noImagesFilter ? [{ key: "noImages", type: "noImages", title: "Bilder", operator: "ist", value: "fehlend", onRemove: () => setNoImagesFilter?.(false) }] : []),
   ];
 
-  const tagOptions = [
-    { label: "Alle Tags", value: "" },
-    { label: "Ohne Tag", value: "NONE" },
-    ...allTags.map(t => ({ label: t, value: t })),
-  ];
+  const hasAnyFilter =
+    Boolean(query?.trim()) ||
+    statusFilter.values.length > 0 ||
+    collectionFilter.values.length > 0 ||
+    tagFilter.values.length > 0 ||
+    saleFilter ||
+    lowStockFilter ||
+    noImagesFilter;
+
+  const renderEditor = () => {
+    if (activeEditor === "status") {
+      return (
+        <div className="toolbar-editor-card">
+          <Select
+            label="Operator"
+            options={OPERATOR_OPTIONS}
+            value={statusFilter.operator}
+            onChange={(value) => setStatusFilter((prev) => ({ ...prev, operator: value }))}
+          />
+          <ChoiceList
+            title="Status"
+            allowMultiple
+            titleHidden
+            choices={[
+              { label: "Aktiv", value: "ACTIVE" },
+              { label: "Entwurf", value: "DRAFT" },
+              { label: "Archiviert", value: "ARCHIVED" },
+            ]}
+            selected={statusFilter.values}
+            onChange={(values) => setStatusFilter((prev) => ({ ...prev, values }))}
+          />
+        </div>
+      );
+    }
+    if (activeEditor === "collection") {
+      return (
+        <div className="toolbar-editor-card">
+          <Select
+            label="Operator"
+            options={OPERATOR_OPTIONS}
+            value={collectionFilter.operator}
+            onChange={(value) => setCollectionFilter((prev) => ({ ...prev, operator: value }))}
+          />
+          <ChoiceList
+            title="Collections"
+            allowMultiple
+            titleHidden
+            choices={collectionOptions}
+            selected={collectionFilter.values}
+            onChange={(values) => setCollectionFilter((prev) => ({ ...prev, values }))}
+          />
+        </div>
+      );
+    }
+    return (
+      <div className="toolbar-editor-card">
+        <Select
+          label="Operator"
+          options={OPERATOR_OPTIONS}
+          value={tagFilter.operator}
+          onChange={(value) => setTagFilter((prev) => ({ ...prev, operator: value }))}
+        />
+        <ChoiceList
+          title="Tags"
+          allowMultiple
+          titleHidden
+          choices={tagOptions}
+          selected={tagFilter.values}
+          onChange={(values) => setTagFilter((prev) => ({ ...prev, values }))}
+        />
+      </div>
+    );
+  };
 
   return (
-    <BlockStack gap="200">
-
-      {/* Zeile 1: Suche + Buttons */}
-      <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap" }}>
-        <div style={{ flex: 1 }}>
-          <TextField label="Suche" labelHidden placeholder="Produkte suchen..." value={query} onChange={setQuery} autoComplete="off" />
-        </div>
-        <Button loading={isCreating} onClick={onCreate}>Produkt erstellen 🚀</Button>
-        <Button onClick={onExport}>Export CSV 📥</Button>
-      </div>
-
-      {/* Zeile 2: Status + Collection + Tag + Sale + LowStock + Verwalten */}
-      <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap" }}>
-
-        {/* Status Buttons */}
-        <InlineStack gap="100">
-          {["ALL", "ACTIVE", "DRAFT", "ARCHIVED"].map(status => (
-            <Button key={status} pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>
-              {STATUS_LABELS[status]}
-            </Button>
-          ))}
+    <BlockStack gap="300">
+      <div className="toolbar-actions-row">
+        <InlineStack gap="200" align="end" blockAlign="center" wrap>
+          <div className="toolbar-control toolbar-control-button"><Button variant="primary" loading={isCreating} onClick={onCreate}>Produkt hinzufügen</Button></div>
+          <div className="toolbar-control toolbar-control-button"><Button onClick={onExport}>Exportieren</Button></div>
+          <div className="toolbar-control toolbar-control-button"><Button onClick={onImport}>Importieren</Button></div>
+          <div className="toolbar-control toolbar-control-button"><Button onClick={onMoreActions}>Weitere Aktionen</Button></div>
         </InlineStack>
-
-        {/* Collection */}
-        <div style={{ minWidth: 160 }}>
-          <Select
-            label="" labelHidden
-            options={collectionOptions}
-            value={collectionFilter ?? ""}
-            onChange={(val) => setCollectionFilter(val === "" ? null : val)}
-          />
-        </div>
-
-        {/* Tag */}
-        <div style={{ minWidth: 140 }}>
-          <Select
-            label="" labelHidden
-            options={tagOptions}
-            value={tagFilter ?? ""}
-            onChange={(val) => setTagFilter(val === "" ? null : val)}
-          />
-        </div>
-
-        {/* Sale Filter */}
-        <Button
-          pressed={saleFilter}
-          onClick={() => setSaleFilter(prev => !prev)}
-        >
-          🏷 Sale
-        </Button>
-
-        {/* Low Stock Filter */}
-        <Button
-          pressed={lowStockFilter}
-          onClick={() => setLowStockFilter(prev => !prev)}
-        >
-          ⚠ Kein Lagerbestand
-        </Button>
-
-        {/* Collections verwalten */}
-        <Button
-          onClick={() => {
-            const storeName = shop.replace(".myshopify.com", "");
-            window.open(`https://admin.shopify.com/store/${storeName}/collections`, "_blank");
-          }}
-        >
-          Collections verwalten ↗
-        </Button>
-
       </div>
 
+      <div ref={toolbarShellRef} className="toolbar-filter-shell">
+        <div className="toolbar-filter-row">
+          <div
+            ref={toolbarFilterRef}
+            className={`toolbar-unified-search ${isFilterBarActive || overlayOpen ? "active" : ""}`}
+            onClick={(event) => {
+              setIsFilterBarActive(true);
+              if (!overlayOpen) {
+                openOverlay(activeEditor, event.currentTarget);
+              }
+            }}
+            onFocusCapture={() => setIsFilterBarActive(true)}
+          >
+            <span className="toolbar-search-icon">
+              <Button variant="plain" icon={SearchIcon} accessibilityLabel="Suchen" disabled />
+            </span>
+            <div className="toolbar-inline-content">
+              {appliedFilters.map((f) => (
+                <FilterPill
+                  key={f.key}
+                  title={f.title}
+                  operator={f.operator}
+                  value={f.value}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openOverlay(f.type, event.currentTarget);
+                  }}
+                  onRemove={f.onRemove}
+                />
+              ))}
+              <Button
+                className={`toolbar-action-icon ${isFilterBarActive || overlayOpen ? "visible" : ""}`}
+                icon={PlusIcon}
+                accessibilityLabel="Filter hinzufügen"
+                variant="plain"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openOverlay(activeEditor, event.currentTarget);
+                }}
+              />
+              <Button
+                className={`toolbar-action-icon ${isFilterBarActive || overlayOpen ? "visible" : ""}`}
+                icon={DeleteIcon}
+                accessibilityLabel="Alle Filter löschen"
+                disabled={!hasAnyFilter}
+                variant="plain"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  resetAllFilters();
+                }}
+              />
+              <input
+                className="toolbar-inline-input"
+                aria-label="Suchen und filtern"
+                placeholder={appliedFilters.length ? "" : "Suchen und filtern"}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onFocus={() => {
+                  setIsFilterBarActive(true);
+                  if (!overlayOpen) {
+                    openOverlay("status", toolbarFilterRef.current);
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="toolbar-sort-wrap">
+            <div className="toolbar-sort-controls">
+              <div className="toolbar-control toolbar-control-select">
+                <Select
+                  label="Sortieren"
+                  labelHidden
+                  options={SORT_OPTIONS}
+                  value={sortBy}
+                  onChange={setSortBy}
+                />
+              </div>
+              <Button
+                className="toolbar-sort-toggle"
+                variant="plain"
+                icon={sortDirection === "ascending" ? ArrowUpIcon : ArrowDownIcon}
+                accessibilityLabel="Sortierreihenfolge umdrehen"
+                onClick={() => setSortDirection((prev) => (prev === "ascending" ? "descending" : "ascending"))}
+              />
+            </div>
+          </div>
+        </div>
+
+        {overlayOpen && (
+          <div
+            ref={overlayRef}
+            className="toolbar-editor-overlay"
+            style={{ left: overlayPosition.left, top: overlayPosition.top }}
+          >
+            <div className="toolbar-editor-categories">
+              <button type="button" className={`toolbar-editor-tab ${activeEditor === "status" ? "active" : ""}`} onClick={() => setActiveEditor("status")}>Status</button>
+              <button type="button" className={`toolbar-editor-tab ${activeEditor === "tag" ? "active" : ""}`} onClick={() => setActiveEditor("tag")}>Tags</button>
+              <button type="button" className={`toolbar-editor-tab ${activeEditor === "collection" ? "active" : ""}`} onClick={() => setActiveEditor("collection")}>Collections</button>
+              <button type="button" className={`toolbar-editor-tab ${activeEditor === "sale" ? "active" : ""}`} onClick={() => setActiveEditor("sale")}>Sale</button>
+              <button type="button" className={`toolbar-editor-tab ${activeEditor === "stock" ? "active" : ""}`} onClick={() => setActiveEditor("stock")}>Lagerbestand</button>
+            </div>
+            <div className="toolbar-editor-content">
+              {activeEditor === "sale" ? (
+                <ChoiceList
+                  title="Sale"
+                  titleHidden
+                  choices={[{ label: "Nur Sale-Produkte", value: "sale" }]}
+                  selected={saleFilter ? ["sale"] : []}
+                  onChange={(values) => setSaleFilter(values.includes("sale"))}
+                />
+              ) : activeEditor === "stock" ? (
+                <ChoiceList
+                  title="Lagerbestand"
+                  titleHidden
+                  choices={[{ label: "Kein Lagerbestand", value: "none" }]}
+                  selected={lowStockFilter ? ["none"] : []}
+                  onChange={(values) => setLowStockFilter(values.includes("none"))}
+                />
+              ) : (
+                renderEditor()
+              )}
+              <div className="toolbar-overlay-footer">
+                <Button variant="plain" onClick={resetAllFilters}>Alles löschen</Button>
+                <Button onClick={closeOverlay}>Fertig</Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        .toolbar-actions-row { display: flex; justify-content: flex-end; }
+        .toolbar-control { height: 40px; display: flex; align-items: stretch; }
+        .toolbar-control :global(button), .toolbar-control :global(select), .toolbar-control :global(input) { height: 100%; }
+        .toolbar-filter-shell { position: relative; border: 1px solid var(--p-color-border-subdued); border-radius: 10px; background: var(--p-color-bg-surface); }
+        .toolbar-filter-row { display: flex; gap: 8px; align-items: center; padding: 8px; }
+        .toolbar-unified-search { flex: 1; min-width: 260px; display: flex; align-items: center; gap: 4px; border: 1px solid var(--p-color-border); border-radius: 8px; padding: 0 8px; min-height: 40px; cursor: text; }
+        .toolbar-unified-search.active { box-shadow: 0 0 0 1px var(--p-color-border-focus); }
+        .toolbar-search-icon :global(button) { min-width: 24px; padding: 0; }
+        .toolbar-inline-content { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
+        .toolbar-inline-input { border: 0; outline: 0; background: transparent; min-width: 140px; flex: 1; font-size: 14px; color: var(--p-color-text); line-height: 20px; }
+        .toolbar-sort-wrap { min-width: 150px; }
+        .toolbar-sort-controls { display: flex; align-items: stretch; gap: 0; }
+        .toolbar-control-select { min-width: 140px; height: 40px; display: flex; align-items: stretch; --pg-control-height: 40px; }
+        .toolbar-control-select :global(.Polaris-Select) { width: 100%; height: 100%; }
+        .toolbar-control-select :global(.Polaris-Select__Content),
+        .toolbar-control-select :global(.Polaris-Select__Input) {
+          height: 100%;
+          min-height: 40px;
+          padding-top: 0;
+          padding-bottom: 0;
+        }
+        .toolbar-sort-toggle { margin-left: -8px; }
+        .toolbar-action-icon { display: none; width: 30px; height: 30px; min-width: 30px; padding: 0; border-radius: 999px; flex: 0 0 auto; border: 1px solid var(--p-color-border-subdued); background: var(--p-color-bg-surface-secondary); }
+        .toolbar-action-icon.visible { display: inline-flex; }
+        .toolbar-action-icon.visible:hover { background: var(--p-color-bg-fill-tertiary); }
+        .toolbar-action-icon :global(.Polaris-Button__Icon) { margin: 0; }
+        .toolbar-pill { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--p-color-border-subdued); background: var(--p-color-bg-surface-secondary); border-radius: 999px; padding: 3px 8px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+        .toolbar-pill-title { color: var(--p-color-text-subdued); }
+        .toolbar-pill-operator { color: var(--p-color-text-subdued); padding: 0 2px; }
+        .toolbar-pill-value { color: var(--p-color-text); font-weight: 600; background: var(--p-color-bg-fill-tertiary); border-radius: 999px; padding: 1px 6px; }
+        .toolbar-pill-remove { width: 18px; height: 18px; min-width: 18px; border: 0; border-radius: 999px; background: var(--p-color-bg-surface); color: var(--p-color-text-subdued); display: inline-flex; align-items: center; justify-content: center; padding: 0; line-height: 1; opacity: 0; transition: opacity 120ms ease, background-color 120ms ease; }
+        .toolbar-pill-remove:hover { background: var(--p-color-bg-fill-tertiary); }
+        .toolbar-pill:hover .toolbar-pill-remove { opacity: 1; }
+        .toolbar-editor-overlay { position: absolute; width: min(540px, calc(100% - 16px)); border: 1px solid var(--p-color-border-subdued); border-radius: 10px; background: var(--p-color-bg-surface); box-shadow: 0 10px 24px rgba(0,0,0,0.12); display: grid; grid-template-columns: 180px 1fr; z-index: 20; }
+        .toolbar-editor-categories { border-right: 1px solid var(--p-color-border-subdued); padding: 8px; display: grid; gap: 4px; }
+        .toolbar-editor-tab { text-align: left; border: 0; background: transparent; border-radius: 6px; padding: 8px; cursor: pointer; font-size: 13px; color: var(--p-color-text-subdued); }
+        .toolbar-editor-tab.active { background: var(--p-color-bg-fill-tertiary); color: var(--p-color-text); font-weight: 600; }
+        .toolbar-editor-content { padding: 10px; display: grid; gap: 10px; min-width: 320px; max-height: 360px; overflow: auto; }
+        .toolbar-editor-card { display: grid; gap: 8px; }
+        .toolbar-overlay-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--p-color-border-subdued); padding-top: 8px; }
+        @media (max-width: 900px) {
+          .toolbar-editor-overlay { width: calc(100% - 16px); left: 8px !important; right: 8px; grid-template-columns: 1fr; }
+          .toolbar-editor-categories { border-right: 0; border-bottom: 1px solid var(--p-color-border-subdued); grid-auto-flow: column; overflow: auto; }
+        }
+      `}</style>
     </BlockStack>
   );
 }
