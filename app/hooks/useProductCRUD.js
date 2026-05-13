@@ -13,12 +13,14 @@ export function useProductCRUD({
   const [toast, setToast] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const isUpdating = fetcher.state !== "idle" && fetcher.formData?.get("action") === "update";
+  const isUpdating = isSaving || (fetcher.state !== "idle" && fetcher.formData?.get("action") === "update");
   const isDeleting = fetcher.state !== "idle" && fetcher.formData?.get("action") === "delete";
   const isCreating = fetcher.state !== "idle" && fetcher.formData?.get("action") === "create";
 
   const handleUpdate = () => {
+    setIsSaving(true);
     const variantsJson = JSON.stringify(editVariants);
     fetcher.submit(
       { 
@@ -37,21 +39,32 @@ export function useProductCRUD({
   const handleDelete = () => {
     fetcher.submit({ action: "delete", id: deleteId }, { method: "post" });
   };
+
+  const handleDeleteConfirm = () => {
+    if (!deleteId) return;
+    fetcher.submit({ action: "delete", id: deleteId }, { method: "post" });
+  };
   const prevData = useRef(null);
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.ok && fetcher.data !== prevData.current) {
       prevData.current = fetcher.data;
       const data = fetcher.data;
+      setIsSaving(false);
   
       const knownTypes = ["update", "delete", "create", "duplicate", "updateTitle", "updateStatus", "bulkDelete"];
       if (!knownTypes.includes(data.type)) return;
   
       if (data.type === "update") {
         onUpdateSuccess?.();
+        setToast(`Produkt ${data.product?.title ?? editValue} gespeichert`);
         setLocalProducts(prev => {
-          const updated = prev.map(p => p.node.id === data.product.id ? { node: data.product } : p);
-          return updated;
+          const next = prev.map((p) => (
+            p.node.id === data.product.id || p.node.id === editId
+              ? { node: data.product }
+              : p
+          ));
+          return next.some((p) => p.node.id === data.product.id) ? next : [{ node: data.product }, ...next];
         });
       }
       if (data.type === "delete") {
@@ -83,6 +96,9 @@ export function useProductCRUD({
         setLocalProducts(prev => [{ node: product }, ...prev]);
       }
     }
+    if (fetcher.state === "idle" && prevState.current !== "idle") {
+      setIsSaving(false);
+    }
     prevState.current = fetcher.state;
   }, [fetcher.state, fetcher.data]);
 
@@ -92,6 +108,6 @@ export function useProductCRUD({
     modalOpen, setModalOpen,
     deleteModalOpen, setDeleteModalOpen,
     isUpdating, isDeleting, isCreating,
-    handleUpdate, handleDelete,
+    handleUpdate, handleDelete, handleDeleteConfirm,
   };
 }

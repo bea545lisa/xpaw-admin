@@ -34,7 +34,12 @@ export default function ProductModal({
         title="Produkt bearbeiten"
         size="large"
         accessibilityLabel="Produkt bearbeiten Modal"
-        primaryAction={{ content: "Speichern", onAction: handleUpdate, loading: isUpdating }}
+        primaryAction={{
+          content: isUpdating ? "Speichere…" : "Speichern",
+          onAction: () => { if (!isUpdating) handleUpdate(); },
+          loading: isUpdating,
+          disabled: isUpdating,
+        }}
         secondaryActions={[{ content: "Abbrechen", onAction: () => setModalOpen(false) }]}
       >
         <Modal.Section>

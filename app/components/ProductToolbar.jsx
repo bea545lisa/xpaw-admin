@@ -53,6 +53,7 @@ export default function ProductToolbar({
   isCreating, onCreate,
   collections, collectionFilter, setCollectionFilter,
   allTags, tagFilter, setTagFilter,
+  variantFilter, setVariantFilter,
   saleFilter, setSaleFilter,
   lowStockFilter, setLowStockFilter,
   noImagesFilter, setNoImagesFilter,
@@ -78,12 +79,21 @@ export default function ProductToolbar({
     () => [{ label: "Ohne Tag", value: "NONE" }, ...allTags.map((t) => ({ label: t, value: t }))],
     [allTags],
   );
+  const variantOptions = useMemo(
+    () => [
+      { label: "Ohne Optionen", value: "NO_OPTIONS" },
+      { label: "1 Option", value: "ONE_OPTION" },
+      { label: "2 Optionen", value: "TWO_OPTIONS" },
+    ],
+    [],
+  );
 
   const resetAllFilters = () => {
     setQuery("");
     setStatusFilter({ operator: "is", values: [] });
     setCollectionFilter({ operator: "is", values: [] });
     setTagFilter({ operator: "is", values: [] });
+    setVariantFilter({ operator: "is", values: [] });
     setSaleFilter(false);
     setLowStockFilter(false);
     setNoImagesFilter?.(false);
@@ -156,6 +166,14 @@ export default function ProductToolbar({
       value: getOptionLabel(tagOptions, value),
       onRemove: () => setTagFilter((prev) => ({ ...prev, values: prev.values.filter((v) => v !== value) })),
     })),
+    ...variantFilter.values.map((value) => ({
+      key: `variant-${value}`,
+      type: "variant",
+      title: "Varianten",
+      operator: variantFilter.operator === "isNot" ? "enthält nicht" : "enthält",
+      value: getOptionLabel(variantOptions, value),
+      onRemove: () => setVariantFilter((prev) => ({ ...prev, values: prev.values.filter((v) => v !== value) })),
+    })),
     ...(saleFilter ? [{ key: "sale", type: "sale", title: "Sale", operator: "ist", value: "aktiv", onRemove: () => setSaleFilter(false) }] : []),
     ...(lowStockFilter ? [{ key: "lowStock", type: "lowStock", title: "Lagerbestand", operator: "ist", value: "leer", onRemove: () => setLowStockFilter(false) }] : []),
     ...(noImagesFilter ? [{ key: "noImages", type: "noImages", title: "Bilder", operator: "ist", value: "fehlend", onRemove: () => setNoImagesFilter?.(false) }] : []),
@@ -166,6 +184,7 @@ export default function ProductToolbar({
     statusFilter.values.length > 0 ||
     collectionFilter.values.length > 0 ||
     tagFilter.values.length > 0 ||
+    variantFilter.values.length > 0 ||
     saleFilter ||
     lowStockFilter ||
     noImagesFilter;
@@ -211,6 +230,20 @@ export default function ProductToolbar({
             choices={collectionOptions}
             selected={collectionFilter.values}
             onChange={(values) => setCollectionFilter((prev) => ({ ...prev, values }))}
+          />
+        </div>
+      );
+    }
+    if (activeEditor === "variant") {
+      return (
+        <div className="toolbar-editor-card">
+          <ChoiceList
+            title="Varianten"
+            allowMultiple
+            titleHidden
+            choices={variantOptions}
+            selected={variantFilter.values}
+            onChange={(values) => setVariantFilter((prev) => ({ ...prev, values }))}
           />
         </div>
       );
@@ -344,6 +377,7 @@ export default function ProductToolbar({
             <div className="toolbar-editor-categories">
               <button type="button" className={`toolbar-editor-tab ${activeEditor === "status" ? "active" : ""}`} onClick={() => setActiveEditor("status")}>Status</button>
               <button type="button" className={`toolbar-editor-tab ${activeEditor === "tag" ? "active" : ""}`} onClick={() => setActiveEditor("tag")}>Tags</button>
+              <button type="button" className={`toolbar-editor-tab ${activeEditor === "variant" ? "active" : ""}`} onClick={() => setActiveEditor("variant")}>Varianten</button>
               <button type="button" className={`toolbar-editor-tab ${activeEditor === "collection" ? "active" : ""}`} onClick={() => setActiveEditor("collection")}>Collections</button>
               <button type="button" className={`toolbar-editor-tab ${activeEditor === "sale" ? "active" : ""}`} onClick={() => setActiveEditor("sale")}>Sale</button>
               <button type="button" className={`toolbar-editor-tab ${activeEditor === "stock" ? "active" : ""}`} onClick={() => setActiveEditor("stock")}>Lagerbestand</button>

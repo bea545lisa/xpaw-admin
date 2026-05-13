@@ -144,9 +144,19 @@ export default function ProductItem({
 
   const collectionNodes = product.node.collections?.edges?.map(({ node: c }) => c) ?? [];
   const sortedTags = [...(product.node.tags ?? [])].sort();
-  const nonTitleOptions = (product.node.options ?? []).filter((o) => o.name !== "Title");
   const variants = product.node.variants?.edges ?? [];
-  const variantCount = variants.length;
+  const optionGroups = (product.node.options ?? [])
+    .filter((option) => option?.name && option.name !== "Title")
+    .map((option) => ({
+      name: option.name,
+      values: (option.optionValues?.map((value) => value?.name).filter(Boolean) ?? option.values ?? [])
+        .filter((value) => value && value !== "Default Title"),
+    }))
+    .filter((option) => option.values.length > 0);
+  const hasRealVariants = optionGroups.length > 0;
+  const variantCount = hasRealVariants
+    ? optionGroups.reduce((count, option) => count * Math.max(option.values.length, 1), 1)
+    : 0;
   const hasSale = variants.some(
     (e) => e.node.compareAtPrice && parseFloat(e.node.compareAtPrice) > parseFloat(e.node.price)
   );
@@ -160,6 +170,12 @@ export default function ProductItem({
     variants
       ?.filter((e) => (e.node.inventoryQuantity ?? 0) === 0)
       ?.flatMap((e) => e.node.selectedOptions?.map((so) => so.value) ?? []) ?? [];
+  const variantLabels = hasRealVariants
+    ? optionGroups.map((option) => `${option.name}: ${option.values.join(", ")}`)
+    : ["—"];
+  const variantCountLabel = hasRealVariants
+    ? `${variantCount} ${variantCount === 1 ? "Variante" : "Varianten"}`
+    : null;
 
   const COL_PILL_CAP = 2;
 
@@ -239,7 +255,7 @@ export default function ProductItem({
                         </span>
                       </Text>
                     )}
-                    {(templateBadge || nonTitleOptions.length > 0 || showMetaRow) && (
+                    {(templateBadge || hasRealVariants || showMetaRow) && (
                       <div
                         style={{
                           display: "flex",
@@ -258,20 +274,20 @@ export default function ProductItem({
                             <Badge tone="info">{templateBadge}</Badge>
                           </span>
                         )}
-                        {nonTitleOptions.map((o, i) => (
+                        {optionGroups.map(({ name, values }) => (
                           <span
-                            key={o.id ?? i}
+                            key={name}
                             style={{
                               flexShrink: 0,
                               fontSize: "11px",
                               whiteSpace: "nowrap",
                             }}
                           >
-                            <strong style={{ color: "var(--p-color-text-secondary)" }}>{o.name}</strong>
+                            <strong style={{ color: "var(--p-color-text-secondary)" }}>{name}</strong>
                             {": "}
-                            {o.values.map((v, vi) => (
+                            {values.map((v, vi) => (
                               <span
-                                key={vi}
+                                key={`${name}-${v}-${vi}`}
                                 style={{
                                   color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
                                 }}
@@ -356,28 +372,17 @@ export default function ProductItem({
                     }}
                   >
                     <SectionHeading icon={VariantIcon} label="Varianten" />
-                    <div style={{ fontSize: "11px", lineHeight: 1.45, color: "var(--p-color-text-secondary)" }}>
-                      {nonTitleOptions.map((o, i) => (
-                        <span key={o.id ?? i} style={{ display: "block" }}>
-                          <strong style={{ color: "var(--p-color-text-secondary)" }}>{o.name}</strong>
-                          {": "}
-                          {o.values.map((v, vi) => (
-                            <span
-                              key={vi}
-                              style={{
-                                color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
-                              }}
-                            >
-                              {vi > 0 && ", "}
-                              {v}
-                            </span>
-                          ))}
+                    <div style={{ display: "flex", flexDirection: "column", fontSize: "11px", lineHeight: 1.45, color: "var(--p-color-text-secondary)" }}>
+                      {variantLabels.map((label, i) => (
+                        <span key={`${label}-${i}`} style={{ display: "inline-flex", marginRight: 8, marginBottom: 4 }}>
+                          {label}
                         </span>
                       ))}
-                      <span style={{ color: "#9ca3af" }}>
-                        {" · "}
-                        {variantCount} {variantCount === 1 ? "Variante" : "Varianten"}
-                      </span>
+                      {variantCountLabel && (
+                        <div style={{ color: "#9ca3af", marginTop: 2 }}>
+                          {variantCountLabel}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div style={{ padding: "8px 12px", minWidth: 0 }}>

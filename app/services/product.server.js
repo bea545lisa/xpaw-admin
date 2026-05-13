@@ -187,94 +187,66 @@ export async function setVariantInventory(admin, inventoryItemId, locationId, qu
 }
 
 export async function updateProductOptions(admin, productId, options) {
+  const currentRes = await admin.graphql(`
+    query($id: ID!) {
+      product(id: $id) {
+        options { id name values optionValues { id name } }
+      }
+    }
+  `, { variables: { id: productId } });
+  const currentJson = await currentRes.json();
+  const currentOptions = currentJson.data?.product?.options ?? [];
+
   for (const option of options) {
     if (option.id) {
-      // Aktuelle optionValues aus dem Produkt
-      const existingValueIds = option.optionValues?.reduce((acc, v) => ({
-        ...acc, [v.name]: v.id
-      }), {}) ?? {};
+      const currentOption = currentOptions.find((current) => current.id === option.id);
+      const existingValues = currentOption?.optionValues ?? [];
+      const nextValues = Array.isArray(option.values) ? option.values : [];
+      const existingByIndex = existingValues.slice(0, nextValues.length);
+      const valuesToAdd = nextValues.slice(existingValues.length).map((name) => ({ name }));
+      const valuesToUpdate = existingByIndex
+        .map((value, index) => ({
+          value,
+          nextName: nextValues[index],
+        }))
+        .filter(({ value, nextName }) => nextName && nextName !== value.name)
+        .map(({ value, nextName }) => ({
+          id: value.id,
+          name: nextName,
+        }));
+      const valuesToDelete = existingValues
+        .slice(nextValues.length)
+        .map((value) => value.id);
 
-      // Neue Werte die noch nicht in optionValues existieren
-      const valuesToAdd = option.values.filter(v => !existingValueIds[v]);
-
-      // Werte die gelöscht werden sollen
-      const valuesToDelete = Object.entries(existingValueIds)
-        .filter(([name]) => !option.values.includes(name))
-        .map(([, id]) => id);
-
-      // Varianten erstellen für orphaned values
-      const orphanedValues = option.values
-        .filter(v => existingValueIds[v])
-        .filter(v => !option.activeValues?.includes(v)); // nicht aktive
-
-      // Varianten für orphaned values erstellen
-      if (orphanedValues.length > 0) {
-        // Alle anderen Optionen mit ihren aktiven Werten finden
-        const otherOptions = options.filter(o => o.id !== option.id);
-
-        // Alle Kombinationen erstellen
-        const combinations = [];
-
-        for (const orphanedValue of orphanedValues) {
-          if (otherOptions.length === 0) {
-            // Keine anderen Optionen — einfache Variante
-            combinations.push({
-              optionValues: [{ optionId: option.id, name: orphanedValue }],
-              price: "0.00",
-            });
-          } else {
-            // Kombinationen mit anderen Optionen
-            for (const otherOption of otherOptions) {
-              for (const otherValue of (otherOption.activeValues ?? otherOption.values)) {
-                combinations.push({
-                  optionValues: [
-                    { optionId: option.id, name: orphanedValue },
-                    { optionId: otherOption.id, name: otherValue },
-                  ],
-                  price: "0.00",
-                });
-              }
-            }
+      await admin.graphql(`
+        mutation updateOption(
+          $productId: ID!,
+          $option: OptionUpdateInput!,
+          $optionValuesToAdd: [OptionValueCreateInput!],
+          $optionValuesToUpdate: [OptionValueUpdateInput!],
+          $optionValuesToDelete: [ID!],
+          $variantStrategy: ProductOptionUpdateVariantStrategy
+        ) {
+          productOptionUpdate(
+            productId: $productId,
+            option: $option,
+            optionValuesToAdd: $optionValuesToAdd,
+            optionValuesToUpdate: $optionValuesToUpdate,
+            optionValuesToDelete: $optionValuesToDelete,
+            variantStrategy: $variantStrategy
+          ) {
+            product { id options { id name values optionValues { id name } } }
+            userErrors { field message code }
           }
         }
-
-        const variantRes = await admin.graphql(`
-          mutation createVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-            productVariantsBulkCreate(productId: $productId, variants: $variants) {
-              productVariants { id title }
-              userErrors { field message }
-            }
-          }
-        `, { variables: { productId, variants: combinations } });
-
-        await variantRes.json();
-      }
-
-      if (valuesToAdd.length > 0) {
-        await admin.graphql(`
-          mutation updateOption(
-            $productId: ID!,
-            $option: OptionUpdateInput!,
-            $optionValuesToAdd: [OptionValueCreateInput!],
-            $optionValuesToDelete: [ID!]
-          ) {
-            productOptionUpdate(
-              productId: $productId,
-              option: $option,
-              optionValuesToAdd: $optionValuesToAdd,
-              optionValuesToDelete: $optionValuesToDelete
-            ) {
-              product { id options { id name values optionValues { id name } } }
-              userErrors { field message code }
-            }
-          }
-        `, { variables: {
-          productId,
-          option: { id: option.id, name: option.name },
-          optionValuesToAdd: valuesToAdd.map(v => ({ name: v })),
-          optionValuesToDelete: valuesToDelete,
-        }});
-      }
+      `, { variables: {
+        productId,
+        option: { id: option.id, name: option.name },
+        optionValuesToAdd: valuesToAdd,
+        optionValuesToUpdate: valuesToUpdate,
+        optionValuesToDelete: valuesToDelete,
+        variantStrategy: "LEAVE_AS_IS",
+      }});
 
     }
     else {
@@ -294,6 +266,32 @@ export async function updateProductOptions(admin, productId, options) {
       }});
     }
 
+    // Optionen löschen die nicht mehr im Array sind
+    const submittedIds = new Set(options.map((o) => o.id).filter(Boolean));
+    const optionsToDelete = currentOptions
+      .filter((o) => !submittedIds.has(o.id))
+      .map((o) => o.id);
+
+    if (optionsToDelete.length > 0) {
+      await admin.graphql(`
+    mutation($productId: ID!, $options: [ID!]!, $strategy: ProductOptionDeleteStrategy) {
+      productOptionsDelete(
+        productId: $productId,
+        options: $options,
+        strategy: $strategy
+      ) {
+        deletedOptionsIds
+        userErrors { field message code }
+      }
+    }
+  `, {
+        variables: {
+          productId,
+          options: optionsToDelete,
+          strategy: "POSITION",
+        },
+      });
+    }
   }
 }
 

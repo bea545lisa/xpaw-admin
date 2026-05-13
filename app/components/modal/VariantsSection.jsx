@@ -1,21 +1,6 @@
-import { TextField, Text, BlockStack, InlineStack, Divider, Button, Tag, } from "@shopify/polaris";
-import { useState, useEffect, useRef } from "react";
-
-function computeVariantCombinations(options, existingVariants) {
-  if (!options || options.length === 0) return [];
-  const optionValues = options.map(o => o.values.filter(v => v.trim() !== ""));
-  if (optionValues.some(v => v.length === 0)) return [];
-  const combinations = optionValues.reduce((acc, values) => {
-    if (acc.length === 0) return values.map(v => [v]);
-    return acc.flatMap(combo => values.map(v => [...combo, v]));
-  }, []);
-  return combinations.map(combo => {
-    const title = combo.join(" / ");
-    const existing = existingVariants?.find(v => v.title === title);
-    if (existing) return { ...existing };
-    return { id: null, title, price: "0.00", compareAtPrice: "", inventoryQuantity: 0, imageId: null, active: true };
-  });
-}
+import { TextField, Text, BlockStack, InlineStack, Divider, Button } from "@shopify/polaris";
+import { useEffect, useState } from "react";
+import { computeVariantCombinations } from "../../hooks/useVariantDrafts.js";
 
 export default function VariantsSection({
   variants, editOptions, setEditOptions, setEditVariants, localImages,
@@ -23,38 +8,22 @@ export default function VariantsSection({
   const [newValues, setNewValues] = useState({});
   const [previewVariants, setPreviewVariants] = useState([]);
   const [variantImagePicker, setVariantImagePicker] = useState(null);
-  const isFirstRender = useRef(true);
-
   const hasRealOptions = editOptions && editOptions.length > 0;
   const defaultVariant = variants?.length === 1 && variants[0]?.title === "Default Title" ? variants[0] : null;
-  
+
+  useEffect(() => {
+    if (!hasRealOptions) return;
+    const computed = computeVariantCombinations(editOptions, variants);
+    setPreviewVariants(computed);
+    setEditVariants(computed);
+  }, [editOptions, variants, hasRealOptions, setEditVariants]);
+
   const updateVariant = (variantIndex, changes) => {
     const updated = [...previewVariants];
     updated[variantIndex] = { ...updated[variantIndex], ...changes };
     setPreviewVariants(updated);
     setEditVariants(updated);
   };
-
-  useEffect(() => {
-    if (!hasRealOptions) return;
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      setPreviewVariants(computeVariantCombinations(editOptions, variants));
-      return;
-    }
-    const computed = computeVariantCombinations(editOptions, previewVariants);
-    setPreviewVariants(computed);
-    setEditVariants(computed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editOptions]);
-
-  useEffect(() => {
-    if (hasRealOptions && variants?.length > 0) {
-      isFirstRender.current = true; // reset
-      setPreviewVariants(computeVariantCombinations(editOptions, variants));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variants]);
   
   return (
     <BlockStack gap="300">
@@ -116,63 +85,148 @@ export default function VariantsSection({
         <>
           <Divider />
           <Text variant="headingSm">Optionen</Text>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8 }}>
-            <Text variant="bodySm" tone="subdued">Name</Text>
-            <Text variant="bodySm" tone="subdued">Werte</Text>
-            <Text variant="bodySm" tone="subdued">Wert hinzufügen</Text>
-            <div style={{ width: 32 }} />
-          </div>
-          {editOptions.map((option, oi) => (
-            <div key={option.id ?? oi} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "center" }}>
-              <TextField
-                label="" labelHidden autoComplete="off" placeholder="z.B. Größe"
-                value={option.name}
-                onChange={(val) => {
-                  const updated = [...editOptions];
-                  updated[oi] = { ...option, name: val };
-                  setEditOptions(updated);
+          <BlockStack gap="200">
+            {editOptions.map((option, oi) => (
+              <div
+                key={option.id ?? oi}
+                style={{
+                  padding: 12,
+                  border: "1px solid var(--p-color-border-subdued)",
+                  borderRadius: 8,
+                  background: "var(--p-color-bg-surface-secondary)",
                 }}
-              />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {option.values.map((v, vi) => (
-                  <Tag key={`${oi}-${v}`} onRemove={() => {
-                    const updated = [...editOptions];
-                    updated[oi] = { ...option, values: option.values.filter((_, j) => j !== vi) };
-                    setEditOptions(updated);
-                  }}>{v}</Tag>
-                ))}
+              >
+                <InlineStack align="space-between" blockAlign="center" gap="200" wrap>
+                  <div style={{ minWidth: 180, maxWidth: 320, flex: "1 1 220px" }}>
+                    <TextField
+                      label=""
+                      labelHidden
+                      autoComplete="off"
+                      placeholder="z.B. Größe"
+                      value={option.name}
+                      onChange={(val) => {
+                        const updated = [...editOptions];
+                        updated[oi] = { ...option, name: val };
+                        setEditOptions(updated);
+                      }}
+                    />
+                  </div>
+                  <Button
+                    tone="critical"
+                    variant="plain"
+                    size="slim"
+                    disabled={(option.values ?? []).length > 0}
+                    onClick={() => setEditOptions((prev) => prev.filter((_, i) => i !== oi))}
+                  >
+                    Löschen
+                  </Button>
+                </InlineStack>
+
+                <InlineStack gap="100" wrap blockAlign="center" align="start" style={{ marginTop: 10 }}>
+                  {(option.values ?? []).map((v, vi) => (
+                    <span
+                      key={`${oi}-${v}-${vi}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "4px 8px 4px 10px",
+                        borderRadius: 999,
+                        border: "1px solid var(--p-color-border)",
+                        background: "var(--p-color-bg-surface)",
+                      }}
+                    >
+                      <input
+                        value={v}
+                        onChange={(e) => {
+                          const updated = [...editOptions];
+                          const nextValues = [...(option.values ?? [])];
+                          nextValues[vi] = e.target.value;
+                          updated[oi] = { ...option, values: nextValues };
+                          setEditOptions(updated);
+                        }}
+                        style={{
+                          border: "none",
+                          outline: "none",
+                          background: "transparent",
+                          minWidth: Math.max(24, String(v ?? "").length * 8),
+                          width: "auto",
+                          fontSize: 13,
+                          lineHeight: 1.2,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...editOptions];
+                          updated[oi] = { ...option, values: option.values.filter((_, j) => j !== vi) };
+                          setEditOptions(updated);
+                        }}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          padding: 0,
+                          color: "var(--p-color-text-subdued)",
+                          lineHeight: 1,
+                          fontSize: 14,
+                        }}
+                        aria-label={`Wert ${v} entfernen`}
+                        title="Entfernen"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+
+                  <div style={{ minWidth: 140, maxWidth: 220, flex: "1 1 160px" }}>
+                    <TextField
+                      label=""
+                      labelHidden
+                      autoComplete="off"
+                      placeholder="+ Wert"
+                      value={newValues[oi] ?? ""}
+                      onChange={(val) => setNewValues(prev => ({ ...prev, [oi]: val }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (newValues[oi]?.trim()) {
+                            const updated = [...editOptions];
+                            updated[oi] = { ...option, values: [...option.values, newValues[oi].trim()] };
+                            setEditOptions(updated);
+                            setNewValues(prev => ({ ...prev, [oi]: "" }));
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <Button
+                    size="slim"
+                    onClick={() => {
+                      if (newValues[oi]?.trim()) {
+                        const updated = [...editOptions];
+                        updated[oi] = { ...option, values: [...option.values, newValues[oi].trim()] };
+                        setEditOptions(updated);
+                        setNewValues(prev => ({ ...prev, [oi]: "" }));
+                      }
+                    }}
+                  >
+                    + Wert
+                  </Button>
+                </InlineStack>
               </div>
-              <InlineStack gap="100" blockAlign="center">
-                <div style={{ flex: 1 }}>
-                  <TextField
-                    label="" labelHidden autoComplete="off" placeholder="Wert..."
-                    value={newValues[oi] ?? ""}
-                    onChange={(val) => setNewValues(prev => ({ ...prev, [oi]: val }))}
-                  />
-                </div>
-                <Button size="slim" onClick={() => {
-                  if (newValues[oi]?.trim()) {
-                    const updated = [...editOptions];
-                    updated[oi] = { ...option, values: [...option.values, newValues[oi].trim()] };
-                    setEditOptions(updated);
-                    setNewValues(prev => ({ ...prev, [oi]: "" }));
-                  }
-                }}>+</Button>
-              </InlineStack>
-              <Button tone="critical" size="slim"
-                disabled={option.values.length > 0}
-                onClick={() => setEditOptions(prev => prev.filter((_, i) => i !== oi))}
-              >✕</Button>
-            </div>
-          ))}
+            ))}
+            <Button
+              size="slim"
+              disabled={(editOptions?.length ?? 0) >= 2}
+              onClick={() => setEditOptions((prev) => [...prev, { name: "", values: [] }])}
+            >
+              + Neue Option
+            </Button>
+          </BlockStack>
         </>
       )}
-
-      {/* Neue Option */}
-      <Button size="slim" disabled={editOptions.length >= 2}
-        onClick={() => setEditOptions(prev => [...prev, { name: "", values: [] }])}>
-        + Neue Option
-      </Button>
 
       {/* Variantentabelle */}
       {hasRealOptions && variants && variants.length > 0 && (

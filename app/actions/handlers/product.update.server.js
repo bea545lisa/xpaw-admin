@@ -1,5 +1,5 @@
 export async function handleUpdate(admin, formData, services) {
-  const { updateProductOptions, setVariantInventory } = services;
+  const { setVariantInventory, updateProductOptions } = services;
 
   const productId = formData.get("id");
   const description = formData.get("description") ?? "";
@@ -14,13 +14,6 @@ export async function handleUpdate(admin, formData, services) {
     }
   `, { variables: { id: productId, title: formData.get("title"), descriptionHtml: description } });
 
-  const options = JSON.parse(formData.get("options") || "[]");
-  const validOptions = options.filter(o => o.name.trim() !== "" && o.values.length > 0);
-
-  if (validOptions.length > 0) {
-    await updateProductOptions(admin, productId, validOptions, validOptions);
-  }
-
   const refreshRes = await admin.graphql(`
     query($id: ID!) {
       product(id: $id) {
@@ -33,11 +26,24 @@ export async function handleUpdate(admin, formData, services) {
 
   const freshVariants = (await refreshRes.json()).data.product.variants.edges.map(e => e.node);
   const variantsToUpdate = JSON.parse(formData.get("variants") || "[]");
+  const options = JSON.parse(formData.get("options") || "[]");
+  const validOptions = options
+    .map((option) => ({
+      id: option.id || null,
+      name: String(option.name ?? "").trim(),
+      values: Array.isArray(option.values) ? option.values.map((value) => String(value).trim()).filter(Boolean) : [],
+    }))
+    .filter((option) => option.name && option.values.length > 0);
+
+  const variantsToDelete = [];
 
   await Promise.all(freshVariants.map(async (fv) => {
 
-    const inputVariant = variantsToUpdate.find(v => v.title === fv.title);
-    if (!inputVariant) return;
+    const inputVariant = variantsToUpdate.find((v) => v.id === fv.id) ?? variantsToUpdate.find((v) => v.title === fv.title);
+    if (!inputVariant) {
+      variantsToDelete.push(fv.id);
+      return;
+    }
 
     await admin.graphql(`
       mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -61,8 +67,8 @@ export async function handleUpdate(admin, formData, services) {
       }
     });
 
-    if (fv.inventoryItem?.id && inputVariant.inventoryQuantity) {
-      await setVariantInventory(admin, fv.inventoryItem.id, formData.get("locationId"), inputVariant.inventoryQuantity);
+    if (fv.inventoryItem?.id && inputVariant.inventoryQuantity !== undefined && inputVariant.inventoryQuantity !== null && inputVariant.inventoryQuantity !== "") {
+      await setVariantInventory(admin, fv.inventoryItem.id, formData.get("locationId"), Number(inputVariant.inventoryQuantity));
     }
 
     if (inputVariant.imageId) {
@@ -95,6 +101,24 @@ export async function handleUpdate(admin, formData, services) {
       }
     });
   }));
+
+  if (variantsToDelete.length > 0) {
+    await admin.graphql(`
+      mutation($productId: ID!, $variantsIds: [ID!]!) {
+        productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+          product { id }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        productId,
+        variantsIds: variantsToDelete,
+      },
+    });
+  }
+
+  await updateProductOptions(admin, productId, validOptions);
 
   const productData = await admin.graphql(`
     query($id: ID!) {

@@ -42,6 +42,7 @@ export default function Products() {
   const [statusFilter, setStatusFilter] = useState({ operator: "is", values: [] });
   const [collectionFilter, setCollectionFilter] = useState({ operator: "is", values: [] });
   const [tagFilter, setTagFilter] = useState({ operator: "is", values: [] });
+  const [variantFilter, setVariantFilter] = useState({ operator: "is", values: [] });
   const [saleFilter, setSaleFilter] = useState(false);
   const [lowStockFilter, setLowStockFilter] = useState(false);
   const [stockBucketFilter, setStockBucketFilter] = useState("");
@@ -63,7 +64,7 @@ export default function Products() {
     toast, setToast,
     deleteModalOpen, setDeleteModalOpen,
     isUpdating, isDeleting, isCreating,
-    handleUpdate, handleDelete,
+    handleUpdate, handleDeleteConfirm,
   } = useProductCRUD({
     locationId, editId, editValue, editDescription,
     editVariants, editOptions, deleteId, deleteTitle,
@@ -137,6 +138,16 @@ export default function Products() {
         value === "NONE" ? tags.length === 0 : tags.includes(value)
       ));
       return tagFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
+    })
+    .filter((p) => {
+      if (!variantFilter.values.length) return true;
+      const optionCount = (p?.node?.options ?? []).filter((o) => o?.name !== "Title").length;
+      const variantBucket =
+        optionCount === 0 ? "NO_OPTIONS" :
+        optionCount === 1 ? "ONE_OPTION" :
+        "TWO_OPTIONS";
+      const matches = variantFilter.values.map((value) => variantBucket === value);
+      return variantFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
     })
     .filter((p) => {
       if (!saleFilter) return true;
@@ -273,7 +284,7 @@ export default function Products() {
                       deleteModalOpen={deleteModalOpen}
                       setDeleteModalOpen={setDeleteModalOpen}
                       deleteTitle={deleteTitle}
-                      handleDelete={handleDelete}
+                      handleDelete={handleDeleteConfirm}
                       isDeleting={isDeleting}
                       setLocalProducts={setLocalProducts}
                       setToast={setToast}
@@ -309,6 +320,8 @@ export default function Products() {
                     allTags={allTags}
                     tagFilter={tagFilter}
                     setTagFilter={setTagFilter}
+                    variantFilter={variantFilter}
+                    setVariantFilter={setVariantFilter}
                     shop={shop}
                     onExport={handleExport}
                     onImport={() => setToast("Import folgt in einem nächsten Schritt")}
