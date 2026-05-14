@@ -1,7 +1,7 @@
 import { Modal, TextField, Text, BlockStack, Divider } from "@shopify/polaris";
 import { useImageUpload } from "../hooks/useImageUpload.jsx";
 import { useCollections } from "../hooks/useCollections.js";
-import ImagesSection from "./modal/ImagesSection.jsx";
+import ImagesSection from "./shared/ImagesSection.jsx";
 import CollectionsTagsSection from "./modal/CollectionsTagsSection.jsx";
 import VariantsSection from "./modal/VariantsSection.jsx";
 
@@ -44,7 +44,7 @@ export default function ProductModal({
       >
         <Modal.Section>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          
+
             <BlockStack gap="400">
 
               {/* Titel + Beschreibung */}

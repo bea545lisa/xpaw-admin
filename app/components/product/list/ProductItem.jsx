@@ -1,7 +1,7 @@
 import { Box, Button, Checkbox, Badge, Text, TextField, Icon } from '@shopify/polaris';
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { useProductContext } from "../context/ProductContext";
+import { useProductContext } from "../../../context/ProductContext.jsx";
 import { useNavigate, useLocation } from "react-router";
 import {
   ViewIcon,

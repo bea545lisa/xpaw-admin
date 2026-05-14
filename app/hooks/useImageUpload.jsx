@@ -2,7 +2,7 @@
 import { useFetcher } from "react-router";
 import { useState, useRef, useCallback, useEffect } from "react";
 
-export function useImageUpload({ productId, setLocalProducts, setToast }) {
+export function useImageUpload({ productId, initialImages, setLocalProducts, setToast, onImageDelete }) {
 
   const stageFetcher = useFetcher();
   const linkFetcher = useFetcher();
@@ -17,7 +17,7 @@ export function useImageUpload({ productId, setLocalProducts, setToast }) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState("");
-  const [localImages, setLocalImages] = useState([]);
+  const [localImages, setLocalImages] = useState(initialImages);
   const [pendingResourceUrl, setPendingResourceUrl] = useState(null);
 
   const processNextInQueue = useCallback(() => {
@@ -86,12 +86,16 @@ export function useImageUpload({ productId, setLocalProducts, setToast }) {
 
   const deleteImage = useCallback((img, index) => {
     setLocalImages(prev => prev.filter((_, i) => i !== index));
+    onImageDelete?.(img);
 
-    if (img.id && !String(img.id).startsWith("temp-")) {
+    const mediaId = img.mediaId ?? img.id;
+
+    if (mediaId && !String(mediaId).startsWith("temp-")) {
       deleteFetcher.submit(
-        { action: "deleteImage", productId, mediaId: img.id },
+        { action: "deleteImage", productId, mediaId },
         { method: "POST" }
       );
+
       setToast?.("Bild gelöscht 🗑️");
 
       // localProducts aktualisieren
@@ -104,8 +108,15 @@ export function useImageUpload({ productId, setLocalProducts, setToast }) {
                   ? null
                   : p.node.featuredImage,
                 media: {
-                  edges: (p.node.media?.edges ?? []).filter(e => e.node.id !== img.id)
-                }
+                  edges: (p.node.media?.edges ?? []).filter(
+                    e => e.node.id !== mediaId
+                  )
+                },
+                images: {
+                  edges: (p.node.images?.edges ?? []).filter(
+                    e => e.node.id !== img.id
+                  )
+                },
               }
             }
           : p
@@ -158,6 +169,7 @@ export function useImageUpload({ productId, setLocalProducts, setToast }) {
     } else {
       const newImage = {
         id: linkFetcher.data.mediaId ?? `temp-${Date.now()}`,
+        mediaId: linkFetcher.data.mediaId ?? null,
         url: URL.createObjectURL(file),
         altText: file?.name ?? "",
       };

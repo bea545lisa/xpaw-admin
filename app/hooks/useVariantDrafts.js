@@ -67,7 +67,7 @@ export function useVariantDrafts({ variants = [], initialOptions = [], fetcher, 
       .filter((option) => option.name && option.values.length > 0);
 
     fetcher.submit(
-      { action: "update", id: productId, options: JSON.stringify(normalized) },
+      { action: "updateOptions", id: productId, options: JSON.stringify(normalized) },
       { method: "POST" }
     );
   };

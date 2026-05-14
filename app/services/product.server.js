@@ -245,7 +245,7 @@ export async function updateProductOptions(admin, productId, options) {
         optionValuesToAdd: valuesToAdd,
         optionValuesToUpdate: valuesToUpdate,
         optionValuesToDelete: valuesToDelete,
-        variantStrategy: "LEAVE_AS_IS",
+        variantStrategy: (valuesToAdd.length > 0 || valuesToDelete.length > 0) ? "MANAGE" : "LEAVE_AS_IS",
       }});
 
     }
@@ -265,33 +265,33 @@ export async function updateProductOptions(admin, productId, options) {
         variantStrategy: "CREATE",
       }});
     }
+  }
 
-    // Optionen löschen die nicht mehr im Array sind
-    const submittedIds = new Set(options.map((o) => o.id).filter(Boolean));
-    const optionsToDelete = currentOptions
-      .filter((o) => !submittedIds.has(o.id))
-      .map((o) => o.id);
+  // Optionen löschen die nicht mehr im Array sind
+  const submittedIds = new Set(options.map((o) => o.id).filter(Boolean));
+  const optionsToDelete = currentOptions
+    .filter((o) => !submittedIds.has(o.id))
+    .map((o) => o.id);
 
-    if (optionsToDelete.length > 0) {
-      await admin.graphql(`
-    mutation($productId: ID!, $options: [ID!]!, $strategy: ProductOptionDeleteStrategy) {
-      productOptionsDelete(
-        productId: $productId,
-        options: $options,
-        strategy: $strategy
-      ) {
-        deletedOptionsIds
-        userErrors { field message code }
-      }
+  if (optionsToDelete.length > 0) {
+    await admin.graphql(`
+  mutation($productId: ID!, $options: [ID!]!, $strategy: ProductOptionDeleteStrategy) {
+    productOptionsDelete(
+      productId: $productId,
+      options: $options,
+      strategy: $strategy
+    ) {
+      deletedOptionsIds
+      userErrors { field message code }
     }
-  `, {
-        variables: {
-          productId,
-          options: optionsToDelete,
-          strategy: "POSITION",
-        },
-      });
-    }
+  }
+`, {
+      variables: {
+        productId,
+        options: optionsToDelete,
+        strategy: "POSITION",
+      },
+    });
   }
 }
 

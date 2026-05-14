@@ -144,8 +144,8 @@ export default function Products() {
       const optionCount = (p?.node?.options ?? []).filter((o) => o?.name !== "Title").length;
       const variantBucket =
         optionCount === 0 ? "NO_OPTIONS" :
-        optionCount === 1 ? "ONE_OPTION" :
-        "TWO_OPTIONS";
+          optionCount === 1 ? "ONE_OPTION" :
+            "TWO_OPTIONS";
       const matches = variantFilter.values.map((value) => variantBucket === value);
       return variantFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
     })

@@ -1,6 +1,6 @@
 import { BlockStack } from "@shopify/polaris";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
-import ProductItem from "./ProductItem";
+import ProductItem from "./product/list/ProductItem.jsx";
 import { useProductContext } from "../context/ProductContext";
 
 export default function ProductList({
@@ -20,8 +20,8 @@ export default function ProductList({
       <AnimatePresence>
         <Reorder.Group as="div" axis="y" values={visibleProducts} onReorder={setProductList}>
           {visibleProducts.map((p, index) => (
-          <motion.div 
-            key={p.node.id} 
+          <motion.div
+            key={p.node.id}
             layout
             style={{
               position: "relative",
@@ -44,7 +44,7 @@ export default function ProductList({
                             isRestored={restoredIds.includes(p.node.id)}
                           />
               </Reorder.Item>
-            </div>      
+            </div>
           </motion.div>
           ))}
         </Reorder.Group>
