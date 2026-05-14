@@ -5,8 +5,6 @@ import { useProductContext } from "../../../context/ProductContext.jsx";
 import { useNavigate, useLocation } from "react-router";
 import {
   ViewIcon,
-  EditIcon,
-  NoteIcon,
   DuplicateIcon,
   DeleteIcon,
   CategoriesIcon,
@@ -103,12 +101,13 @@ function ImageStrip({ product, onClick }) {
 export default function ProductItem({
   product, selected, onSelect, isPendingDelete, isRestored, index }) {
 
-  const { onEdit, onDelete, onMetafields, onStatusToggle, onTitleSave, onDuplicate, openMenuId, setOpenMenuId } = useProductContext();
+  const { onDelete, onStatusToggle, onTitleSave, onDuplicate, openMenuId, setOpenMenuId } = useProductContext();
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(product.node.title);
   const [hoveredAction, setHoveredAction] = useState(null);
   const isMenuOpen = openMenuId === product.node.id;
+  const setIsHovered = useState(false);
 
   const inputRef = useRef(null);
 
@@ -193,8 +192,11 @@ export default function ProductItem({
     >
       <div style={{ overflow: "visible" }}>
         <Box paddingInline="200" paddingBlock="100" borderBlockStartWidth="025" borderColor="border-subdued">
-          <div className="product-grid">
-
+          <div
+            className="product-grid"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
             {/* Spalte 1: Produkt (Karte mit Unterbereichen) */}
             <div style={{ minWidth: 0, display: "flex", alignItems: "stretch" }}>
               <div
@@ -506,19 +508,17 @@ export default function ProductItem({
               <StatusBadge status={product.node.status} onClick={() => onStatusToggle(product.node.id, product.node.status)} />
             </div>
 
-            {/* Spalte 5: Aktionsmenü */}
-            <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "flex-start",
+            {/* Spalte 5: Radiales Aktionsmenü */}
+            <div style={{
+              position: "relative", display: "flex", justifyContent: "center", alignItems: "flex-start",
               paddingTop: "16px",
               zIndex: isMenuOpen ? 100 : 1,
-              overflow: "visible" }}>
-              <div style={{
-                position: "absolute", top: 0, left: 0,
-                width: "100%", height: "100%",
-                zIndex: 1, pointerEvents: "none",
-              }} />
+              overflow: "visible",
+            }}
+             onMouseLeave={() => { setOpenMenuId(null); setHoveredAction(null); }}>
               {/* Trigger Button */}
               <button
-                onClick={(e) => { e.stopPropagation(); setOpenMenuId(prev => prev === product.node.id ? null : product.node.id); }}
+                onMouseEnter={() => setOpenMenuId(product.node.id)}
                 style={{
                   background: isMenuOpen ? "var(--p-color-bg-fill-brand)" : "transparent",
                   border: "none", borderRadius: "50%",
@@ -537,79 +537,84 @@ export default function ProductItem({
               {/* Radiale Buttons */}
               {!isPendingDelete && (() => {
                 const actions = [
-                   { icon: ViewIcon, label: "Vorschau", tone: undefined, onClick: () => { const id = product.node.id.split("/").pop(); navigate(`/app/products/${id}${location.search}`, { state: { from: `${location.pathname}${location.search}` } }); } },
-                  { icon: NoteIcon, label: "Metafields", tone: undefined, onClick: () => onMetafields(product.node.id) },
+                  { icon: ViewIcon, label: "Vorschau", tone: undefined, onClick: () => {
+                      const id = product.node.id.split("/").pop();
+                      navigate(`/app/products/${id}${location.search}`, { state: { from: `${location.pathname}${location.search}` } });
+                    }},
                   { icon: DuplicateIcon, label: "Duplizieren", tone: undefined, onClick: () => onDuplicate(product) },
-                  { icon: EditIcon, label: "Bearbeiten", tone: undefined, onClick: () => onEdit(product) },
                   { icon: DeleteIcon, label: "Löschen", tone: "critical", onClick: () => onDelete(product) },
                 ];
 
-                const totalAngle = 120;
-                const startAngle = 120;
-                const radius = 80;
+                const totalAngle = 100;
+                const startAngle = 175;
+                const radiusX = 38;  // ← horizontal enger
+                const radiusY = 62;  // ← vertikal weiter
 
                 return actions.map((action, i) => {
                   const angle = startAngle + (totalAngle / (actions.length - 1)) * i;
                   const rad = (angle * Math.PI) / 180;
-                  const x = Math.cos(rad) * radius;
-                  const y = -Math.sin(rad) * radius;
+                  const yOffset = i === 1 ? -12 : 0;  // ← mittleren nach oben
+                  const x = Math.cos(rad) * radiusX;
+                  const y = -Math.sin(rad) * radiusY + yOffset;
 
                   return (
                     <div
                       key={i}
                       onClick={(e) => { e.stopPropagation(); action.onClick(); setOpenMenuId(null); }}
-                      onMouseEnter={() => setHoveredAction(i)}
-                      onMouseLeave={() => setHoveredAction(null)}
+                      onMouseEnter={() => { setHoveredAction(i); setOpenMenuId(product.node.id); }}
+                      onMouseLeave={() => { setHoveredAction(null); }}
                       style={{
                         position: "absolute",
                         left: "50%", top: "50%",
                         transform: isMenuOpen
-                          ? `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(1)`
-                          : `translate(-50%, -50%) scale(0)`,
+                          ? `translate(calc(-100% + ${x}px), calc(-50% + ${y}px)) scale(1)`
+                          : `translate(calc(-100% + ${x}px), calc(-50% + ${y}px)) scale(0)`,
                         opacity: isMenuOpen ? 1 : 0,
+                        cursor: "pointer", zIndex: 10,
+                        // Wächst nach links — anchor rechts
+                        display: "flex",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
                         borderRadius: 20,
                         background: action.tone === "critical" ? "#fee2e2" : "var(--p-color-bg-surface)",
                         boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                        display: "flex", alignItems: "center", gap: 4,
-                        cursor: "pointer", zIndex: 10,
-                        padding: hoveredAction === i ? "6px 12px 6px 8px" : "6px 8px",
-                        maxWidth: hoveredAction === i ? 150 : 36,
-                        overflow: "hidden", whiteSpace: "nowrap",
-                        transition: `transform 0.25s ease ${i * 40}ms, opacity 0.2s ease ${i * 40}ms, max-width 0.2s ease, padding 0.2s ease`,
+                        height: 36,
+                        width: hoveredAction === i ? "auto" : 36,
+                        minWidth: 36,
+                        paddingLeft: hoveredAction === i ? 10 : 0,
+                        paddingRight: 6,
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                        transition: `transform 0.25s ease ${i * 40}ms, opacity 0.2s ease ${i * 40}ms, width 0.2s ease, padding-left 0.2s ease`,
+                        // Wichtig: wächst nach links
+                        transformOrigin: "right center",
                       }}
                     >
-                      <div style={{
-                        width: 24, height: 24, flexShrink: 0,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        transform: "scale(1.2)",
-                      }}>
-                        <Icon
-                          source={action.icon}
-                          tone={action.tone === "critical" ? "critical" : "base"}
-                        />
-                      </div>
+                      {/* Text links */}
                       <span style={{
                         fontSize: "12px",
                         color: action.tone === "critical" ? "#dc2626" : "var(--p-color-text)",
                         maxWidth: hoveredAction === i ? 100 : 0,
                         overflow: "hidden",
-                        transition: "max-width 0.2s ease",
                         whiteSpace: "nowrap",
+                        transition: "max-width 0.2s ease",
+                        marginRight: 6,
                       }}>
                         {action.label}
                       </span>
+
+                      {/* Icon — bleibt immer rechts */}
+                      <div style={{
+                        width: 24, height: 24, flexShrink: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <Icon source={action.icon} tone={action.tone === "critical" ? "critical" : "base"} />
+                      </div>
                     </div>
                   );
                 });
               })()}
-
-              {/* Overlay zum Schließen */}
-              {isMenuOpen && (
-                <div
-                  style={{ position: "fixed", inset: 0, zIndex: 9 }}
-                  onClick={() => setOpenMenuId(null)}
-                />
-              )}
             </div>
 
           </div>

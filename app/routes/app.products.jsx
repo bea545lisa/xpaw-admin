@@ -14,6 +14,7 @@ import { useBulkDelete } from "../hooks/useBulkDelete.js";
 import { useMetafields } from "../hooks/useMetafields.js";
 import { useExport } from "../hooks/useExport.js";
 import { useProductContext } from "../hooks/useProductContext.js";
+import { useProductFilters } from "../hooks/useProductFilters.js";
 
 export { loader } from "../loaders/products.loader.server";
 export { action } from "../actions/products.action.server.jsx";
@@ -38,27 +39,6 @@ export default function Products() {
   const [deleteId, setDeleteId] = useState(null);
   const [deleteTitle, setDeleteTitle] = useState("");
 
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState({ operator: "is", values: [] });
-  const [collectionFilter, setCollectionFilter] = useState({ operator: "is", values: [] });
-  const [tagFilter, setTagFilter] = useState({ operator: "is", values: [] });
-  const [variantFilter, setVariantFilter] = useState({ operator: "is", values: [] });
-  const [saleFilter, setSaleFilter] = useState(false);
-  const [lowStockFilter, setLowStockFilter] = useState(false);
-  const [stockBucketFilter, setStockBucketFilter] = useState("");
-  const [noImagesFilter, setNoImagesFilter] = useState(false);
-  const [priceBucketFilter, setPriceBucketFilter] = useState("");
-  const [sortBy, setSortBy] = useState("updatedAt");
-  const [sortDirection, setSortDirection] = useState("descending");
-
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const [visibleCount, setVisibleCount] = useState(15);
-  const [currentPage, setCurrentPage] = useState(0);
-
-  const { selectedIds, toggleSelect, clearSelection, selectAll } = useProduct();
-  const navigation = useNavigation();
-  const isLoading = navigation.state === "loading";
-
   const {
     fetcher, localProducts, setLocalProducts,
     toast, setToast,
@@ -71,6 +51,33 @@ export default function Products() {
     onUpdateSuccess: () => setModalOpen(false),
   });
 
+  const {
+    query, setQuery,
+    statusFilter, setStatusFilter,
+    collectionFilter, setCollectionFilter,
+    tagFilter, setTagFilter,
+    variantFilter, setVariantFilter,
+    saleFilter, setSaleFilter,
+    noImagesFilter, setNoImagesFilter,
+    stockBucketFilter, setStockBucketFilter,
+    priceBucketFilter, setPriceBucketFilter,
+    sortBy, setSortBy,
+    sortDirection, setSortDirection,
+    filteredProducts,
+    allTags,
+    allCollections,
+  } = useProductFilters({ localProducts });
+
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(15);
+  const [currentPage, setCurrentPage] = useState(0);
+
+  const { selectedIds, toggleSelect, clearSelection, selectAll } = useProduct();
+  const navigation = useNavigation();
+  const isLoading = navigation.state === "loading";
+
+
+
   const [mode] = useState(initialProducts.length < 100 ? "infinite" : "paginated");
 
   useEffect(() => {
@@ -78,153 +85,6 @@ export default function Products() {
       setLocalProducts(initialProducts);
     }
   }, [initialProducts]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const view = params.get("view");
-    const stock = params.get("stock");
-    const status = params.get("status");
-    const sale = params.get("sale");
-    const noImages = params.get("noImages");
-    const collectionTitle = params.get("collectionTitle");
-    const priceBucket = params.get("priceBucket");
-
-    if (view === "low-stock") {
-      setStockBucketFilter("low-stock");
-    }
-    if (stock) {
-      setStockBucketFilter(stock);
-    }
-    if (status) {
-      setStatusFilter({ operator: "is", values: [status] });
-    }
-    if (sale === "1") {
-      setSaleFilter(true);
-    }
-    if (noImages === "1") {
-      setNoImagesFilter(true);
-    }
-    if (collectionTitle) {
-      const match = allCollections.find((collection) => collection.title === collectionTitle);
-      if (match) {
-        setCollectionFilter({ operator: "is", values: [match.id] });
-      }
-    }
-    if (priceBucket) {
-      setPriceBucketFilter(priceBucket);
-    }
-  }, [location.search]);
-
-  const filteredProducts = localProducts
-    .filter((p) => {
-      if (!statusFilter.values.length) return true;
-      const productStatus = p?.node?.status;
-      const matches = statusFilter.values.map((value) => productStatus === value);
-      return statusFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
-    })
-    .filter((p) => p?.node?.title?.toLowerCase().includes(query.toLowerCase()))
-    .filter((p) => {
-      if (!collectionFilter.values.length) return true;
-      const collectionIds = p?.node?.collections?.edges?.map((e) => e.node.id) ?? [];
-      const matches = collectionFilter.values.map((value) => (
-        value === "NONE" ? collectionIds.length === 0 : collectionIds.includes(value)
-      ));
-      return collectionFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
-    })
-    .filter((p) => {
-      if (!tagFilter.values.length) return true;
-      const tags = p?.node?.tags ?? [];
-      const matches = tagFilter.values.map((value) => (
-        value === "NONE" ? tags.length === 0 : tags.includes(value)
-      ));
-      return tagFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
-    })
-    .filter((p) => {
-      if (!variantFilter.values.length) return true;
-      const optionCount = (p?.node?.options ?? []).filter((o) => o?.name !== "Title").length;
-      const variantBucket =
-        optionCount === 0 ? "NO_OPTIONS" :
-          optionCount === 1 ? "ONE_OPTION" :
-            "TWO_OPTIONS";
-      const matches = variantFilter.values.map((value) => variantBucket === value);
-      return variantFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
-    })
-    .filter((p) => {
-      if (!saleFilter) return true;
-      return p?.node?.variants?.edges?.some((e) => e.node.compareAtPrice && parseFloat(e.node.compareAtPrice) > parseFloat(e.node.price));
-    })
-    .filter((p) => {
-      if (!noImagesFilter) return true;
-      return !p?.node?.featuredImage?.url;
-    })
-    .filter((p) => {
-      if (!priceBucketFilter) return true;
-      const lowestPrice = Math.min(...(p?.node?.variants?.edges?.map((e) => parseFloat(e.node.price) || 0) ?? [0]));
-      if (priceBucketFilter === "under-25") return lowestPrice < 25;
-      if (priceBucketFilter === "25-49") return lowestPrice >= 25 && lowestPrice < 50;
-      if (priceBucketFilter === "50-99") return lowestPrice >= 50 && lowestPrice < 100;
-      if (priceBucketFilter === "100-199") return lowestPrice >= 100 && lowestPrice < 200;
-      if (priceBucketFilter === "200-plus") return lowestPrice >= 200;
-      return true;
-    })
-    .filter((p) => {
-      if (!stockBucketFilter) return true;
-      const quantities = p?.node?.variants?.edges?.map((e) => Number(e.node.inventoryQuantity) || 0) ?? [];
-      const anyOutOfStock = quantities.some((quantity) => quantity === 0);
-      const anyLowStock = quantities.some((quantity) => quantity > 0 && quantity <= 5);
-      const hasInventory = quantities.some((quantity) => quantity > 0);
-
-      if (stockBucketFilter === "out-of-stock") return anyOutOfStock;
-      if (stockBucketFilter === "low-stock") return anyLowStock;
-      if (stockBucketFilter === "healthy") return hasInventory && !anyOutOfStock && !anyLowStock;
-      return true;
-    })
-    .sort((a, b) => {
-      const getTime = (value) => {
-        const time = new Date(value ?? 0).getTime();
-        return Number.isFinite(time) ? time : 0;
-      };
-      const directionFactor = sortDirection === "ascending" ? 1 : -1;
-      if (sortBy === "title") {
-        return String(a?.node?.title ?? "").localeCompare(String(b?.node?.title ?? ""), "de") * directionFactor;
-      }
-      if (sortBy === "createdAt") {
-        return (getTime(a?.node?.createdAt) - getTime(b?.node?.createdAt)) * directionFactor;
-      }
-      if (sortBy === "price") {
-        const priceA = Math.min(...(a?.node?.variants?.edges?.map((e) => parseFloat(e.node.price) || 0) ?? [0]));
-        const priceB = Math.min(...(b?.node?.variants?.edges?.map((e) => parseFloat(e.node.price) || 0) ?? [0]));
-        return (priceA - priceB) * directionFactor;
-      }
-      return (getTime(a?.node?.updatedAt) - getTime(b?.node?.updatedAt)) * directionFactor;
-    });
-
-  const allTags = useMemo(() => {
-    const set = new Set();
-    localProducts.forEach((p) => p.node.tags?.forEach((t) => set.add(t)));
-    return Array.from(set).sort();
-  }, [localProducts]);
-
-  const allCollections = useMemo(() => {
-    const map = new Map();
-    localProducts.forEach((p) => {
-      p.node.collections?.edges?.forEach(({ node: c }) => {
-        if (!map.has(c.id)) map.set(c.id, c);
-      });
-    });
-    return Array.from(map.values());
-  }, [localProducts]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const collectionTitle = params.get("collectionTitle");
-    if (!collectionTitle || allCollections.length === 0) return;
-
-    const match = allCollections.find((collection) => collection.title === collectionTitle);
-    if (match) {
-      setCollectionFilter({ operator: "is", values: [match.id] });
-    }
-  }, [location.search, allCollections]);
 
   const visibleProducts = mode === "infinite"
     ? filteredProducts.slice(0, visibleCount)
@@ -267,6 +127,7 @@ export default function Products() {
             <Layout.Section>
               <Card paddingInline="300" paddingBlock="100">
                 <BlockStack gap="400">
+                  {/* ProductModal deaktiviert — wird in Detailseite editiert
                   <ErrorBoundary>
                     <ProductModal
                       key="product-modal"
@@ -290,7 +151,9 @@ export default function Products() {
                       setToast={setToast}
                     />
                   </ErrorBoundary>
+                  */}
 
+                  {/* MetafieldsModal deaktiviert — wird in Detailseite editiert
                   <MetafieldsModal
                     open={metafields.metafieldsModalOpen}
                     onClose={() => metafields.setMetafieldsModalOpen(false)}
@@ -301,6 +164,7 @@ export default function Products() {
                     onSave={metafields.saveMetafield}
                     onDelete={metafields.deleteMetafield}
                   />
+                  */}
 
                   <ProductToolbar
                     query={query} setQuery={setQuery}
