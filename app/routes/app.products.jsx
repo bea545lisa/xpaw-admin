@@ -21,7 +21,7 @@ import { useProductContext } from "../hooks/useProductContext.js";
 import { useProductFilters } from "../hooks/useProductFilters.js";
 
 export { loader } from "../loaders/products.loader.server";
-export { action } from "../actions/products.action.server.jsx";
+export { action } from "../actions/products.action.server.js";
 
 import { ProductContext } from "../context/ProductContext";
 

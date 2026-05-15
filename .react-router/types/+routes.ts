@@ -36,6 +36,9 @@ type Pages = {
   "/app": {
     params: {};
   };
+  "/app/collections": {
+    params: {};
+  };
   "/app/additional": {
     params: {};
   };
@@ -45,12 +48,15 @@ type Pages = {
   "/app/upload": {
     params: {};
   };
+  "/app/tags": {
+    params: {};
+  };
 };
 
 type RouteFiles = {
   "root.jsx": {
     id: "root";
-    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/products/:id" | "/auth/login" | "/auth/*" | "/app" | "/app/additional" | "/app/products" | "/app/upload";
+    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/products/:id" | "/auth/login" | "/auth/*" | "/app" | "/app/collections" | "/app/additional" | "/app/products" | "/app/upload" | "/app/tags";
   };
   "routes/webhooks.app.scopes_update.jsx": {
     id: "routes/webhooks.app.scopes_update";
@@ -78,7 +84,11 @@ type RouteFiles = {
   };
   "routes/app.jsx": {
     id: "routes/app";
-    page: "/app" | "/app/additional" | "/app/products" | "/app/upload";
+    page: "/app" | "/app/collections" | "/app/additional" | "/app/products" | "/app/upload" | "/app/tags";
+  };
+  "routes/app.collections.jsx": {
+    id: "routes/app.collections";
+    page: "/app/collections";
   };
   "routes/app.additional.jsx": {
     id: "routes/app.additional";
@@ -96,6 +106,10 @@ type RouteFiles = {
     id: "routes/app._index";
     page: "/app";
   };
+  "routes/app.tags.jsx": {
+    id: "routes/app.tags";
+    page: "/app/tags";
+  };
 };
 
 type RouteModules = {
@@ -107,8 +121,10 @@ type RouteModules = {
   "routes/auth.$": typeof import("./app/routes/auth.$.jsx");
   "routes/_index": typeof import("./app/routes/_index/route.jsx");
   "routes/app": typeof import("./app/routes/app.jsx");
+  "routes/app.collections": typeof import("./app/routes/app.collections.jsx");
   "routes/app.additional": typeof import("./app/routes/app.additional.jsx");
   "routes/app.products": typeof import("./app/routes/app.products.jsx");
   "routes/app.upload": typeof import("./app/routes/app.upload.jsx");
   "routes/app._index": typeof import("./app/routes/app._index.jsx");
+  "routes/app.tags": typeof import("./app/routes/app.tags.jsx");
 };
