@@ -12,7 +12,7 @@ export default function ProductListSection({
   localProducts, setLocalProducts,
   fetcher, setToast, allTags,
   handleBulkDelete,
-  host,
+  host, shop,
   mode, visibleCount, setVisibleCount,
   currentPage, setCurrentPage, totalPages,
 }) {
@@ -22,6 +22,8 @@ export default function ProductListSection({
     if (selectedIds.length === visibleProducts.length) clearSelection();
     else selectAll(visibleProducts.map(p => p?.node?.id).filter(Boolean));
   };
+
+  console.log("isLoading:", isLoading);
 
   return (
     <BlockStack gap="100">
@@ -54,19 +56,21 @@ export default function ProductListSection({
           position: relative;
         }
       `}</style>
-      <Box paddingInline="200" paddingBlock="200">
-        <div className="product-grid" 
-        style={{
-          transition: "all 0.2s ease",
-          borderRadius: 12,
-        }}>
-          <div style={{ paddingLeft: 82, paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Produkt</Text></div>
-          <div style={{ textAlign: "right", alignSelf: "start", paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Preis</Text></div>
-          <div style={{ textAlign: "right", alignSelf: "start", paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Inventar</Text></div>
-          <div style={{ textAlign: "center", alignSelf: "start", paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Status</Text></div>
-          <div style={{ textAlign: "center", alignSelf: "start", paddingTop: 16 }}><Text variant="headingSm" tone="subdued">Aktionen</Text></div>
+      <div style={{ borderBottom: "2px solid var(--p-color-border)", padding: "8px 0" }}>
+        <div
+          className="product-grid"
+          style={{
+            transition: "all 0.2s ease",
+            borderRadius: 12,
+            gap: 0,
+          }}>
+          <div style={{ paddingLeft: 10, paddingTop: 8 }}><Text variant="headingSm" tone="subdued">Produkt</Text></div>
+          <div style={{ textAlign: "right", paddingRight: 8, paddingTop: 8 }}><Text variant="headingSm" tone="subdued">Preis</Text></div>
+          <div style={{ textAlign: "right" , paddingRight: 8, paddingTop: 8 }}><Text variant="headingSm" tone="subdued">Inventar</Text></div>
+          <div style={{ textAlign: "center", paddingTop: 8, paddingRight: 8 }}><Text variant="headingSm" tone="subdued">Status</Text></div>
+          <div style={{ textAlign: "center", paddingTop: 8 }}><Text variant="headingSm" tone="subdued"></Text></div>
         </div>
-      </Box>
+      </div>
 
       {/* Liste oder Skeleton */}
       {isLoading ? (
@@ -76,6 +80,7 @@ export default function ProductListSection({
           <ProductList
             products={visibleProducts}
             host={host}
+            shop={shop}
             setProductList={setLocalProducts}
             selectedIds={selectedIds}
             toggleSelect={toggleSelect}

@@ -2,8 +2,8 @@
 import { useFetcher } from "react-router";
 import { useState, useEffect, useRef } from "react";
 
-export function useProductCRUD({ 
-  locationId, editId, editValue, editDescription, editVariants, editOptions, 
+export function useProductCRUD({
+  locationId, editId, editValue, editDescription, editVariants, editOptions,
   deleteId, deleteTitle, onUpdateSuccess }) {
 
   const fetcher = useFetcher();
@@ -23,14 +23,14 @@ export function useProductCRUD({
     setIsSaving(true);
     const variantsJson = JSON.stringify(editVariants);
     fetcher.submit(
-      { 
-        action: "update", 
-        id: editId, 
-        title: editValue, 
-        description: editDescription,  
-        variants: variantsJson, 
-        options: JSON.stringify(editOptions), 
-        locationId 
+      {
+        action: "update",
+        id: editId,
+        title: editValue,
+        description: editDescription,
+        variants: variantsJson,
+        options: JSON.stringify(editOptions),
+        locationId
       },
       { method: "post" }
     );
@@ -47,14 +47,20 @@ export function useProductCRUD({
   const prevData = useRef(null);
 
   useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.ok && fetcher.data !== prevData.current) {
       prevData.current = fetcher.data;
       const data = fetcher.data;
       setIsSaving(false);
-  
+
       const knownTypes = ["update", "delete", "create", "duplicate", "updateTitle", "updateStatus", "bulkDelete"];
       if (!knownTypes.includes(data.type)) return;
-  
+
       if (data.type === "update") {
         onUpdateSuccess?.();
         setToast(`Produkt ${data.product?.title ?? editValue} gespeichert`);

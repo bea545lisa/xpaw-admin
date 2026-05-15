@@ -1,6 +1,7 @@
 import { useLoaderData, useNavigate, useLocation, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
-import { Frame, Page, Layout, Card, BlockStack, Text, Badge, Modal, Toast, } from "@shopify/polaris";
+import { SkeletonBodyText, SkeletonDisplayText, Layout, Card, BlockStack, Text, Badge, Modal, Toast, Icon, Button,} from "@shopify/polaris";
+import { ArrowLeftIcon } from "@shopify/polaris-icons";
 import { useEffect, useState } from "react";
 
 import {
@@ -37,6 +38,7 @@ export const loader = async ({ request, params }) => {
     query getProduct($id: ID!) {
       product(id: $id) {
         id title handle status description vendor productType createdAt updatedAt tags
+        onlineStorePreviewUrl
         seo { title description }
         featuredImage { url altText }
         images(first: 10) {
@@ -143,6 +145,25 @@ export const action = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const type = formData.get("action");
+
+  if (type === "duplicate") {
+    const res = await admin.graphql(`
+  mutation($productId: ID!, $newTitle: String!) {
+    productDuplicate(productId: $productId, newTitle: $newTitle, includeImages: true) {
+      newProduct { id }
+      userErrors { field message }
+    }
+  }
+`, {
+      variables: {
+        productId: formData.get("id"),
+        newTitle: `${formData.get("title")} *** KOPIE ***`,
+      }
+    });
+    const json = await res.json();
+    const newId = json.data?.productDuplicate?.newProduct?.id?.split("/").pop();
+    return { ok: true, type: "duplicate", newId };
+  }
 
   // SKU oder Barcode einer Variante
   // alle Felder einer Variante auf einmal speichern
@@ -525,6 +546,26 @@ export const action = async ({ request }) => {
   return null;
 };
 
+// ─── Skeleton ────────────────────────────────────────────────────────────────────
+
+export function HydrateFallback() {
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <SkeletonDisplayText size="small" />
+      </div>
+      <Layout>
+        <Layout.Section variant="oneThird">
+          <SkeletonBodyText lines={3} />
+        </Layout.Section>
+        <Layout.Section>
+          <SkeletonBodyText lines={6} />
+        </Layout.Section>
+      </Layout>
+    </div>
+  );
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 const STATUS_TONE = { ACTIVE: "success", DRAFT: "info", ARCHIVED: "warning" };
@@ -679,7 +720,7 @@ export default function ProductDetail() {
 
   const detailTabs = [
     { id: "variants", content: `Varianten${variantStockRows.length ? ` (${variantStockRows.length})` : ""}` },
-    { id: "shipping", content: "Shipping" },
+    //{ id: "shipping", content: "Shipping" },
     { id: "metafields", content: "Metafields" },
   ];
 
@@ -687,6 +728,23 @@ export default function ProductDetail() {
   // ── Effekte: fetcher responses ──
 
   useEffect(() => {
+
+    if (!fetcher.data) return;
+
+    if (fetcher.data.type === "delete") {
+      setToast(`${product.title} *** KOPIE *** erstellt 🎉`);
+      navigate(returnTo);
+      return;
+    }
+
+    if (fetcher.data.type === "duplicate") {
+      setToast("Produkt dupliziert ✅");
+      if (fetcher.data.newId) {
+        navigate(`/app/products/${fetcher.data.newId}${location.search}`);
+      }
+      return;
+    }
+
     if (!fetcher.data?.product) return;
     const next = fetcher.data.product;
 
@@ -731,6 +789,13 @@ export default function ProductDetail() {
     imageUpload.setLocalImages(imgs);
   }, []);
 
+  // Toast wieder ausblenden
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   // ── Handler ──
   const handleDelete = () => {
     fetcher.submit({ action: "delete", id: product.id }, { method: "POST" });
@@ -742,30 +807,49 @@ export default function ProductDetail() {
 
   return (
 
-    <Frame>
-    <Page
-      fullWidth
-      title={product.title}
-      titleMetadata={<Badge tone={STATUS_TONE[product.status]}>{STATUS_LABEL[product.status]}</Badge>}
-      backAction={{ onAction: () => navigate(returnTo) }}
-      primaryAction={{
-        content: product.status === "ACTIVE" ? "Auf Entwurf setzen" : "Aktivieren",
-        onAction: handleStatusToggle,
-        loading: isStatusSaving,
-      }}
-      secondaryActions={[
-        {
-          content: "Im Shop ansehen",
-          onAction: () => {},
-          disabled: product.status !== "ACTIVE",
-        },
-        {
-          content: "Löschen",
-          destructive: true,
-          onAction: () => setDeleteModalOpen(true),
-        },
-      ]}
-    >
+    <div style={{ padding: "8px 0" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={() => navigate(returnTo)}
+            style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
+          >
+            <Icon source={ArrowLeftIcon} />
+          </button>
+          <Text variant="headingLg" as="h1">{product.title}</Text>
+          <Badge tone={STATUS_TONE[product.status]}>{STATUS_LABEL[product.status]}</Badge>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button
+            disabled={product.status !== "ACTIVE"}
+            onClick={() => {
+              const a = document.createElement("a");
+              a.href = product.onlineStorePreviewUrl;
+              a.target = "_blank";
+              a.rel = "noopener noreferrer";
+              a.click();
+            }}
+          >
+            Im Shop ansehen
+          </Button>
+          <Button
+            onClick={() => {
+              fetcher.submit(
+                { action: "duplicate", id: product.id, title: product.title },
+                { method: "post" }
+              );
+              setToast(`${product.title} wird kopiert…`);
+            }}
+          >
+            Duplizieren
+          </Button>
+          <Button tone="critical" onClick={() => setDeleteModalOpen(true)}>Löschen</Button>
+          <Button variant="primary" loading={isStatusSaving} onClick={handleStatusToggle}>
+            {product.status === "ACTIVE" ? "Auf Entwurf setzen" : "Aktivieren"}
+          </Button>
+        </div>
+      </div>
       <Layout>
 
         {/* ── Linke Spalte ── */}
@@ -864,25 +948,35 @@ export default function ProductDetail() {
           </BlockStack>
         </Layout.Section>
 
+        {/* ── Delete Modal ── */}
+        <Modal
+          open={deleteModalOpen}
+          onClose={() => setDeleteModalOpen(false)}
+          title="Produkt löschen"
+          primaryAction={{ content: "Löschen", destructive: true, onAction: handleDelete }}
+          secondaryActions={[{ content: "Abbrechen", onAction: () => setDeleteModalOpen(false) }]}
+        >
+          <Modal.Section>
+            <Text>Wirklich löschen: <strong>{product.title}</strong>? Diese Aktion kann nicht rückgängig gemacht werden.</Text>
+          </Modal.Section>
+        </Modal>
+
+        {toast && (
+          <div style={{
+            position: "fixed", bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#303030", color: "white",
+            padding: "12px 16px", borderRadius: 8,
+            zIndex: 9999,
+            whiteSpace: "nowrap",
+          }}>
+            {toast}
+          </div>
+        )}
+
       </Layout>
 
-      {/* ── Delete Modal ── */}
-      <Modal
-        open={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Produkt löschen"
-        primaryAction={{ content: "Löschen", destructive: true, onAction: handleDelete }}
-        secondaryActions={[{ content: "Abbrechen", onAction: () => setDeleteModalOpen(false) }]}
-      >
-        <Modal.Section>
-          <Text>Wirklich löschen: <strong>{product.title}</strong>? Diese Aktion kann nicht rückgängig gemacht werden.</Text>
-        </Modal.Section>
-      </Modal>
-
-      {toast && <Toast content={toast} onDismiss={() => setToast(null)} />}
-
-    </Page>
-    </Frame>
-
+    </div>
   );
 }

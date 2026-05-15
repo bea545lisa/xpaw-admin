@@ -17,7 +17,7 @@ export const loader = async ({ request }) => {
           edges {
             cursor
               node {
-                id title status
+                id title status handle onlineStorePreviewUrl
                 createdAt
                 updatedAt
                 templateSuffix

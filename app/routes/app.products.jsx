@@ -1,4 +1,5 @@
-import { Page, Layout, Card, BlockStack, Toast } from "@shopify/polaris";
+import {Card, BlockStack, Toast, Icon, Text, Modal} from "@shopify/polaris";
+import { ProductIcon } from "@shopify/polaris-icons";
 import { useLoaderData, useLocation, useNavigation } from "react-router";
 import { useEffect, useState, useMemo } from "react";
 
@@ -7,6 +8,9 @@ import MetafieldsModal from "../components/MetafieldsModal";
 import ProductToolbar from "../components/ProductToolbar";
 import ProductListSection from "../components/ProductListSection";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import ProductSkeleton from "../components/ProductSkeleton.jsx";
+
+import DeleteModal from "../components/shared/DeleteModal.jsx";
 
 import { useProduct } from "../hooks/useProduct.jsx";
 import { useProductCRUD } from "../hooks/useProductCRUD.js";
@@ -22,6 +26,16 @@ export { action } from "../actions/products.action.server.jsx";
 import { ProductContext } from "../context/ProductContext";
 
 const PAGE_SIZE = 50;
+
+// ─── Skeleton ────────────────────────────────────────────────────────────────────
+
+export function HydrateFallback() {
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <ProductSkeleton rows={8} />
+    </div>
+  );
+}
 
 export default function Products() {
   const { products: initialProducts, host, locationId, shop } = useLoaderData();
@@ -74,9 +88,7 @@ export default function Products() {
 
   const { selectedIds, toggleSelect, clearSelection, selectAll } = useProduct();
   const navigation = useNavigation();
-  const isLoading = navigation.state === "loading";
-
-
+  const isLoading = navigation.state === "loading" && navigation.location?.pathname === "/app/products";
 
   const [mode] = useState(initialProducts.length < 100 ? "infinite" : "paginated");
 
@@ -109,7 +121,7 @@ export default function Products() {
 
   return (
     <>
-      {toast && <Toast content={toast} onDismiss={() => setToast(null)} />}
+
 
       {pendingDeleteIds.length > 0 && (
         <div style={{ position: "fixed", bottom: 20, right: 20, background: "#303030", color: "white", padding: "12px 16px", borderRadius: 8, width: 260, zIndex: 9999 }}>
@@ -122,105 +134,136 @@ export default function Products() {
       )}
 
       <ProductContext.Provider value={productContext}>
-        <Page fullWidth title={`Produkte (${filteredProducts.length})`}>
-          <Layout>
-            <Layout.Section>
-              <Card paddingInline="300" paddingBlock="100">
-                <BlockStack gap="400">
-                  {/* ProductModal deaktiviert — wird in Detailseite editiert
-                  <ErrorBoundary>
-                    <ProductModal
-                      key="product-modal"
-                      modalOpen={modalOpen} setModalOpen={setModalOpen}
-                      editValue={editValue} setEditValue={setEditValue}
-                      editDescription={editDescription} setEditDescription={setEditDescription}
-                      variants={editVariants} setEditVariants={setEditVariants}
-                      editOptions={editOptions} setEditOptions={setEditOptions}
-                      editImages={editImages}
-                      initialTags={editTags}
-                      allTags={allTags}
-                      productId={editId}
-                      handleUpdate={handleUpdate}
-                      isUpdating={isUpdating}
-                      deleteModalOpen={deleteModalOpen}
-                      setDeleteModalOpen={setDeleteModalOpen}
-                      deleteTitle={deleteTitle}
-                      handleDelete={handleDeleteConfirm}
-                      isDeleting={isDeleting}
-                      setLocalProducts={setLocalProducts}
-                      setToast={setToast}
-                    />
-                  </ErrorBoundary>
-                  */}
+        <div style={{ padding: "8px 0", width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <div style={{ width: 20, height: 20, flexShrink: 0 }}>
+              <Icon source={ProductIcon} />
+            </div>
+            <Text variant="headingLg" as="h1">Produkte ({filteredProducts.length})</Text>
+          </div>
 
-                  {/* MetafieldsModal deaktiviert — wird in Detailseite editiert
-                  <MetafieldsModal
-                    open={metafields.metafieldsModalOpen}
-                    onClose={() => metafields.setMetafieldsModalOpen(false)}
-                    metafields={metafields.metafields}
-                    newMetafield={metafields.newMetafield}
-                    setNewMetafield={metafields.setNewMetafield}
-                    productId={metafields.activeProductId}
-                    onSave={metafields.saveMetafield}
-                    onDelete={metafields.deleteMetafield}
-                  />
-                  */}
+              <BlockStack gap="400">
+              {/* ProductModal deaktiviert — wird in Detailseite editiert
+              <ErrorBoundary>
+                <ProductModal
+                  key="product-modal"
+                  modalOpen={modalOpen} setModalOpen={setModalOpen}
+                  editValue={editValue} setEditValue={setEditValue}
+                  editDescription={editDescription} setEditDescription={setEditDescription}
+                  variants={editVariants} setEditVariants={setEditVariants}
+                  editOptions={editOptions} setEditOptions={setEditOptions}
+                  editImages={editImages}
+                  initialTags={editTags}
+                  allTags={allTags}
+                  productId={editId}
+                  handleUpdate={handleUpdate}
+                  isUpdating={isUpdating}
+                  deleteModalOpen={deleteModalOpen}
+                  setDeleteModalOpen={setDeleteModalOpen}
+                  deleteTitle={deleteTitle}
+                  handleDelete={handleDeleteConfirm}
+                  isDeleting={isDeleting}
+                  setLocalProducts={setLocalProducts}
+                  setToast={setToast}
+                />
+              </ErrorBoundary>
+              */}
 
-                  <ProductToolbar
-                    query={query} setQuery={setQuery}
-                    statusFilter={statusFilter} setStatusFilter={setStatusFilter}
-                    saleFilter={saleFilter} setSaleFilter={setSaleFilter}
-                    lowStockFilter={stockBucketFilter === "low-stock"}
-                    setLowStockFilter={(value) => setStockBucketFilter(value ? "low-stock" : "")}
-                    noImagesFilter={noImagesFilter} setNoImagesFilter={setNoImagesFilter}
-                    priceBucketFilter={priceBucketFilter} setPriceBucketFilter={setPriceBucketFilter}
-                    sortBy={sortBy} setSortBy={setSortBy}
-                    sortDirection={sortDirection} setSortDirection={setSortDirection}
-                    isCreating={isCreating}
-                    onCreate={() => fetcher.submit({ action: "create" }, { method: "post" })}
-                    collections={allCollections}
-                    collectionFilter={collectionFilter}
-                    setCollectionFilter={setCollectionFilter}
-                    allTags={allTags}
-                    tagFilter={tagFilter}
-                    setTagFilter={setTagFilter}
-                    variantFilter={variantFilter}
-                    setVariantFilter={setVariantFilter}
-                    shop={shop}
-                    onExport={handleExport}
-                    onImport={() => setToast("Import folgt in einem nächsten Schritt")}
-                    onMoreActions={() => setToast("Weitere Aktionen folgen in einem nächsten Schritt")}
-                  />
+              {/* MetafieldsModal deaktiviert — wird in Detailseite editiert
+              <MetafieldsModal
+                open={metafields.metafieldsModalOpen}
+                onClose={() => metafields.setMetafieldsModalOpen(false)}
+                metafields={metafields.metafields}
+                newMetafield={metafields.newMetafield}
+                setNewMetafield={metafields.setNewMetafield}
+                productId={metafields.activeProductId}
+                onSave={metafields.saveMetafield}
+                onDelete={metafields.deleteMetafield}
+              />
+              */}
 
-                  <ProductListSection
-                    isLoading={isLoading}
-                    visibleProducts={visibleProducts}
-                    filteredProducts={filteredProducts}
-                    selectedIds={selectedIds}
-                    toggleSelect={toggleSelect}
-                    clearSelection={clearSelection}
-                    selectAll={selectAll}
-                    pendingDeleteIds={pendingDeleteIds}
-                    restoredIds={restoredIds}
-                    localProducts={localProducts}
-                    setLocalProducts={setLocalProducts}
-                    fetcher={fetcher}
-                    setToast={setToast}
-                    allTags={allTags}
-                    handleBulkDelete={handleBulkDelete}
-                    host={host}
-                    mode={mode}
-                    visibleCount={visibleCount}
-                    setVisibleCount={setVisibleCount}
-                    currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
-                    totalPages={totalPages}
-                  />
-                </BlockStack>
+              <Card paddingInline="200" paddingBlock="100">
+                <ProductToolbar
+                  query={query} setQuery={setQuery}
+                  statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+                  saleFilter={saleFilter} setSaleFilter={setSaleFilter}
+                  lowStockFilter={stockBucketFilter === "low-stock"}
+                  setLowStockFilter={(value) => setStockBucketFilter(value ? "low-stock" : "")}
+                  noImagesFilter={noImagesFilter} setNoImagesFilter={setNoImagesFilter}
+                  priceBucketFilter={priceBucketFilter} setPriceBucketFilter={setPriceBucketFilter}
+                  sortBy={sortBy} setSortBy={setSortBy}
+                  sortDirection={sortDirection} setSortDirection={setSortDirection}
+                  isCreating={isCreating}
+                  onCreate={() => fetcher.submit({ action: "create" }, { method: "post" })}
+                  collections={allCollections}
+                  collectionFilter={collectionFilter}
+                  setCollectionFilter={setCollectionFilter}
+                  allTags={allTags}
+                  tagFilter={tagFilter}
+                  setTagFilter={setTagFilter}
+                  variantFilter={variantFilter}
+                  setVariantFilter={setVariantFilter}
+                  shop={shop}
+                  onExport={handleExport}
+                  onImport={() => setToast("Import folgt in einem nächsten Schritt")}
+                  onMoreActions={() => setToast("Weitere Aktionen folgen in einem nächsten Schritt")}
+                />
               </Card>
-            </Layout.Section>
-          </Layout>
-        </Page>
+
+              <Card paddingInline="200" paddingBlock="100">
+
+                <ProductListSection
+                  isLoading={isLoading}
+                  visibleProducts={visibleProducts}
+                  filteredProducts={filteredProducts}
+                  selectedIds={selectedIds}
+                  toggleSelect={toggleSelect}
+                  clearSelection={clearSelection}
+                  selectAll={selectAll}
+                  pendingDeleteIds={pendingDeleteIds}
+                  restoredIds={restoredIds}
+                  localProducts={localProducts}
+                  setLocalProducts={setLocalProducts}
+                  fetcher={fetcher}
+                  setToast={setToast}
+                  allTags={allTags}
+                  handleBulkDelete={handleBulkDelete}
+                  host={host}
+                  shop={shop}
+                  mode={mode}
+                  visibleCount={visibleCount}
+                  setVisibleCount={setVisibleCount}
+                  currentPage={currentPage}
+                  setCurrentPage={setCurrentPage}
+                  totalPages={totalPages}
+                />
+              </Card>
+
+            </BlockStack>
+        </div>
+
+        <DeleteModal
+          open={deleteModalOpen}
+          onClose={() => setDeleteModalOpen(false)}
+          title={deleteTitle}
+          onDelete={handleDeleteConfirm}
+          isDeleting={isDeleting}
+        />
+
+        {toast && (
+          <div style={{
+            position: "fixed", bottom: 20,
+            left: "calc(250px + (100vw - 250px) / 2)",
+            transform: "translateX(-50%)",
+            background: "#303030", color: "white",
+            padding: "12px 16px", borderRadius: 8,
+            zIndex: 9999,
+            whiteSpace: "nowrap",
+          }}>
+            {toast}
+          </div>
+        )}
+
       </ProductContext.Provider>
     </>
   );

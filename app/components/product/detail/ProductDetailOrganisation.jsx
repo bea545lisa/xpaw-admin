@@ -1,5 +1,5 @@
 import { Card, BlockStack, Text, Button, InlineStack, Divider, TextField } from "@shopify/polaris";
-import { useRef } from "react";
+import { useEffect, useRef} from "react";
 import { useProductCollections } from "../../../hooks/useProductCollections.js";
 import { useProductTags } from "../../../hooks/useProductTags.js";
 import PositionedDropdown from "../../ui/PositionedDropdown.jsx";
@@ -7,6 +7,9 @@ import PositionedDropdown from "../../ui/PositionedDropdown.jsx";
 export default function ProductDetailOrganisation({ product, allCollections, allTags, fetcher }) {
   const collections = useProductCollections({ initialCollections: product.collections?.edges?.map(e => e.node) ?? [], allCollections, fetcher, productId: product.id });
   const tags = useProductTags({ initialTags: product.tags ?? [], allTags, fetcher, productId: product.id });
+
+  const tagInputRef = useRef(null);
+  const collectionInputRef = useRef(null);
 
   const pill = {
     display: "inline-flex", alignItems: "center", gap: 6,
@@ -24,6 +27,18 @@ export default function ProductDetailOrganisation({ product, allCollections, all
     padding: "8px 12px", cursor: "pointer", fontSize: 13,
     borderBottom: "1px solid var(--p-color-border-subdued)",
   };
+
+  useEffect(() => {
+    if (tags.showTagSearch) {
+      setTimeout(() => tagInputRef.current?.querySelector("input")?.focus(), 50);
+    }
+  }, [tags.showTagSearch]);
+
+  useEffect(() => {
+    if (collections.showCollectionSearch) {
+      setTimeout(() => collectionInputRef.current?.querySelector("input")?.focus(), 50);
+    }
+  }, [collections.showCollectionSearch]);
 
   return (
     <Card>
@@ -46,7 +61,7 @@ export default function ProductDetailOrganisation({ product, allCollections, all
             </div>
             {collections.showCollectionSearch && (
               <div style={{ position: "relative" }}>
-                <div ref={collections.collectionInputRef}>
+                <div ref={collectionInputRef}>
                   <TextField
                     label="" labelHidden placeholder="Collection suchen…"
                     value={collections.collectionSearch}
@@ -88,27 +103,29 @@ export default function ProductDetailOrganisation({ product, allCollections, all
               <div style={{ position: "relative" }}>
                 <div style={{ display: "flex", gap: 8 }} ref={tags.tagInputRef}>
                   <div style={{ flex: 1 }}>
-                  <TextField
-                    label="" labelHidden placeholder="Tag suchen oder eingeben…"
-                    value={tags.tagInput}
-                    onChange={(val) => {
-                      tags.setTagInput(val);
-                      tags.setTagSuggestions(
-                        allTags.filter(t => !tags.localTags.includes(t) && t.toLowerCase().includes(val.toLowerCase()))
-                      );
-                    }}
-                    autoComplete="off"
-                    autoFocus
-                    onFocus={() => {
-                      tags.setShowTagSuggestions(true);
-                      tags.setTagSuggestions(allTags.filter(t => !tags.localTags.includes(t)));  // ← hier auch
-                    }}
-                    onBlur={() => setTimeout(() => { tags.setShowTagSuggestions(false); tags.setShowTagSearch(false); }, 150)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { tags.handleTagAdd(); tags.setShowTagSuggestions(false); tags.setShowTagSearch(false); }
-                      if (e.key === "Escape") { tags.setShowTagSearch(false); tags.setShowTagSuggestions(false); }
-                    }}
-                  />
+                    <div ref={tagInputRef} style={{ flex: 1 }}>
+                      <TextField
+                        ref={tagInputRef}
+                        label="" labelHidden placeholder="Tag suchen oder eingeben…"
+                        value={tags.tagInput}
+                        onChange={(val) => {
+                          tags.setTagInput(val);
+                          tags.setTagSuggestions(
+                            allTags.filter(t => !tags.localTags.includes(t) && t.toLowerCase().includes(val.toLowerCase()))
+                          );
+                        }}
+                        autoComplete="off"
+                        onFocus={() => {
+                          tags.setShowTagSuggestions(true);
+                          tags.setTagSuggestions(allTags.filter(t => !tags.localTags.includes(t)));  // ← hier auch
+                        }}
+                        onBlur={() => setTimeout(() => { tags.setShowTagSuggestions(false); tags.setShowTagSearch(false); }, 150)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { tags.handleTagAdd(); tags.setShowTagSuggestions(false); tags.setShowTagSearch(false); }
+                          if (e.key === "Escape") { tags.setShowTagSearch(false); tags.setShowTagSuggestions(false); }
+                        }}
+                      />
+                    </div>
                   </div>
                   <Button size="micro" onClick={() => {
                     tags.setShowTagSearch(true);

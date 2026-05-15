@@ -274,7 +274,7 @@ export default function ProductDetailTabs({
           </Card>
         </>
 
-      ) : selectedDetailTab === 1 ? (
+      /*) : selectedDetailTab === 1 ? (
         <Card>
           <BlockStack gap="300">
             <InlineStack align="space-between" blockAlign="center">
@@ -299,7 +299,7 @@ export default function ProductDetailTabs({
             </BlockStack>
           </BlockStack>
         </Card>
-
+      */
       ) : (
         <ProductDetailMetafields
           metafields={metafields}

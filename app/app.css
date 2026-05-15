@@ -1,5 +1,11 @@
 /* PRODUKTLISTE ==================================== */
-.product-grid:hover {
-    background: #fafafa;
+.product-grid:hover .product-card {
+  background: var(--p-color-bg-surface-hover) !important;
+}
+
+.product-list-header {
+  border-bottom: 2px solid var(--p-color-border);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
 }
 

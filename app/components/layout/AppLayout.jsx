@@ -1,5 +1,5 @@
 import Sidebar from "./Sidebar";
-import Topbar from "./Topbar";
+//import Topbar from "./Topbar";
 
 export default function AppLayout({ children }) {
   return (
@@ -7,7 +7,7 @@ export default function AppLayout({ children }) {
       style={{
         display: "flex",
         minHeight: "100vh",
-        background: "#f6f6f7",
+        background: "#f8f8f8",
       }}
     >
       <Sidebar />
@@ -15,13 +15,11 @@ export default function AppLayout({ children }) {
       <main
         style={{
             flex: 1,
-            padding: "12px 24px",
+            padding: "12px 16px",
             overflow: "auto",
         }}
         >
-        <Topbar />
-
-        <div            
+        <div
             style={{
                 minHeight: "calc(100vh - 120px)",
                 maxWidth: "1600px",

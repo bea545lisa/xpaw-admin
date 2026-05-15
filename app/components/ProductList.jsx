@@ -5,7 +5,7 @@ import { useProductContext } from "../context/ProductContext";
 
 export default function ProductList({
   products,
-  host,
+  host, shop,
   selectedIds,
   toggleSelect,
   setProductList,
@@ -34,15 +34,16 @@ export default function ProductList({
               opacity: openMenuId && openMenuId !== p.node.id ? 0.4 : 1,
             }}>
               <Reorder.Item as="div" key={p.node.id} value={p}>
-                          <ProductItem
-                            index={index}
-                            product={p}
-                            host={host}
-                            selected={selectedIds.includes(p.node.id)}
-                            onSelect={() => toggleSelect(p.node.id)}
-                            isPendingDelete={pendingDeleteIds.includes(p.node.id)}
-                            isRestored={restoredIds.includes(p.node.id)}
-                          />
+                    <ProductItem
+                      index={index}
+                      product={p}
+                      host={host}
+                      shop={shop}
+                      selected={selectedIds.includes(p.node.id)}
+                      onSelect={() => toggleSelect(p.node.id)}
+                      isPendingDelete={pendingDeleteIds.includes(p.node.id)}
+                      isRestored={restoredIds.includes(p.node.id)}
+                    />
               </Reorder.Item>
             </div>
           </motion.div>

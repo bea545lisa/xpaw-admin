@@ -1,5 +1,5 @@
 import { Card, BlockStack, Text, Button, InlineStack, Divider, TextField } from "@shopify/polaris";
-import { useState } from "react";
+import {useEffect, useRef, useState} from "react";
 
 export default function ProductDetailOptions({
   optionDrafts, setOptionDrafts, optionsDirty, handleOptionsSave, setToast,
@@ -7,6 +7,8 @@ export default function ProductDetailOptions({
   const [newOptionValues, setNewOptionValues] = useState({});
   const [openNewValue, setOpenNewValue] = useState({});
   const [editingOptionName, setEditingOptionName] = useState({});
+  const optionNameRefs = useRef({});
+  const newValueRefs = useRef({});
 
   const addValue = (oi, option) => {
     const val = newOptionValues[oi]?.trim();
@@ -19,6 +21,22 @@ export default function ProductDetailOptions({
     // Auto-Speichern
     //setTimeout(() => handleOptionsSave(), 0);
   };
+
+  useEffect(() => {
+    Object.keys(editingOptionName).forEach((oi) => {
+      if (editingOptionName[oi]) {
+        setTimeout(() => optionNameRefs.current[oi]?.querySelector("input")?.focus(), 50);
+      }
+    });
+  }, [editingOptionName]);
+
+  useEffect(() => {
+    Object.keys(openNewValue).forEach((oi) => {
+      if (openNewValue[oi]) {
+        setTimeout(() => newValueRefs.current[oi]?.focus(), 50);
+      }
+    });
+  }, [openNewValue]);
 
   return (
     <>
@@ -53,7 +71,12 @@ export default function ProductDetailOptions({
                   {/* Optionsname: readonly + Edit-Button */}
                   <InlineStack align="space-between" blockAlign="center" gap="200">
                     {editingOptionName[oi] ? (
-                      <div style={{ flex: 1 }}>
+                      <div
+                        style={{ flex: 1 }}
+                        ref={(el) => {
+                          if (el) setTimeout(() => el.querySelector("input")?.focus(), 0);
+                        }}
+                      >
                         <TextField
                           label="" labelHidden autoComplete="off"
                           placeholder="z.B. Größe"
@@ -64,7 +87,6 @@ export default function ProductDetailOptions({
                             setOptionDrafts(updated);
                           }}
                           onBlur={() => setEditingOptionName((prev) => ({ ...prev, [oi]: false }))}
-                          autoFocus
                         />
                       </div>
                     ) : (
@@ -124,7 +146,6 @@ export default function ProductDetailOptions({
                         padding: "3px 6px", background: "var(--p-color-bg-surface)",
                       }}>
                         <input
-                          autoFocus
                           value={newOptionValues[oi] ?? ""}
                           onChange={(e) => setNewOptionValues((prev) => ({ ...prev, [oi]: e.target.value }))}
                           onKeyDown={(e) => {
