@@ -32,9 +32,7 @@ export default function Root() {
       <body>
 
         <AppProvider i18n={{}}>
-          <AppLayout>
             <Outlet />
-          </AppLayout>
         </AppProvider>
 
         <ScrollRestoration />
