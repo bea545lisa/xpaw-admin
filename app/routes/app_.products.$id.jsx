@@ -1,4 +1,5 @@
 import { useLoaderData, useNavigate, useLocation, useFetcher } from "react-router";
+import AppLayout from "../components/layout/AppLayout";
 import { authenticate } from "../shopify.server";
 import { SkeletonBodyText, SkeletonDisplayText, Layout, Card, BlockStack, Text, Badge, Modal, Toast, Icon, Button,} from "@shopify/polaris";
 import { ArrowLeftIcon } from "@shopify/polaris-icons";
@@ -806,7 +807,7 @@ export default function ProductDetail() {
   // ── Seite ──
 
   return (
-
+    <AppLayout>
     <div style={{ padding: "8px 0" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -978,5 +979,6 @@ export default function ProductDetail() {
       </Layout>
 
     </div>
+    </AppLayout>
   );
 }

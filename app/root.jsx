@@ -9,8 +9,7 @@ import {
 import { AppProvider } from "@shopify/polaris";
 import "@shopify/polaris/build/esm/styles.css";
 import "./app.css";
-
-import AppLayout from "./components/layout/AppLayout";
+import "./styles/sidebar.css";
 
 export const loader = async () => {
   return { apiKey: import.meta.env.SHOPIFY_API_KEY };

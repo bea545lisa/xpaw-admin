@@ -76,7 +76,7 @@ export default function TagsPage() {
   const isBusy = fetcher.state !== "idle";
 
   return (
-    <div style={{ marginLeft: 220, padding: "32px 40px", minHeight: "100vh", background: "#f6f6f7" }}>
+    <div style={{ padding: "32px 40px", minHeight: "100vh", background: "#f6f6f7" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
         <HashtagIcon width={24} height={24} />

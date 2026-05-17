@@ -10,7 +10,7 @@ export default function ProductListSection({
   selectedIds, toggleSelect, clearSelection, selectAll,
   pendingDeleteIds, restoredIds,
   localProducts, setLocalProducts,
-  fetcher, setToast, allTags,
+  fetcher, setToast, allTags, allCollections,
   handleBulkDelete,
   host, shop,
   mode, visibleCount, setVisibleCount,
@@ -41,6 +41,7 @@ export default function ProductListSection({
           setToast={setToast}
           clearSelection={clearSelection}
           allTags={allTags}
+          allCollections={allCollections}
           handleBulkDelete={handleBulkDelete}
         />
       </Box>

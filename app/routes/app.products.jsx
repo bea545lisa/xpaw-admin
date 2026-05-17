@@ -227,6 +227,7 @@ export default function Products() {
                   fetcher={fetcher}
                   setToast={setToast}
                   allTags={allTags}
+                  allCollections={allCollections}
                   handleBulkDelete={handleBulkDelete}
                   host={host}
                   shop={shop}

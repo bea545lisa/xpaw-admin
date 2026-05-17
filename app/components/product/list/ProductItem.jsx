@@ -235,7 +235,9 @@ export default function ProductItem({
                       padding: "8px 8px 8px 4px",
                     }}
                   >
-                    <Checkbox label="" labelHidden checked={selected} onChange={onSelect} />
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Checkbox label="" labelHidden checked={selected} onChange={onSelect} />
+                    </div>
                     <ImageStrip
                       product={product}
                       onClick={() => {
@@ -267,7 +269,7 @@ export default function ProductItem({
                               cursor: "pointer",
                               color: "#111827",
                             }}
-                            onClick={handleTitleClick}
+                            onClick={(e) => { e.stopPropagation(); handleTitleClick(); }}
                             title="Klicken zum Bearbeiten"
                           >
                             {product.node.title}

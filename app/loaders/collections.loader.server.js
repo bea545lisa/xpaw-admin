@@ -11,6 +11,7 @@ export async function collectionsLoader({ request }, admin) {
           node {
             id
             title
+            descriptionHtml
             productsCount { count }
             image { url altText }
             updatedAt

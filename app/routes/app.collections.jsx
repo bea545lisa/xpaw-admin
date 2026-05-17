@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useFetcher, useLoaderData, useSearchParams } from "react-router";
+import { useFetcher, useLoaderData, useSearchParams, useNavigate, useLocation } from "react-router";
 import { authenticate } from "../shopify.server";
 import { collectionsLoader } from "../loaders/collections.loader.server";
 import { collectionsAction } from "../actions/collections.action.server";
@@ -19,6 +19,8 @@ export const action = async ({ request }) => {
 export default function CollectionsPage() {
   const { collections } = useLoaderData();
   const fetcher = useFetcher();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState(searchParams.get("search") || "");
@@ -94,7 +96,7 @@ export default function CollectionsPage() {
   const isBusy = fetcher.state !== "idle";
 
   return (
-    <div style={{ marginLeft: 220, padding: "32px 40px", minHeight: "100vh", background: "#f6f6f7" }}>
+    <div style={{ padding: "32px 40px", minHeight: "100vh", background: "#f6f6f7" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <CollectionIcon width={24} height={24} />
@@ -122,6 +124,7 @@ export default function CollectionsPage() {
           <thead>
           <tr style={{ background: "#f9f9f9", borderBottom: "1px solid #e3e3e3" }}>
             <th style={thStyle}>Titel</th>
+            <th style={thStyle}>Beschreibung</th>
             <th style={thStyle}>Produkte</th>
             <th style={thStyle}>Geändert am</th>
             <th style={{ ...thStyle, width: 80 }} />
@@ -141,6 +144,7 @@ export default function CollectionsPage() {
               collection={col}
               onRename={() => { setRenameTarget(col); setRenameTitle(col.title); }}
               onDelete={() => setDeleteTarget(col)}
+              onOpen={() => navigate(`/app/collections/${col.id.split("/").pop()}`, { state: { from: `${location.pathname}${location.search}` } })}
             />
           ))}
           </tbody>
@@ -214,30 +218,44 @@ export default function CollectionsPage() {
 
 // ── Hilfskomponenten ──────────────────────────────────────────────────
 
-function CollectionRow({ collection, onRename, onDelete }) {
+function CollectionRow({ collection, onRename, onDelete, onOpen }) {
   const [hovered, setHovered] = useState(false);
+
+  const description = collection.descriptionHtml
+    ? collection.descriptionHtml.replace(/<[^>]+>/g, "").trim()
+    : null;
 
   return (
     <tr
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{ borderBottom: "1px solid #f0f0f0", transition: "background 0.1s", background: hovered ? "#fafafa" : "#fff" }}
+      onClick={onOpen}
+      style={{ borderBottom: "1px solid #f0f0f0", transition: "background 0.1s", background: hovered ? "#fafafa" : "#fff", cursor: "pointer" }}
     >
       <td style={tdStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {collection.image?.url ? (
-            <img src={collection.image.url} alt={collection.image.altText || ""} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />
+            <img src={collection.image.url} alt={collection.image.altText || ""} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
           ) : (
-            <div style={{ width: 36, height: 36, borderRadius: 6, background: "#e3e3e3", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 6, background: "#e3e3e3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <CollectionIcon width={18} height={18} style={{ opacity: 0.4 }} />
             </div>
           )}
           <span style={{ fontWeight: 500 }}>{collection.title}</span>
         </div>
       </td>
+      <td style={{ ...tdStyle, color: "#6b7280", maxWidth: 300 }}>
+        {description ? (
+          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            {description}
+          </span>
+        ) : (
+          <span style={{ color: "#d1d5db" }}>—</span>
+        )}
+      </td>
       <td style={tdStyle}>{collection.productsCount?.count ?? "—"}</td>
       <td style={tdStyle}>{new Date(collection.updatedAt).toLocaleDateString("de-DE")}</td>
-      <td style={{ ...tdStyle, textAlign: "right" }}>
+      <td style={{ ...tdStyle, textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
         {hovered && (
           <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
             <IconBtn icon={<EditIcon width={16} height={16} />} onClick={onRename} title="Umbenennen" />

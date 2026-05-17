@@ -1,61 +1,113 @@
-import { useLocation } from "react-router";
-import { Navigation } from "@shopify/polaris";
-import { ProductIcon } from "@shopify/polaris-icons";
+import { useState } from "react";
+import { Link, useLocation, useNavigation } from "react-router";
+import { HomeIcon, ProductIcon } from "@shopify/polaris-icons";
+
+function ActiveIndicator({ isFirst }) {
+  const lineY  = isFirst ? 19 : 54;
+  const curveY = isFirst ? 26 : 61;
+  const ax     = 10;
+
+  return (
+    <svg
+      style={{ position: "absolute", left: 20, top: -9, overflow: "visible", pointerEvents: "none", zIndex: 1 }}
+      width={ax + 3}
+      height={curveY + 3}
+    >
+      <path
+        d={`M0.5 0 L0.5 ${lineY} Q0.5 ${curveY} 4 ${curveY} L${ax} ${curveY}`}
+        stroke="#c4c7cc" strokeWidth="1" fill="none" strokeLinecap="round"
+      />
+      <path
+        d={`M${ax - 2} ${curveY - 2} L${ax} ${curveY} L${ax - 2} ${curveY + 2}`}
+        stroke="#c4c7cc" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default function Sidebar() {
   const location = useLocation();
-  const pathname = location.pathname;
-  const search = location.search;
+  const navigation = useNavigation();
+  const [hoveredSub, setHoveredSub] = useState(null);
 
-  const withSearch = (to) => {
-    if (!search) return to;
-    return to.includes("?") ? `${to}&${search.slice(1)}` : `${to}${search}`;
-  };
+  const pendingPath = navigation.location?.pathname;
+  const activePath = pendingPath ?? location.pathname;
+
+  const search = location.search || "";
+  const link = (to) => (search ? `${to}${search}` : to);
+
+  const submenuOpen =
+    activePath.startsWith("/app/products") ||
+    activePath.startsWith("/app/collections") ||
+    activePath.startsWith("/app/tags");
+
+  const hasActiveSub =
+    activePath.startsWith("/app/collections") ||
+    activePath.startsWith("/app/tags");
+
+  const isProductsActive = activePath.startsWith("/app/products") && !hasActiveSub;
+
+  const activeSubIndex = activePath.startsWith("/app/collections") ? 0
+    : activePath.startsWith("/app/tags") ? 1
+    : null;
+
+  const indicatorTarget = hoveredSub !== null ? hoveredSub : activeSubIndex;
 
   return (
     <aside style={{
-      width: "250px",
-      height: "100vh",
-      background: "rgb(241, 241, 241)",
+      width: 240,
+      minHeight: "100vh",
+      background: "#f1f1f1",
+      flexShrink: 0,
       boxSizing: "border-box",
-      position: "sticky",
-      top: 0,
+      padding: "24px 12px 16px",
     }}>
-      <div style={{ padding: "24px 16px 16px" }}>
-        <div style={{ fontSize: "28px", fontWeight: "700", color: "#111827", letterSpacing: "-0.5px" }}>RexPaw</div>
-        <div style={{ marginTop: "4px", fontSize: "13px", color: "#9ca3af" }}>Shopify Admin</div>
+      <div style={{ padding: "0 10px", marginBottom: 24 }}>
+        <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>RexPaw</div>
+        <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>Shopify Admin</div>
       </div>
 
-      <Navigation location={pathname}>
-        <Navigation.Section
-          items={[
-            {
-              label: "Dashboard",
-              url: withSearch("/app"),
-              exactMatch: true,
-              selected: pathname === "/app",
-            },
-            {
-              label: "Produkte",
-              url: withSearch("/app/products"),
-              icon: ProductIcon,
-              selected: pathname.startsWith("/app/products") || pathname.startsWith("/app/collections") || pathname.startsWith("/app/tags"),
-              subNavigationItems: [
-                {
-                  label: "Kollektionen",
-                  url: withSearch("/app/collections"),
-                  selected: pathname.startsWith("/app/collections"),
-                },
-                {
-                  label: "Tags",
-                  url: withSearch("/app/tags"),
-                  selected: pathname.startsWith("/app/tags"),
-                },
-              ],
-            },
-          ]}
-        />
-      </Navigation>
+      <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <Link to={link("/app")} className={`sb-item${activePath === "/app" ? " active" : ""}`}>
+          <span style={{ opacity: activePath === "/app" ? 1 : 0.55, display: "flex" }}>
+            <HomeIcon width={18} height={18} />
+          </span>
+          Dashboard
+        </Link>
+
+        <Link to={link("/app/products")} className={`sb-item${isProductsActive ? " active" : ""}`}>
+          <span style={{ opacity: submenuOpen ? 1 : 0.55, display: "flex" }}>
+            <ProductIcon width={18} height={18} />
+          </span>
+          Produkte
+        </Link>
+
+        {submenuOpen && (
+          <div style={{ position: "relative" }}>
+            {indicatorTarget !== null && (
+              <ActiveIndicator isFirst={indicatorTarget === 0} />
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Link
+                to={link("/app/collections")}
+                className={`sb-sub${activePath.startsWith("/app/collections") ? " active" : ""}`}
+                onMouseEnter={() => setHoveredSub(0)}
+                onMouseLeave={() => setHoveredSub(null)}
+              >
+                Kollektionen
+              </Link>
+              <Link
+                to={link("/app/tags")}
+                className={`sb-sub${activePath.startsWith("/app/tags") ? " active" : ""}`}
+                onMouseEnter={() => setHoveredSub(1)}
+                onMouseLeave={() => setHoveredSub(null)}
+              >
+                Tags
+              </Link>
+            </div>
+          </div>
+        )}
+      </nav>
     </aside>
   );
 }
