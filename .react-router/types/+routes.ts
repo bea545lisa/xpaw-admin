@@ -20,6 +20,11 @@ type Pages = {
   "/webhooks/app/uninstalled": {
     params: {};
   };
+  "/app/collections/:id": {
+    params: {
+      "id": string;
+    };
+  };
   "/app/products/:id": {
     params: {
       "id": string;
@@ -56,7 +61,7 @@ type Pages = {
 type RouteFiles = {
   "root.jsx": {
     id: "root";
-    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/products/:id" | "/auth/login" | "/auth/*" | "/app" | "/app/collections" | "/app/additional" | "/app/products" | "/app/upload" | "/app/tags";
+    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/collections/:id" | "/app/products/:id" | "/auth/login" | "/auth/*" | "/app" | "/app/collections" | "/app/additional" | "/app/products" | "/app/upload" | "/app/tags";
   };
   "routes/webhooks.app.scopes_update.jsx": {
     id: "routes/webhooks.app.scopes_update";
@@ -65,6 +70,10 @@ type RouteFiles = {
   "routes/webhooks.app.uninstalled.jsx": {
     id: "routes/webhooks.app.uninstalled";
     page: "/webhooks/app/uninstalled";
+  };
+  "routes/app_.collections.$id.jsx": {
+    id: "routes/app_.collections.$id";
+    page: "/app/collections/:id";
   };
   "routes/app_.products.$id.jsx": {
     id: "routes/app_.products.$id";
@@ -116,6 +125,7 @@ type RouteModules = {
   "root": typeof import("./app/root.jsx");
   "routes/webhooks.app.scopes_update": typeof import("./app/routes/webhooks.app.scopes_update.jsx");
   "routes/webhooks.app.uninstalled": typeof import("./app/routes/webhooks.app.uninstalled.jsx");
+  "routes/app_.collections.$id": typeof import("./app/routes/app_.collections.$id.jsx");
   "routes/app_.products.$id": typeof import("./app/routes/app_.products.$id.jsx");
   "routes/auth.login": typeof import("./app/routes/auth.login/route.jsx");
   "routes/auth.$": typeof import("./app/routes/auth.$.jsx");
