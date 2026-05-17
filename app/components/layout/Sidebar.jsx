@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigation } from "react-router";
-import { HomeIcon, ProductIcon } from "@shopify/polaris-icons";
+import { HomeIcon, ProductIcon, OrderIcon } from "@shopify/polaris-icons";
 
 function ActiveIndicator({ isFirst }) {
   const lineY  = isFirst ? 19 : 54;
@@ -29,6 +29,7 @@ export default function Sidebar() {
   const location = useLocation();
   const navigation = useNavigation();
   const [hoveredSub, setHoveredSub] = useState(null);
+  const [produkteHovered, setProduktHovered] = useState(false);
 
   const pendingPath = navigation.location?.pathname;
   const activePath = pendingPath ?? location.pathname;
@@ -36,10 +37,12 @@ export default function Sidebar() {
   const search = location.search || "";
   const link = (to) => (search ? `${to}${search}` : to);
 
-  const submenuOpen =
+  const isInProductArea =
     activePath.startsWith("/app/products") ||
     activePath.startsWith("/app/collections") ||
     activePath.startsWith("/app/tags");
+
+  const submenuOpen = isInProductArea || produkteHovered;
 
   const hasActiveSub =
     activePath.startsWith("/app/collections") ||
@@ -75,7 +78,12 @@ export default function Sidebar() {
           Dashboard
         </Link>
 
-        <Link to={link("/app/products")} className={`sb-item${isProductsActive ? " active" : ""}`}>
+        <Link
+          to={link("/app/products")}
+          className={`sb-item${isProductsActive ? " active" : ""}`}
+          onMouseEnter={() => setProduktHovered(true)}
+          onMouseLeave={() => setProduktHovered(false)}
+        >
           <span style={{ opacity: submenuOpen ? 1 : 0.55, display: "flex" }}>
             <ProductIcon width={18} height={18} />
           </span>
@@ -83,7 +91,11 @@ export default function Sidebar() {
         </Link>
 
         {submenuOpen && (
-          <div style={{ position: "relative" }}>
+          <div
+            style={{ position: "relative" }}
+            onMouseEnter={() => setProduktHovered(true)}
+            onMouseLeave={() => setProduktHovered(false)}
+          >
             {indicatorTarget !== null && (
               <ActiveIndicator isFirst={indicatorTarget === 0} />
             )}
@@ -107,6 +119,13 @@ export default function Sidebar() {
             </div>
           </div>
         )}
+
+        <Link to={link("/app/orders")} className={`sb-item${activePath.startsWith("/app/orders") ? " active" : ""}`}>
+          <span style={{ opacity: activePath.startsWith("/app/orders") ? 1 : 0.55, display: "flex" }}>
+            <OrderIcon width={18} height={18} />
+          </span>
+          Bestellungen
+        </Link>
       </nav>
     </aside>
   );

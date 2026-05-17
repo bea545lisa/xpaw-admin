@@ -234,27 +234,66 @@ function BarListCard({ title, items, emptyLabel, color = "var(--p-color-bg-fill-
   );
 }
 
+const RECENT_ORDERS_QUERY = `
+  query {
+    orders(first: 50, sortKey: CREATED_AT, reverse: true) {
+      edges {
+        node {
+          id
+          name
+          createdAt
+          displayFinancialStatus
+          displayFulfillmentStatus
+          totalPriceSet { shopMoney { amount currencyCode } }
+          lineItems(first: 5) {
+            edges { node { title quantity } }
+          }
+          customer { firstName lastName email }
+        }
+      }
+    }
+  }
+`;
+
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
 
-  let products = [];
-  let cursor = null;
-  let hasNextPage = true;
+  // Produkte + Bestellungen parallel laden
+  const [productsData, ordersData] = await Promise.all([
+    (async () => {
+      try {
+        let products = [];
+        let cursor = null;
+        let hasNextPage = true;
+        let pageCount = 0;
+        const MAX_PAGES = 20;
+        while (hasNextPage && pageCount < MAX_PAGES) {
+          pageCount++;
+          const response = await admin.graphql(fetchAllProductsQuery(), { variables: { cursor } });
+          const json = await response.json();
+          const conn = json?.data?.products;
+          if (!conn) break;
+          products = [...products, ...collectProducts(conn?.edges ?? [])];
+          hasNextPage = Boolean(conn?.pageInfo?.hasNextPage);
+          cursor = conn?.pageInfo?.endCursor ?? null;
+        }
+        return products;
+      } catch {
+        return [];
+      }
+    })(),
+    (async () => {
+      try {
+        const response = await admin.graphql(RECENT_ORDERS_QUERY);
+        const json = await response.json();
+        return json?.data?.orders?.edges?.map(({ node }) => node) ?? [];
+      } catch {
+        return [];
+      }
+    })(),
+  ]);
 
-  while (hasNextPage) {
-    const response = await admin.graphql(fetchAllProductsQuery(), {
-      variables: { cursor },
-    });
-
-    const json = await response.json();
-    const productConnection = json?.data?.products;
-
-    products = [...products, ...collectProducts(productConnection?.edges ?? [])];
-    hasNextPage = Boolean(productConnection?.pageInfo?.hasNextPage);
-    cursor = productConnection?.pageInfo?.endCursor ?? null;
-  }
-
-  const normalized = products.map((product) => ({
+  const normalized = productsData.map((product) => ({
     ...product,
     variants: product.variants ?? { edges: [] },
     collections: product.collections ?? { edges: [] },
@@ -266,6 +305,59 @@ export const loader = async ({ request }) => {
     sale: normalized.filter(isSaleProduct).length,
     drafts: normalized.filter((product) => product.status === "DRAFT").length,
   };
+
+  // Bestellungs-Metriken
+  const currency = ordersData[0]?.totalPriceSet?.shopMoney?.currencyCode ?? "EUR";
+  const totalRevenue = ordersData.reduce((sum, o) => sum + Number.parseFloat(o.totalPriceSet?.shopMoney?.amount ?? 0), 0);
+  const openOrders = ordersData.filter((o) => o.displayFulfillmentStatus === "UNFULFILLED" || o.displayFulfillmentStatus === "PARTIAL").length;
+  const unpaidOrders = ordersData.filter((o) => o.displayFinancialStatus === "PENDING" || o.displayFinancialStatus === "AUTHORIZED").length;
+
+  // Umsatz letzte 30 Tage — tageweise gruppieren
+  const now = new Date();
+  const revenueByDay = new Map();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    revenueByDay.set(key, 0);
+  }
+  ordersData.forEach((o) => {
+    const day = o.createdAt?.slice(0, 10);
+    if (day && revenueByDay.has(day)) {
+      revenueByDay.set(day, revenueByDay.get(day) + Number.parseFloat(o.totalPriceSet?.shopMoney?.amount ?? 0));
+    }
+  });
+  const revenueChart = Array.from(revenueByDay.entries()).map(([date, value]) => ({
+    label: new Date(date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }),
+    value: Math.round(value * 100) / 100,
+  }));
+
+  // Top 5 Produkte nach Bestellhäufigkeit
+  const productCount = new Map();
+  ordersData.forEach((o) => {
+    o.lineItems?.edges?.forEach(({ node }) => {
+      productCount.set(node.title, (productCount.get(node.title) ?? 0) + node.quantity);
+    });
+  });
+  const topProducts = Array.from(productCount.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
+
+  // Letzte 5 Bestellungen für die Tabelle
+  const recentOrders = ordersData.slice(0, 5).map((o) => ({
+    id: o.id,
+    numericId: o.id.split("/").pop(),
+    name: o.name,
+    createdAt: o.createdAt,
+    financialStatus: o.displayFinancialStatus,
+    fulfillmentStatus: o.displayFulfillmentStatus,
+    total: Number.parseFloat(o.totalPriceSet?.shopMoney?.amount ?? 0),
+    currency: o.totalPriceSet?.shopMoney?.currencyCode ?? currency,
+    customerName: o.customer
+      ? `${o.customer.firstName ?? ""} ${o.customer.lastName ?? ""}`.trim() || o.customer.email
+      : "Gast",
+  }));
 
   const collectionCounts = new Map();
   const stockBuckets = new Map([
@@ -305,6 +397,16 @@ export const loader = async ({ request }) => {
   return {
     products: normalized,
     summary,
+    orders: {
+      total: ordersData.length,
+      totalRevenue,
+      currency,
+      openOrders,
+      unpaidOrders,
+      revenueChart,
+      topProducts,
+      recentOrders,
+    },
     charts: {
       collections: Array.from(collectionCounts.entries())
         .map(([label, value]) => ({ label, value, to: `/app/products?collectionTitle=${encodeURIComponent(label)}` }))
@@ -325,8 +427,54 @@ export const loader = async ({ request }) => {
   };
 };
 
+// ── Sparkline (SVG, keine externen Deps) ──────────────────────────────
+
+function Sparkline({ data, color = "var(--p-color-bg-fill-brand)", height = 48 }) {
+  if (!data || data.length < 2) return null;
+  const values = data.map((d) => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const w = 280;
+  const h = height;
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 4) - 2;
+    return `${x},${y}`;
+  }).join(" ");
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: h, display: "block" }}>
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const FINANCIAL_BADGE = {
+  PAID: { tone: "success", label: "Bezahlt" },
+  PENDING: { tone: "warning", label: "Ausstehend" },
+  REFUNDED: { tone: "info", label: "Erstattet" },
+  PARTIALLY_REFUNDED: { tone: "info", label: "Teilerstattung" },
+  VOIDED: { tone: "critical", label: "Storniert" },
+  AUTHORIZED: { tone: "attention", label: "Autorisiert" },
+  PARTIALLY_PAID: { tone: "warning", label: "Teilzahlung" },
+};
+
+const FULFILLMENT_BADGE = {
+  FULFILLED: { tone: "success", label: "Versendet" },
+  UNFULFILLED: { tone: "warning", label: "Offen" },
+  PARTIAL: { tone: "attention", label: "Teilweise" },
+};
+
 export default function Dashboard() {
-  const { products, summary, charts } = useLoaderData();
+  const { products, summary, orders, charts } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const createFetcher = useFetcher();
@@ -466,6 +614,123 @@ export default function Dashboard() {
                 />
               </div>
             </BlockStack>
+          </Layout.Section>
+
+          {/* Bestellungs-KPIs */}
+          <Layout.Section>
+            <BlockStack gap="300">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <Text as="h2" variant="headingMd">Bestellungen (letzte 50)</Text>
+                <Link to="/app/orders" style={{ fontSize: 13, color: "var(--p-color-text-interactive)", textDecoration: "none" }}>
+                  Alle anzeigen →
+                </Link>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
+                <StatCard
+                  label="Gesamtumsatz"
+                  value={new Intl.NumberFormat("de-DE", { style: "currency", currency: orders.currency }).format(orders.totalRevenue)}
+                  detail={`${orders.total} Bestellungen`}
+                  tone="success"
+                  to="/app/orders"
+                  ariaLabel="Bestellungen öffnen"
+                />
+                <StatCard
+                  label="Offene Bestellungen"
+                  value={orders.openOrders}
+                  detail="Noch nicht versendet"
+                  tone={orders.openOrders > 0 ? "warning" : "base"}
+                  to="/app/orders?fulfillmentStatus=unfulfilled"
+                  ariaLabel="Offene Bestellungen öffnen"
+                />
+                <StatCard
+                  label="Unbezahlt / Ausstehend"
+                  value={orders.unpaidOrders}
+                  detail="Zahlung ausständig"
+                  tone={orders.unpaidOrders > 0 ? "critical" : "base"}
+                  to="/app/orders?financialStatus=pending"
+                  ariaLabel="Unbezahlte Bestellungen öffnen"
+                />
+              </div>
+
+              {/* Umsatz-Sparkline */}
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">Umsatz letzte 30 Tage</Text>
+                    <Sparkline data={orders.revenueChart} color="var(--p-color-bg-fill-brand)" height={56} />
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <Text as="p" variant="bodySm" tone="subdued">{orders.revenueChart[0]?.label}</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{orders.revenueChart[orders.revenueChart.length - 1]?.label}</Text>
+                    </div>
+                  </BlockStack>
+                </Box>
+              </Card>
+            </BlockStack>
+          </Layout.Section>
+
+          {/* Letzte Bestellungen + Top-Produkte */}
+          <Layout.Section>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+
+              {/* Letzte Bestellungen */}
+              <Card padding="0">
+                <Box padding="400" paddingBlockEnd="200">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h3" variant="headingSm">Letzte Bestellungen</Text>
+                    <Link to="/app/orders" style={{ fontSize: 13, color: "var(--p-color-text-interactive)", textDecoration: "none" }}>Alle →</Link>
+                  </InlineStack>
+                </Box>
+                <Divider />
+                {orders.recentOrders.length === 0 ? (
+                  <Box padding="400"><Text as="p" tone="subdued">Keine Bestellungen vorhanden.</Text></Box>
+                ) : (
+                  <div>
+                    {orders.recentOrders.map((order, idx) => {
+                      const fin = FINANCIAL_BADGE[order.financialStatus] ?? { tone: "new", label: order.financialStatus };
+                      const ful = FULFILLMENT_BADGE[order.fulfillmentStatus] ?? { tone: "new", label: order.fulfillmentStatus };
+                      return (
+                        <Link
+                          key={order.id}
+                          to={`/app/orders/${order.numericId}`}
+                          style={{ display: "block", textDecoration: "none", color: "inherit" }}
+                        >
+                          <div
+                            style={{
+                              padding: "12px 16px",
+                              borderBottom: idx < orders.recentOrders.length - 1 ? "1px solid #f3f4f6" : "none",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 12,
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "#f9fafb"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = ""}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <InlineStack gap="200" blockAlign="center">
+                                <Text as="span" variant="bodySm" fontWeight="semibold">{order.name}</Text>
+                                <Badge tone={fin.tone}>{fin.label}</Badge>
+                                <Badge tone={ful.tone}>{ful.label}</Badge>
+                              </InlineStack>
+                              <Text as="p" variant="bodySm" tone="subdued">{order.customerName}</Text>
+                            </div>
+                            <Text as="span" variant="bodySm" fontWeight="semibold">
+                              {new Intl.NumberFormat("de-DE", { style: "currency", currency: order.currency }).format(order.total)}
+                            </Text>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              {/* Top-Produkte */}
+              <BarListCard
+                title="Top-Produkte (nach Bestellmenge)"
+                items={orders.topProducts}
+                emptyLabel="Noch keine Bestellungen vorhanden."
+              />
+            </div>
           </Layout.Section>
 
           <Layout.Section>

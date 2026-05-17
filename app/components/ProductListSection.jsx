@@ -23,8 +23,6 @@ export default function ProductListSection({
     else selectAll(visibleProducts.map(p => p?.node?.id).filter(Boolean));
   };
 
-  console.log("isLoading:", isLoading);
-
   return (
     <BlockStack gap="100">
       <Box paddingInline="200">

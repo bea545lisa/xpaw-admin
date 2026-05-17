@@ -20,8 +20,19 @@ import { useExport } from "../hooks/useExport.js";
 import { useProductContext } from "../hooks/useProductContext.js";
 import { useProductFilters } from "../hooks/useProductFilters.js";
 
-export { loader } from "../loaders/products.loader.server";
-export { action } from "../actions/products.action.server.js";
+import { authenticate } from "../shopify.server";
+import { productsLoader } from "../loaders/products.loader.server";
+import { productsAction } from "../actions/products.action.server.js";
+
+export const loader = async ({ request }) => {
+  const { admin } = await authenticate.admin(request);
+  return productsLoader({ request }, admin);
+};
+
+export const action = async ({ request }) => {
+  const { admin } = await authenticate.admin(request);
+  return productsAction({ request }, admin);
+};
 
 import { ProductContext } from "../context/ProductContext";
 

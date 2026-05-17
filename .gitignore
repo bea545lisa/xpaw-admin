@@ -14,3 +14,10 @@ build
 /shopify.web.toml
 
 coverage
+
+# Shopify dev database
+prisma/dev.sqlite
+prisma/dev.sqlite-journal
+
+# Claude Code worktrees
+.claude/worktrees/

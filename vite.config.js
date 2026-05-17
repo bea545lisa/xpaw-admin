@@ -48,7 +48,7 @@ export default defineConfig({
         "./app/routes/app._index.jsx",
         "./app/components/ProductModal.jsx",
         "./app/components/ProductList.jsx",
-        "./app/components/ProductItem.jsx",
+        "./app/components/product/list/ProductItem.jsx",
       ],
     },
   },

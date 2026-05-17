@@ -142,7 +142,7 @@ function pickSkeleton(pathname) {
   if (!pathname) return <ListSkeleton />;
   if (pathname === "/app" || pathname === "/app/") return <CardSkeleton />;
   //if (pathname.startsWith("/app/tags")) return <ChipSkeleton />;
-  if (/^\/app\/(products|collections)\/\d+/.test(pathname)) return <DetailSkeleton />;
+  if (/^\/app\/(products|collections|orders)\/\d+/.test(pathname)) return <DetailSkeleton />;
   if (/^\/app\/tags\/.+/.test(pathname)) return <ListSkeleton />;
   return <ListSkeleton />;
 }

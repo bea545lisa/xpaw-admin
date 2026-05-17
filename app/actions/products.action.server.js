@@ -1,4 +1,3 @@
-import { authenticate } from "../shopify.server";
 import {
   handleCreate, handleUpdate, handleDelete, handleBulkDelete,
   handleUpdateStatus, handleUpdateTitle, handleUpdateTags, handleDuplicate,
@@ -14,8 +13,7 @@ import {
   handleGetMetafields, handleSaveMetafield, handleDeleteMetafield,
 } from "./handlers/product.meta.server";
 
-export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+export async function productsAction({ request }, admin) {
 
   const services = await import("../services/product.server");
   const formData = await request.formData();
