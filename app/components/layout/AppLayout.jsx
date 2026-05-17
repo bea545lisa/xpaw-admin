@@ -141,8 +141,9 @@ function DetailSkeleton() {
 function pickSkeleton(pathname) {
   if (!pathname) return <ListSkeleton />;
   if (pathname === "/app" || pathname === "/app/") return <CardSkeleton />;
-  if (pathname.startsWith("/app/tags")) return <ChipSkeleton />;
+  //if (pathname.startsWith("/app/tags")) return <ChipSkeleton />;
   if (/^\/app\/(products|collections)\/\d+/.test(pathname)) return <DetailSkeleton />;
+  if (/^\/app\/tags\/.+/.test(pathname)) return <ListSkeleton />;
   return <ListSkeleton />;
 }
 
@@ -155,7 +156,7 @@ export default function AppLayout({ children }) {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8f8f8" }}>
       <Sidebar />
-      <main style={{ flex: 1, overflowY: "scroll", scrollbarGutter: "stable" }}>
+      <main style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ minHeight: "100vh", maxWidth: "1600px", margin: "0 auto" }}>
           {isNavigating ? pickSkeleton(navigation.location?.pathname) : children}
         </div>

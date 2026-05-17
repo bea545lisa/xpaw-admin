@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useFetcher, useLoaderData, useLocation, useNavigate } from "react-router";
+import { HomeIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import {
   Badge,
@@ -10,7 +11,6 @@ import {
   Divider,
   InlineStack,
   Layout,
-  Page,
   Text,
 } from "@shopify/polaris";
 
@@ -403,17 +403,17 @@ export default function Dashboard() {
           box-shadow: 0 6px 18px rgba(0,0,0,0.08);
         }
       `}</style>
-      <Page fullWidth title="Dashboard">
+      <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
       <BlockStack gap="500">
         <Layout>
           <Layout.Section>
             <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center" wrap>
-                <BlockStack gap="100">
-                  <Text as="p" tone="subdued">Heute</Text>
-                  <Text as="h1" variant="heading2xl">RexPaw Overview</Text>
-                </BlockStack>
-                <InlineStack gap="200" wrap>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <HomeIcon width={22} height={22} />
+                  <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Dashboard</h1>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
                   <Button
                     variant="primary"
                     loading={createFetcher.state !== "idle" && createFetcher.formData?.get("action") === "create"}
@@ -422,8 +422,8 @@ export default function Dashboard() {
                     Produkt erstellen
                   </Button>
                   <Button loading={exporting} onClick={quickExport}>CSV Export</Button>
-                </InlineStack>
-              </InlineStack>
+                </div>
+              </div>
 
               <div
                 style={{
@@ -494,7 +494,7 @@ export default function Dashboard() {
 
         </Layout>
       </BlockStack>
-      </Page>
+      </div>
     </>
   );
 }

@@ -425,7 +425,7 @@ export async function getProductCollections(admin, productId) {
   return data.data.product.collections.edges.map(e => e.node);
 }
 
-export async function addProductToCollection(admin, productId, collectionId) {
+async function collectionAddProducts(admin, collectionId, productId) {
   const res = await admin.graphql(`
     mutation addToCollection($collectionId: ID!, $productIds: [ID!]!) {
       collectionAddProducts(id: $collectionId, productIds: $productIds) {
@@ -436,6 +436,41 @@ export async function addProductToCollection(admin, productId, collectionId) {
   `, { variables: { collectionId, productIds: [productId] } });
   const data = await res.json();
   return data.data.collectionAddProducts.collection;
+}
+
+export async function addProductToCollection(admin, productId, collectionId) {
+  // Fetch collection title to detect parent hierarchy ("Hosen > Jeans")
+  const colRes = await admin.graphql(`
+    #graphql
+    query GetCollectionTitle($id: ID!) { collection(id: $id) { title } }
+  `, { variables: { id: collectionId } });
+  const colData = await colRes.json();
+  const title = colData.data.collection?.title ?? "";
+
+  const collectionIds = [collectionId];
+
+  if (title.includes(">")) {
+    // Build parent titles: "Hosen > Jeans > Slim" → ["Hosen", "Hosen > Jeans"]
+    const parts = title.split(">").map((p) => p.trim());
+    const parentTitles = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join(" > "));
+
+    // Find matching parent collections
+    const allRes = await admin.graphql(`
+      #graphql
+      query { collections(first: 250) { edges { node { id title } } } }
+    `);
+    const allData = await allRes.json();
+    const allCols = allData.data.collections.edges.map((e) => e.node);
+
+    for (const parentTitle of parentTitles) {
+      const parent = allCols.find((c) => c.title === parentTitle);
+      if (parent && !collectionIds.includes(parent.id)) collectionIds.push(parent.id);
+    }
+  }
+
+  // Add product to all collections (original + parents)
+  const results = await Promise.all(collectionIds.map((cId) => collectionAddProducts(admin, cId, productId)));
+  return results[0];
 }
 
 export async function removeProductFromCollection(admin, productId, collectionId) {

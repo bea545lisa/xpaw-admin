@@ -96,14 +96,14 @@ export default function CollectionsPage() {
   const isBusy = fetcher.state !== "idle";
 
   return (
-    <div style={{ padding: "32px 40px", minHeight: "100vh", background: "#f6f6f7" }}>
+    <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <CollectionIcon width={24} height={24} />
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Kollektionen</h1>
         <div style={{ flex: 1 }} />
         <button onClick={() => { setCreateTitle(""); setCreateOpen(true); }} style={btnStyle("primary")}>
-          <PlusIcon width={16} height={16} /> Neue Kollektion
+          <span style={{ display: "inline-flex", filter: "brightness(0) invert(1)" }}><PlusIcon width={16} height={16} /></span> Neue Kollektion
         </button>
       </div>
 

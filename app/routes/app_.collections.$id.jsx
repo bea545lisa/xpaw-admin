@@ -25,6 +25,7 @@ export const loader = async ({ request, params }) => {
               id title status
               featuredImage { url altText }
               variants(first: 1) { edges { node { price } } }
+              collections(first: 10) { edges { node { id title } } }
             }
           }
         }
@@ -109,7 +110,7 @@ export const action = async ({ request, params }) => {
       `#graphql
       query SearchProducts($query: String) {
         products(first: 20, query: $query) {
-          edges { node { id title status featuredImage { url } variants(first: 1) { edges { node { price } } } } }
+          edges { node { id title status featuredImage { url } variants(first: 1) { edges { node { price } } } collections(first: 5) { edges { node { id title } } } } }
         }
       }`,
       { variables: { query: query ? `title:*${query}*` : "" } }
@@ -159,6 +160,7 @@ const STATUS_BG    = { ACTIVE: "#dcfce7", DRAFT: "#f3f4f6", ARCHIVED: "#fef3c7" 
 
 export default function CollectionDetail() {
   const { collection, shop } = useLoaderData();
+  const collectionGid = collection.id;
   const navigate = useNavigate();
   const location = useLocation();
   const saveFetcher  = useFetcher();
@@ -329,7 +331,7 @@ export default function CollectionDetail() {
 
   return (
     <AppLayout>
-    <div style={{ padding: "32px 40px", minHeight: "100vh", background: "#f6f6f7" }}>
+    <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
         <button onClick={() => navigate(backUrl)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: "#555" }}>
@@ -490,7 +492,21 @@ export default function CollectionDetail() {
                         {p.featuredImage?.url
                           ? <img src={p.featuredImage.url} alt="" style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
                           : <div style={{ width: 32, height: 32, borderRadius: 4, background: "#e5e7eb", flexShrink: 0 }} />}
-                        <span style={{ fontSize: 14, fontWeight: 500 }}>{p.title}</span>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500 }}>{p.title}</div>
+                          {p.collections?.edges?.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                              {p.collections.edges.map(({ node: c }) => (
+                                <span key={c.id} style={{
+                                  fontSize: 11, padding: "1px 7px", borderRadius: 20,
+                                  background: c.id === collectionGid ? "#dbeafe" : "#f3f4f6",
+                                  color: c.id === collectionGid ? "#1d4ed8" : "#6b7280",
+                                  fontWeight: c.id === collectionGid ? 600 : 400,
+                                }}>{c.title}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 14, color: "#374151" }}>
@@ -547,7 +563,12 @@ export default function CollectionDetail() {
                               : <div style={{ width: 36, height: 36, borderRadius: 4, background: "#e5e7eb", flexShrink: 0 }} />}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
-                              <div style={{ fontSize: 12, color: "#9ca3af" }}>{price ? `€${parseFloat(price).toFixed(2)}` : "—"}</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 3 }}>
+                                <span style={{ fontSize: 12, color: "#9ca3af" }}>{price ? `€${parseFloat(price).toFixed(2)}` : "—"}</span>
+                                {p.collections?.edges?.map(({ node: c }) => (
+                                  <span key={c.id} style={{ fontSize: 11, padding: "1px 6px", borderRadius: 20, background: "#f3f4f6", color: "#6b7280" }}>{c.title}</span>
+                                ))}
+                              </div>
                             </div>
                           </label>
                         );

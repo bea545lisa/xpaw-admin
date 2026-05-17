@@ -134,7 +134,7 @@ export default function Products() {
       )}
 
       <ProductContext.Provider value={productContext}>
-        <div style={{ padding: "8px 0", width: "100%" }}>
+        <div style={{ padding: "20px 32px", width: "100%", background: "#f6f6f7", minHeight: "100vh" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <div style={{ width: 20, height: 20, flexShrink: 0 }}>
               <Icon source={ProductIcon} />
