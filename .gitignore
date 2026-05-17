@@ -19,5 +19,5 @@ coverage
 prisma/dev.sqlite
 prisma/dev.sqlite-journal
 
-# Claude Code worktrees
-.claude/worktrees/
+# Claude Code
+.claude/
