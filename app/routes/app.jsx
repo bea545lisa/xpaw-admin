@@ -9,6 +9,13 @@ export const loader = async ({ request }) => {
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
 
+// Verhindert, dass der Parent-Loader bei jeder Client-Navigation neu ausgeführt
+// wird. authenticate.admin verbraucht dabei den einmaligen JWT-Token, wodurch
+// der Kind-Loader keinen gültigen Token mehr vorfindet und hängt.
+export function shouldRevalidate() {
+  return false;
+}
+
 export default function App() {
   const { apiKey } = useLoaderData();
   const navigate = useNavigate();
