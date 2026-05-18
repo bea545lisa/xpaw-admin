@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useFetcher, useLoaderData, useSearchParams, useNavigate, useLocation } from "react-router";
 import { authenticate } from "../shopify.server";
+import { useColorScheme } from "../context/ColorSchemeContext";
 import { collectionsLoader } from "../loaders/collections.loader.server";
 import { collectionsAction } from "../actions/collections.action.server";
 import { CollectionIcon, SearchIcon, PlusIcon, EditIcon, DeleteIcon } from "@shopify/polaris-icons";
@@ -17,6 +18,8 @@ export const action = async ({ request }) => {
 };
 
 export default function CollectionsPage() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const { collections } = useLoaderData();
   const fetcher = useFetcher();
   const navigate = useNavigate();
@@ -96,10 +99,10 @@ export default function CollectionsPage() {
   const isBusy = fetcher.state !== "idle";
 
   return (
-    <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
+    <div style={{ padding: "20px 32px", minHeight: "100vh", background: isDark ? "#212121" : "#f6f6f7" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <CollectionIcon width={24} height={24} />
+        <span style={{ display: "flex", fill: isDark ? "#f3f4f6" : "#555" }}><CollectionIcon width={24} height={24} /></span>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Kollektionen</h1>
         <div style={{ flex: 1 }} />
         <button onClick={() => { setCreateTitle(""); setCreateOpen(true); }} style={btnStyle("primary")}>
@@ -109,25 +112,25 @@ export default function CollectionsPage() {
 
       {/* Suche */}
       <div style={{ position: "relative", maxWidth: 360, marginBottom: 20 }}>
-        <SearchIcon width={16} height={16} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", opacity: 0.4 }} />
+        <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", display: "flex", fill: isDark ? "#b0b7c3" : "#9ca3af" }}><SearchIcon width={16} height={16} /></span>
         <input
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Kollektionen suchen…"
-          style={{ width: "100%", padding: "8px 12px 8px 32px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "8px 12px 8px 32px", borderRadius: 8, border: `1px solid ${isDark ? "#3a3a3a" : "#ddd"}`, fontSize: 14, boxSizing: "border-box", background: isDark ? "#1e1e1e" : "#fff", color: isDark ? "#e5e7eb" : "#111" }}
         />
       </div>
 
       {/* Tabelle */}
-      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e3e3e3", overflow: "hidden" }}>
+      <div style={{ background: isDark ? "#1a1a1a" : "#fff", borderRadius: 12, border: `1px solid ${isDark ? "#444" : "#e3e3e3"}`, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-          <tr style={{ background: "#f9f9f9", borderBottom: "1px solid #e3e3e3" }}>
+          <tr style={{ background: isDark ? "#222" : "#f9f9f9", borderBottom: `1px solid ${isDark ? "#444" : "#e3e3e3"}` }}>
             <th style={thStyle}>Titel</th>
             <th style={thStyle}>Beschreibung</th>
             <th style={thStyle}>Produkte</th>
             <th style={thStyle}>Geändert am</th>
-            <th style={{ ...thStyle, width: 80 }} />
+            <th style={{ ...thStyle, width: 72, minWidth: 72, padding: "10px 8px" }} />
           </tr>
           </thead>
           <tbody>
@@ -138,10 +141,12 @@ export default function CollectionsPage() {
               </td>
             </tr>
           )}
-          {collections.map((col) => (
+          {collections.map((col, i) => (
             <CollectionRow
               key={col.id}
               collection={col}
+              isDark={isDark}
+              index={i}
               onRename={() => { setRenameTarget(col); setRenameTitle(col.title); }}
               onDelete={() => setDeleteTarget(col)}
               onOpen={() => navigate(`/app/collections/${col.id.split("/").pop()}`, { state: { from: `${location.pathname}${location.search}` } })}
@@ -218,7 +223,7 @@ export default function CollectionsPage() {
 
 // ── Hilfskomponenten ──────────────────────────────────────────────────
 
-function CollectionRow({ collection, onRename, onDelete, onOpen }) {
+function CollectionRow({ collection, isDark, onRename, onDelete, onOpen, index }) {
   const [hovered, setHovered] = useState(false);
 
   const description = collection.descriptionHtml
@@ -230,52 +235,50 @@ function CollectionRow({ collection, onRename, onDelete, onOpen }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onOpen}
-      style={{ borderBottom: "1px solid #f0f0f0", transition: "background 0.1s", background: hovered ? "#fafafa" : "#fff", cursor: "pointer" }}
+      style={{ borderBottom: `1px solid ${isDark ? "#3a3a3a" : "#f0f0f0"}`, transition: "background 0.1s", background: hovered ? (isDark ? "#222222" : "#fafafa") : (isDark ? (index % 2 === 0 ? "#2f2f2f" : "#282828") : "#fff"), cursor: "pointer" }}
     >
       <td style={tdStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {collection.image?.url ? (
             <img src={collection.image.url} alt={collection.image.altText || ""} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
           ) : (
-            <div style={{ width: 36, height: 36, borderRadius: 6, background: "#e3e3e3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <CollectionIcon width={18} height={18} style={{ opacity: 0.4 }} />
-            </div>
+            <div style={{ width: 36, height: 36, borderRadius: 6, background: isDark ? "#333" : "#e3e3e3", flexShrink: 0 }} />
           )}
           <span style={{ fontWeight: 500 }}>{collection.title}</span>
         </div>
       </td>
-      <td style={{ ...tdStyle, color: "#6b7280", maxWidth: 300 }}>
+      <td style={{ ...tdStyle, color: isDark ? "#9ca3af" : "#6b7280", maxWidth: 300 }}>
         {description ? (
           <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             {description}
           </span>
         ) : (
-          <span style={{ color: "#d1d5db" }}>—</span>
+          <span style={{ color: isDark ? "#4b5563" : "#d1d5db" }}>—</span>
         )}
       </td>
       <td style={tdStyle}>{collection.productsCount?.count ?? "—"}</td>
       <td style={tdStyle}>{new Date(collection.updatedAt).toLocaleDateString("de-DE")}</td>
-      <td style={{ ...tdStyle, textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
-        {hovered && (
-          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-            <IconBtn icon={<EditIcon width={16} height={16} />} onClick={onRename} title="Umbenennen" />
-            <IconBtn icon={<DeleteIcon width={16} height={16} />} onClick={onDelete} title="Löschen" danger />
-          </div>
-        )}
+      <td style={{ ...tdStyle, width: 72, minWidth: 72, padding: "12px 8px" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", visibility: hovered ? "visible" : "hidden" }}>
+          <IconBtn icon={<EditIcon width={16} height={16} />} onClick={onRename} title="Umbenennen" isDark={isDark} />
+          <IconBtn icon={<DeleteIcon width={16} height={16} />} onClick={onDelete} title="Löschen" danger isDark={isDark} />
+        </div>
       </td>
     </tr>
   );
 }
 
 function Modal({ title, onClose, onConfirm, confirmLabel, disabled, children }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-      <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}>
+      <div style={{ background: isDark ? "#1e1e1e" : "#fff", borderRadius: 12, padding: 24, width: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", border: isDark ? "1px solid #333" : "none" }}>
         <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>{title}</h2>
         {children}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={onClose} style={btnStyle("secondary")}>Abbrechen</button>
-          <button onClick={onConfirm} disabled={disabled} style={btnStyle("primary", disabled)}>
+          <button onClick={onClose} style={btnStyle("secondary", false, isDark)}>Abbrechen</button>
+          <button onClick={onConfirm} disabled={disabled} style={btnStyle("primary", disabled, isDark)}>
             {confirmLabel}
           </button>
         </div>
@@ -284,9 +287,11 @@ function Modal({ title, onClose, onConfirm, confirmLabel, disabled, children }) 
   );
 }
 
-function IconBtn({ icon, onClick, title, danger }) {
+function IconBtn({ icon, onClick, title, danger, isDark }) {
   return (
-    <button onClick={onClick} title={title} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 4, borderRadius: 4, color: danger ? "#c0392b" : "#555", display: "flex", alignItems: "center" }}>
+    <button onClick={onClick} title={title}
+      className={`icon-btn${danger ? " icon-btn-danger" : ""}`}
+      style={{ border: "none", background: "transparent", cursor: "pointer", padding: 4, borderRadius: 4, color: danger ? "#e57373" : (isDark ? "#c4c7cc" : "#555"), display: "flex", alignItems: "center" }}>
       {icon}
     </button>
   );
@@ -298,8 +303,8 @@ const thStyle = { padding: "10px 16px", textAlign: "left", fontSize: 13, fontWei
 const tdStyle = { padding: "12px 16px", fontSize: 14 };
 const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box", outline: "none" };
 
-function btnStyle(variant, disabled) {
+function btnStyle(variant, disabled, d) {
   const base = { display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, border: "none", fontSize: 14, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 500 };
-  if (variant === "primary") return { ...base, background: disabled ? "#ccc" : "#303030", color: "#fff" };
+  if (variant === "primary") return { ...base, background: disabled ? (d ? "#3a3a3a" : "#ccc") : "#303030", color: disabled ? (d ? "#666" : "#fff") : "#fff" };
   return { ...base, background: "#f0f0f0", color: "#333" };
 }

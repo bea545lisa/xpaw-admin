@@ -11,6 +11,7 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import ProductSkeleton from "../components/ProductSkeleton.jsx";
 
 import DeleteModal from "../components/shared/DeleteModal.jsx";
+import ImportModal from "../components/ImportModal.jsx";
 
 import { useProduct } from "../hooks/useProduct.jsx";
 import { useProductCRUD } from "../hooks/useProductCRUD.js";
@@ -21,6 +22,7 @@ import { useProductContext } from "../hooks/useProductContext.js";
 import { useProductFilters } from "../hooks/useProductFilters.js";
 
 import { authenticate } from "../shopify.server";
+import { useColorScheme } from "../context/ColorSchemeContext";
 import { productsLoader } from "../loaders/products.loader.server";
 import { productsAction } from "../actions/products.action.server.js";
 import { ProductContext } from "../context/ProductContext";
@@ -48,6 +50,8 @@ export function HydrateFallback() {
 }
 
 export default function Products() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const { products: initialProducts, host, locationId, shop } = useLoaderData();
   const location = useLocation();
 
@@ -59,6 +63,7 @@ export default function Products() {
   const [editOptions, setEditOptions] = useState([]);
   const [editTags, setEditTags] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const [deleteId, setDeleteId] = useState(null);
   const [deleteTitle, setDeleteTitle] = useState("");
@@ -144,7 +149,7 @@ export default function Products() {
       )}
 
       <ProductContext.Provider value={productContext}>
-        <div style={{ padding: "20px 32px", width: "100%", background: "#f6f6f7", minHeight: "100vh" }}>
+        <div style={{ padding: "20px 32px", width: "100%", background: isDark ? "#212121" : "#f6f6f7", minHeight: "100vh" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <div style={{ width: 20, height: 20, flexShrink: 0 }}>
               <Icon source={ProductIcon} />
@@ -192,33 +197,31 @@ export default function Products() {
               />
               */}
 
-              <Card paddingInline="200" paddingBlock="100">
-                <ProductToolbar
-                  query={query} setQuery={setQuery}
-                  statusFilter={statusFilter} setStatusFilter={setStatusFilter}
-                  saleFilter={saleFilter} setSaleFilter={setSaleFilter}
-                  lowStockFilter={stockBucketFilter === "low-stock"}
-                  setLowStockFilter={(value) => setStockBucketFilter(value ? "low-stock" : "")}
-                  noImagesFilter={noImagesFilter} setNoImagesFilter={setNoImagesFilter}
-                  priceBucketFilter={priceBucketFilter} setPriceBucketFilter={setPriceBucketFilter}
-                  sortBy={sortBy} setSortBy={setSortBy}
-                  sortDirection={sortDirection} setSortDirection={setSortDirection}
-                  isCreating={isCreating}
-                  onCreate={() => fetcher.submit({ action: "create" }, { method: "post" })}
-                  collections={allCollections}
-                  collectionFilter={collectionFilter}
-                  setCollectionFilter={setCollectionFilter}
-                  allTags={allTags}
-                  tagFilter={tagFilter}
-                  setTagFilter={setTagFilter}
-                  variantFilter={variantFilter}
-                  setVariantFilter={setVariantFilter}
-                  shop={shop}
-                  onExport={handleExport}
-                  onImport={() => setToast("Import folgt in einem nächsten Schritt")}
-                  onMoreActions={() => setToast("Weitere Aktionen folgen in einem nächsten Schritt")}
-                />
-              </Card>
+              <ProductToolbar
+                query={query} setQuery={setQuery}
+                statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+                saleFilter={saleFilter} setSaleFilter={setSaleFilter}
+                lowStockFilter={stockBucketFilter === "low-stock"}
+                setLowStockFilter={(value) => setStockBucketFilter(value ? "low-stock" : "")}
+                noImagesFilter={noImagesFilter} setNoImagesFilter={setNoImagesFilter}
+                priceBucketFilter={priceBucketFilter} setPriceBucketFilter={setPriceBucketFilter}
+                sortBy={sortBy} setSortBy={setSortBy}
+                sortDirection={sortDirection} setSortDirection={setSortDirection}
+                isCreating={isCreating}
+                onCreate={() => fetcher.submit({ action: "create" }, { method: "post" })}
+                collections={allCollections}
+                collectionFilter={collectionFilter}
+                setCollectionFilter={setCollectionFilter}
+                allTags={allTags}
+                tagFilter={tagFilter}
+                setTagFilter={setTagFilter}
+                variantFilter={variantFilter}
+                setVariantFilter={setVariantFilter}
+                shop={shop}
+                onExport={handleExport}
+                onImport={() => setImportModalOpen(true)}
+                onMoreActions={() => setToast("Weitere Aktionen folgen in einem nächsten Schritt")}
+              />
 
               <Card paddingInline="200" paddingBlock="100">
 
@@ -252,6 +255,13 @@ export default function Products() {
 
             </BlockStack>
         </div>
+
+        <ImportModal
+          open={importModalOpen}
+          onClose={() => setImportModalOpen(false)}
+          fetcher={fetcher}
+          setToast={setToast}
+        />
 
         <DeleteModal
           open={deleteModalOpen}

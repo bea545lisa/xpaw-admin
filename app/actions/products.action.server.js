@@ -6,6 +6,9 @@ import {
   handleUploadImage, handleReorderImages, handleDeleteImage,
 } from "./handlers/product.images.server";
 import {
+  handleCheckImport, handleExecuteImport, handleCheckSku,
+} from "./handlers/product.import.server";
+import {
   handleSearchCollections, handleGetProductCollections,
   handleAddToCollection, handleRemoveFromCollection,
 } from "./handlers/product.collections.server";
@@ -38,6 +41,9 @@ export async function productsAction({ request }, admin) {
     case "getProductCollections": return handleGetProductCollections(admin, formData);
     case "addToCollection":    return handleAddToCollection(admin, formData);
     case "removeFromCollection": return handleRemoveFromCollection(admin, formData);
+    case "checkSku":           return handleCheckSku(admin, formData);
+    case "checkImport":        return handleCheckImport(admin, formData);
+    case "executeImport":      return handleExecuteImport(admin, formData);
     default:                   return null;
   }
 };

@@ -1,9 +1,10 @@
-import { Box, Button, Checkbox, Badge, Text, TextField, Icon } from '@shopify/polaris';
+import { Box, Button, Checkbox, Text, TextField, Icon } from '@shopify/polaris';
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useProductContext } from "../../../context/ProductContext.jsx";
 import { useNavigate, useLocation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { useColorScheme } from "../../../context/ColorSchemeContext.js";
 
 import {
   ViewIcon,
@@ -16,14 +17,14 @@ import {
   AlertTriangleIcon, XIcon,
 } from "@shopify/polaris-icons";
 
-const pillMuted = {
+const pillMuted = (isDark) => ({
   fontSize: "10px",
-  background: "#f4f4f5",
-  color: "#52525b",
+  background: isDark ? "#2a2d35" : "#f4f4f5",
+  color: isDark ? "#b0b7c3" : "#52525b",
   borderRadius: 999,
   padding: "3px 8px",
   fontWeight: 500,
-};
+});
 
 function formatTemplateSuffix(raw) {
   if (!raw || !String(raw).trim()) return null;
@@ -44,16 +45,30 @@ function SectionHeading({ icon, label }) {
 }
 
 function StatusBadge({ status, onClick }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const labelMap = { ACTIVE: "Aktiv", DRAFT: "Entwurf", ARCHIVED: "Archiviert" };
-  const toneMap = { ACTIVE: "success", DRAFT: "info", ARCHIVED: "warning" };
+  const pillStyles = {
+    ACTIVE:   isDark ? { background: "#1a3a2a", color: "#6ee7a8" } : { background: "#dcfce7", color: "#166534" },
+    DRAFT:    isDark ? { background: "#1e2d3d", color: "#7eb8e8" } : { background: "#dbeafe", color: "#1e40af" },
+    ARCHIVED: isDark ? { background: "#332b1a", color: "#e8c97d" } : { background: "#fef9c3", color: "#854d0e" },
+  };
+  const style = pillStyles[status] ?? pillStyles.DRAFT;
   return (
     <button
       onClick={onClick}
       style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
       title="Status ändern"
     >
-      <span style={{ display: "inline-flex", transform: "scale(1.12)", transformOrigin: "center" }}>
-        <Badge tone={toneMap[status] ?? "info"}>{labelMap[status] ?? status}</Badge>
+      <span style={{
+        display: "inline-block",
+        fontSize: "12px",
+        fontWeight: 500,
+        padding: "3px 10px",
+        borderRadius: 999,
+        ...style,
+      }}>
+        {labelMap[status] ?? status}
       </span>
     </button>
   );
@@ -65,6 +80,8 @@ function ImageStrip({ product, onClick }) {
   const main = imgs[0];
   const extra = imgs.length - 1;
   const shopify = useAppBridge();
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   return (
     <div
@@ -82,7 +99,7 @@ function ImageStrip({ product, onClick }) {
           style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4, display: "block" }}
         />
       ) : (
-        <div style={{ width: 40, height: 40, background: "#f0f0f0", borderRadius: 4 }} />
+        <div style={{ width: 40, height: 40, background: isDark ? "#333" : "#f0f0f0", borderRadius: 4 }} />
       )}
       {extra > 0 && (
         <div style={{
@@ -105,6 +122,8 @@ export default function ProductItem({
   product, selected, onSelect, isPendingDelete, isRestored, index, shop }) {
 
   const { onDelete, onStatusToggle, onTitleSave, onDuplicate, openMenuId, setOpenMenuId } = useProductContext();
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(product.node.title);
@@ -195,8 +214,12 @@ export default function ProductItem({
     >
 
       {/* Äußerster div — Hover-Handler + Click */}
-      <div className="product-row"
-           style={{ position: "relative", overflow: "visible", cursor: "pointer", borderBottom: "1px solid var(--p-color-border)", }}
+      <div className={`product-row ${isDark ? (index % 2 === 0 ? "product-row-even" : "product-row-odd") : ""}`}
+           style={{
+             position: "relative", overflow: "visible", cursor: "pointer",
+             borderBottom: "1px solid var(--p-color-border)",
+             transition: "background 0.1s",
+           }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={() => {
@@ -222,7 +245,7 @@ export default function ProductItem({
                     borderRadius: 10,
                     paddingTop: 8, paddingLeft: 4,
                     border: "1px solid var(--p-color-border-subdued)",
-                    background: "var(--p-color-bg-surface)",
+                    background: isDark ? "transparent" : "var(--p-color-bg-surface)",
                     overflow: "hidden",
                   }}
                 >
@@ -267,7 +290,7 @@ export default function ProductItem({
                           <span
                             style={{
                               cursor: "pointer",
-                              color: "#111827",
+                              color: isDark ? "#f3f4f6" : "#111827",
                             }}
                             onClick={(e) => { e.stopPropagation(); handleTitleClick(); }}
                             title="Klicken zum Bearbeiten"
@@ -296,11 +319,11 @@ export default function ProductItem({
                             </span>
                           )}
                           {showMetaRow && (
-                            <span style={{ flexShrink: 0, fontSize: "10px", color: "#9ca3af", whiteSpace: "nowrap" }}>
+                            <span style={{ flexShrink: 0, fontSize: "10px", color: isDark ? "#b0b7c3" : "#9ca3af", whiteSpace: "nowrap" }}>
                               {metaFields.map((f, i) => (
                                 <span key={f.id}>
                                   {i > 0 && "  ·  "}
-                                  <strong style={{ color: "#6b7280" }}>{f.key}</strong>: {f.value}
+                                  <strong style={{ color: isDark ? "#b0b7c3" : "#6b7280" }}>{f.key}</strong>: {f.value}
                                 </span>
                               ))}
                             </span>
@@ -329,14 +352,14 @@ export default function ProductItem({
                       {collectionNodes.length > 0 ? (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                           {collectionNodes.slice(0, COL_PILL_CAP).map((c) => (
-                            <span key={c.id} style={pillMuted}>{c.title}</span>
+                            <span key={c.id} style={pillMuted(isDark)}>{c.title}</span>
                           ))}
                           {collectionNodes.length > COL_PILL_CAP && (
-                            <span style={pillMuted}>+{collectionNodes.length - COL_PILL_CAP}</span>
+                            <span style={pillMuted(isDark)}>+{collectionNodes.length - COL_PILL_CAP}</span>
                           )}
                         </div>
                       ) : (
-                        <span style={{ fontSize: "11px", color: "#9ca3af" }}>—</span>
+                        <span style={{ fontSize: "11px", color: isDark ? "#b0b7c3" : "#9ca3af" }}>—</span>
                       )}
                     </div>
                     <div
@@ -350,14 +373,14 @@ export default function ProductItem({
                       {sortedTags.length > 0 ? (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                           {sortedTags.slice(0, COL_PILL_CAP).map((tag) => (
-                            <span key={tag} style={pillMuted}>{tag}</span>
+                            <span key={tag} style={pillMuted(isDark)}>{tag}</span>
                           ))}
                           {sortedTags.length > COL_PILL_CAP && (
-                            <span style={pillMuted}>+{sortedTags.length - COL_PILL_CAP}</span>
+                            <span style={pillMuted(isDark)}>+{sortedTags.length - COL_PILL_CAP}</span>
                           )}
                         </div>
                       ) : (
-                        <span style={{ fontSize: "11px", color: "#9ca3af" }}>—</span>
+                        <span style={{ fontSize: "11px", color: isDark ? "#b0b7c3" : "#9ca3af" }}>—</span>
                       )}
                     </div>
                     <div
@@ -380,7 +403,7 @@ export default function ProductItem({
                           </span>
                         ))}
                         {variantCountLabel && (
-                          <div style={{ color: "#9ca3af", marginTop: 2 }}>{variantCountLabel}</div>
+                          <div style={{ color: isDark ? "#b0b7c3" : "#9ca3af", marginTop: 2 }}>{variantCountLabel}</div>
                         )}
                       </div>
                     </div>
@@ -391,8 +414,8 @@ export default function ProductItem({
                           <span
                             style={{
                               fontSize: "10px",
-                              background: "#fee2e2",
-                              color: "#dc2626",
+                              background: isDark ? "#3a1a1a" : "#fee2e2",
+                              color: isDark ? "#f87171" : "#dc2626",
                               borderRadius: 999,
                               padding: "3px 8px",
                               fontWeight: 600,
@@ -403,7 +426,7 @@ export default function ProductItem({
                             SALE
                           </span>
                         ) : (
-                          <span style={{ fontSize: "11px", color: "#9ca3af" }}>—</span>
+                          <span style={{ fontSize: "11px", color: isDark ? "#b0b7c3" : "#9ca3af" }}>—</span>
                         )}
                       </div>
                     </div>
@@ -442,13 +465,13 @@ export default function ProductItem({
                         style={{
                           fontSize: "13px",
                           fontWeight: 700,
-                          color: hasCompare ? "#dc2626" : "var(--p-color-text-secondary)",
+                          color: hasCompare ? "tomato" : (isDark ? "#c4c9d4" : "#6b7280"),
                         }}
                       >
                         {priceLabel}
                       </span>
                       {hasCompare && (
-                        <div style={{ fontSize: "11px", color: "#9ca3af", textDecoration: "line-through" }}>
+                        <div style={{ fontSize: "11px", color: isDark ? "#b0b7c3" : "#9ca3af", textDecoration: "line-through" }}>
                           €{Math.min(...comparePrices).toFixed(2)}
                         </div>
                       )}

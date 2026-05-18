@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useFetcher, useLoaderData, useSearchParams, useNavigate, useLocation } from "react-router";
 import { authenticate } from "../shopify.server";
+import { useColorScheme } from "../context/ColorSchemeContext";
 import { tagsLoader } from "../loaders/tags.loader.server";
 import { tagsAction } from "../actions/tags.action.server";
 import { HashtagIcon, SearchIcon, PlusIcon, EditIcon, DeleteIcon } from "@shopify/polaris-icons";
@@ -17,6 +18,8 @@ export const action = async ({ request }) => {
 };
 
 export default function TagsPage() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const { tags: initialTags } = useLoaderData();
   const fetcher = useFetcher();
   const searchFetcher = useFetcher();
@@ -134,10 +137,10 @@ export default function TagsPage() {
   const isSearching = searchFetcher.state !== "idle";
 
   return (
-    <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
+    <div style={{ padding: "20px 32px", minHeight: "100vh", background: isDark ? "#212121" : "#f6f6f7" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-        <HashtagIcon width={24} height={24} />
+        <span style={{ display: "flex", fill: isDark ? "#f3f4f6" : "#555" }}><HashtagIcon width={24} height={24} /></span>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Tags</h1>
         <span style={{ fontSize: 13, color: "#888", marginLeft: 4 }}>{tags.length} Tags</span>
         <div style={{ flex: 1 }} />
@@ -152,45 +155,46 @@ export default function TagsPage() {
 
       {/* Suche */}
       <div style={{ position: "relative", maxWidth: 360, marginBottom: 16 }}>
-        <SearchIcon width={16} height={16} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", opacity: 0.4 }} />
+        <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", display: "flex", fill: isDark ? "#b0b7c3" : "#9ca3af" }}><SearchIcon width={16} height={16} /></span>
         <input value={search} onChange={(e) => handleSearch(e.target.value)} placeholder="Tags suchen…"
-          style={{ width: "100%", padding: "8px 12px 8px 32px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
+          style={{ width: "100%", padding: "8px 12px 8px 32px", borderRadius: 8, border: `1px solid ${isDark ? "#4a4a4a" : "#ddd"}`, fontSize: 14, boxSizing: "border-box", background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111" }} />
       </div>
 
       {/* Bulk-Bar */}
       {selectedNames.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "10px 14px", background: "#fff", borderRadius: 8, border: "1px solid #e3e3e3" }}>
-          <span style={{ fontSize: 13, color: "#6b7280" }}>{selectedNames.length} ausgewählt</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "10px 14px", background: isDark ? "#1e1e1e" : "#fff", borderRadius: 8, border: `1px solid ${isDark ? "#444" : "#e3e3e3"}` }}>
+          <span style={{ fontSize: 13, color: "#9ca3af" }}>{selectedNames.length} ausgewählt</span>
           <div style={{ flex: 1 }} />
-          <button onClick={() => { setAssignOpen(true); openProductSearch(); }} style={btnStyle("secondary")}>Zu Produkten zuordnen</button>
-          <button onClick={submitBulkDelete} disabled={isBusy} style={btnStyle("danger", isBusy)}>
+          <button onClick={() => { setAssignOpen(true); openProductSearch(); }} style={btnStyle("secondary", false, isDark)}>Zu Produkten zuordnen</button>
+          <button onClick={submitBulkDelete} disabled={isBusy} style={btnStyle("danger", isBusy, isDark)}>
             <DeleteIcon width={14} height={14} /> Löschen
           </button>
         </div>
       )}
 
       {/* Tabelle */}
-      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e3e3e3", overflow: "hidden" }}>
+      <div style={{ background: isDark ? "#1a1a1a" : "#fff", borderRadius: 12, border: `1px solid ${isDark ? "#444" : "#e3e3e3"}`, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#f9f9f9", borderBottom: "1px solid #e3e3e3" }}>
-              <th style={{ ...thStyle, width: 40 }}>
+            <tr style={{ background: isDark ? "#222" : "#f9f9f9", borderBottom: `1px solid ${isDark ? "#444" : "#e3e3e3"}` }}>
+              <th style={{ ...thStyle(isDark), width: 40 }}>
                 <input type="checkbox" checked={selectedNames.length === tags.length && tags.length > 0}
                   onChange={toggleAll} style={{ cursor: "pointer" }} />
               </th>
-              <th style={thStyle}>Tag</th>
-              <th style={{ ...thStyle, textAlign: "right" }}>Produkte</th>
-              <th style={{ ...thStyle, width: 80 }} />
+              <th style={thStyle(isDark)}>Tag</th>
+              <th style={{ ...thStyle(isDark), textAlign: "right" }}>Produkte</th>
+              <th style={{ ...thStyle(isDark), width: 80 }} />
             </tr>
           </thead>
           <tbody>
             {tags.length === 0 && (
               <tr><td colSpan={4} style={{ padding: 32, textAlign: "center", color: "#888" }}>Keine Tags gefunden</td></tr>
             )}
-            {tags.map((tag) => (
+            {tags.map((tag, i) => (
               <TagRow
                 key={tag.name}
                 tag={tag}
+                index={i}
                 selected={selectedNames.includes(tag.name)}
                 onToggle={() => toggleSelect(tag.name)}
                 onOpen={() => navigate(`/app/tags/${encodeURIComponent(tag.name)}${location.search}`, { state: { from: `${location.pathname}${location.search}` } })}
@@ -263,7 +267,7 @@ export default function TagsPage() {
         >
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
             {selectedNames.map((n) => (
-              <span key={n} style={{ background: "#f0f0f0", borderRadius: 20, padding: "3px 10px", fontSize: 13 }}>#{n}</span>
+              <span key={n} style={{ background: isDark ? "#2a2a2a" : "#f0f0f0", color: isDark ? "#e5e7eb" : "#333", borderRadius: 20, padding: "3px 10px", fontSize: 13 }}>#{n}</span>
             ))}
           </div>
           <label style={labelStyle}>Produkte auswählen</label>
@@ -283,43 +287,46 @@ export default function TagsPage() {
 
 // ── Hilfskomponenten ──────────────────────────────────────────────────
 
-function TagRow({ tag, selected, onToggle, onOpen, onRename, onDelete }) {
+function TagRow({ tag, selected, onToggle, onOpen, onRename, onDelete, index }) {
   const [hovered, setHovered] = useState(false);
+  const { colorScheme } = useColorScheme();
+  const d = colorScheme === "dark";
+  const rowBg = d ? (index % 2 === 0 ? "#2f2f2f" : "#282828") : "#fff";
   return (
     <tr onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onClick={onOpen}
-      style={{ borderBottom: "1px solid #f0f0f0", background: selected ? "#f0f9ff" : hovered ? "#fafafa" : "#fff", cursor: "pointer" }}>
+      style={{ borderBottom: `1px solid ${d ? "#3a3a3a" : "#f0f0f0"}`, background: selected ? (d ? "#1e3a5f" : "#f0f9ff") : hovered ? (d ? "#222222" : "#fafafa") : rowBg, cursor: "pointer" }}>
       <td style={{ padding: "12px 16px" }} onClick={(e) => e.stopPropagation()}>
         <input type="checkbox" checked={selected} onChange={onToggle} style={{ cursor: "pointer" }} />
       </td>
       <td style={tdStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <HashtagIcon width={14} height={14} style={{ opacity: 0.4, flexShrink: 0 }} />
+          <span style={{ display: "flex", fill: d ? "#b0b7c3" : "#9ca3af", flexShrink: 0 }}><HashtagIcon width={14} height={14} /></span>
           <span style={{ fontWeight: 500 }}>{tag.name}</span>
         </div>
       </td>
-      <td style={{ ...tdStyle, textAlign: "right", color: "#6b7280" }}>{tag.count}</td>
-      <td style={{ ...tdStyle, textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
-        {hovered && (
-          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-            <IconBtn icon={<EditIcon width={15} height={15} />} onClick={onRename} title="Umbenennen" />
-            <IconBtn icon={<DeleteIcon width={15} height={15} />} onClick={onDelete} title="Löschen" danger />
-          </div>
-        )}
+      <td style={{ ...tdStyle, textAlign: "right", color: d ? "#9ca3af" : "#6b7280" }}>{tag.count}</td>
+      <td style={{ ...tdStyle, textAlign: "right", width: 80, minWidth: 80 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", visibility: hovered ? "visible" : "hidden" }}>
+          <IconBtn icon={<EditIcon width={15} height={15} />} onClick={onRename} title="Umbenennen" />
+          <IconBtn icon={<DeleteIcon width={15} height={15} />} onClick={onDelete} title="Löschen" danger />
+        </div>
       </td>
     </tr>
   );
 }
 
 function Modal({ title, onClose, onConfirm, confirmLabel, disabled, children }) {
+  const { colorScheme } = useColorScheme();
+  const d = colorScheme === "dark";
   return (
     <div style={overlayStyle}>
-      <div style={modalBoxStyle}>
+      <div style={modalBoxStyle(d)}>
         <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>{title}</h2>
         {children}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={onClose} style={btnStyle("secondary")}>Abbrechen</button>
-          <button onClick={onConfirm} disabled={disabled} style={btnStyle("primary", disabled)}>{confirmLabel}</button>
+          <button onClick={onClose} style={btnStyle("secondary", false, d)}>Abbrechen</button>
+          <button onClick={onConfirm} disabled={disabled} style={btnStyle("primary", disabled, d)}>{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -327,15 +334,17 @@ function Modal({ title, onClose, onConfirm, confirmLabel, disabled, children }) 
 }
 
 function ProductPickerModal({ title, confirmLabel, disabled, onClose, onConfirm, productSearch, onProductSearch, searchResults, isSearching, selectedProductIds, toggleProduct, children }) {
+  const { colorScheme } = useColorScheme();
+  const d = colorScheme === "dark";
   return (
     <div style={overlayStyle}>
-      <div style={{ ...modalBoxStyle, width: 540, maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+      <div style={{ ...modalBoxStyle(d), width: 540, maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
         <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>{title}</h2>
         {children}
         <input value={productSearch} onChange={(e) => onProductSearch(e.target.value)}
           placeholder="Produkte suchen…" autoFocus={!children}
-          style={{ ...inputStyle, marginBottom: 10 }} />
-        <div style={{ flex: 1, overflowY: "auto", border: "1px solid #e3e3e3", borderRadius: 8, minHeight: 120, maxHeight: 300 }}>
+          style={{ ...inputStyle(d), marginBottom: 10 }} />
+        <div style={{ flex: 1, overflowY: "auto", border: `1px solid ${d ? "#333" : "#e3e3e3"}`, borderRadius: 8, minHeight: 120, maxHeight: 300 }}>
           {isSearching
             ? <div style={{ padding: 20, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>Suche…</div>
             : searchResults.length === 0
@@ -344,11 +353,11 @@ function ProductPickerModal({ title, confirmLabel, disabled, onClose, onConfirm,
                   const checked = selectedProductIds.includes(p.id);
                   return (
                     <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px",
-                      borderBottom: "1px solid #f5f5f5", cursor: "pointer", background: checked ? "#f0f9ff" : "transparent" }}>
+                      borderBottom: `1px solid ${d ? "#3a3a3a" : "#f5f5f5"}`, cursor: "pointer", background: checked ? (d ? "#1e3a5f" : "#f0f9ff") : "transparent" }}>
                       <input type="checkbox" checked={checked} onChange={() => toggleProduct(p.id)} style={{ cursor: "pointer", flexShrink: 0 }} />
                       {p.featuredImage?.url
                         ? <img src={p.featuredImage.url} alt="" style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
-                        : <div style={{ width: 32, height: 32, borderRadius: 4, background: "#e5e7eb", flexShrink: 0 }} />}
+                        : <div style={{ width: 32, height: 32, borderRadius: 4, background: d ? "#333" : "#e5e7eb", flexShrink: 0 }} />}
                       <span style={{ fontSize: 14 }}>{p.title}</span>
                     </label>
                   );
@@ -356,11 +365,11 @@ function ProductPickerModal({ title, confirmLabel, disabled, onClose, onConfirm,
           }
         </div>
         {selectedProductIds.length > 0 && (
-          <div style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>{selectedProductIds.length} Produkt{selectedProductIds.length !== 1 ? "e" : ""} ausgewählt</div>
+          <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 8 }}>{selectedProductIds.length} Produkt{selectedProductIds.length !== 1 ? "e" : ""} ausgewählt</div>
         )}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <button onClick={onClose} style={btnStyle("secondary")}>Abbrechen</button>
-          <button onClick={onConfirm} disabled={disabled} style={btnStyle("primary", disabled)}>{confirmLabel}</button>
+          <button onClick={onClose} style={btnStyle("secondary", false, d)}>Abbrechen</button>
+          <button onClick={onConfirm} disabled={disabled} style={btnStyle("primary", disabled, d)}>{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -368,8 +377,12 @@ function ProductPickerModal({ title, confirmLabel, disabled, onClose, onConfirm,
 }
 
 function IconBtn({ icon, onClick, title, danger }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   return (
-    <button onClick={onClick} title={title} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 4, borderRadius: 4, color: danger ? "#c0392b" : "#555", display: "flex", alignItems: "center" }}>
+    <button onClick={onClick} title={title}
+      className={`icon-btn${danger ? " icon-btn-danger" : ""}`}
+      style={{ border: "none", background: "transparent", cursor: "pointer", padding: 4, borderRadius: 4, color: danger ? "#e57373" : (isDark ? "#c4c7cc" : "#555"), display: "flex", alignItems: "center" }}>
       {icon}
     </button>
   );
@@ -377,16 +390,16 @@ function IconBtn({ icon, onClick, title, danger }) {
 
 // ── Styles ────────────────────────────────────────────────────────────
 
-const thStyle = { padding: "10px 16px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#555" };
-const tdStyle = { padding: "12px 16px", fontSize: 14 };
-const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box", outline: "none" };
-const labelStyle = { display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 };
+const thStyle     = (d) => ({ padding: "10px 16px", textAlign: "left", fontSize: 13, fontWeight: 600, color: d ? "#9ca3af" : "#555" });
+const tdStyle     = { padding: "12px 16px", fontSize: 14 };
+const inputStyle  = (d) => ({ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${d ? "#4a4a4a" : "#ddd"}`, fontSize: 14, boxSizing: "border-box", outline: "none", background: d ? "#2c2c2c" : "#fff", color: d ? "#e5e7eb" : "#111" });
+const labelStyle  = (d) => ({ display: "block", fontSize: 13, fontWeight: 600, color: d ? "#e5e7eb" : "#374151", marginBottom: 6 });
 const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 };
-const modalBoxStyle = { background: "#fff", borderRadius: 12, padding: 24, width: 440, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" };
+const modalBoxStyle = (d) => ({ background: d ? "#1e1e1e" : "#fff", borderRadius: 12, padding: 24, width: 440, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", border: d ? "1px solid #333" : "none" });
+const btnStyle    = (variant, disabled, d) => {
+  const base = { padding: "8px 16px", borderRadius: 8, border: "none", fontSize: 14, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 500 };
+  if (variant === "primary") return { ...base, background: disabled ? (d ? "#3a3a3a" : "#ccc") : "#303030", color: disabled ? (d ? "#666" : "#fff") : "#fff" };
+  if (variant === "danger")  return { ...base, background: disabled ? (d ? "#3a3a3a" : "#ccc") : "#fef2f2", color: disabled ? (d ? "#666" : "#fff") : "#dc2626", border: disabled ? "none" : "1px solid #fca5a5" };
+  return { ...base, background: d ? "#2c2c2c" : "#f0f0f0", color: d ? "#e5e7eb" : "#333", border: d ? "1px solid #4a4a4a" : "none" };
+};
 
-function btnStyle(variant, disabled) {
-  const base = { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, border: "none", fontSize: 14, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 500 };
-  if (variant === "primary") return { ...base, background: disabled ? "#ccc" : "#303030", color: "#fff" };
-  if (variant === "danger") return { ...base, background: disabled ? "#ccc" : "#fef2f2", color: disabled ? "#fff" : "#dc2626", border: "1px solid #fca5a5" };
-  return { ...base, background: "#f0f0f0", color: "#333" };
-}

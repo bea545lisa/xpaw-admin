@@ -1,9 +1,12 @@
 import { Card, BlockStack, Text, Button, InlineStack, Divider, TextField } from "@shopify/polaris";
 import {useEffect, useRef, useState} from "react";
+import { useColorScheme } from "../../../context/ColorSchemeContext.js";
 
 export default function ProductDetailOptions({
-  optionDrafts, setOptionDrafts, optionsDirty, handleOptionsSave, setToast,
+  optionDrafts, setOptionDrafts, optionsDirty, handleOptionsSave,
 }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const [newOptionValues, setNewOptionValues] = useState({});
   const [openNewValue, setOpenNewValue] = useState({});
   const [editingOptionName, setEditingOptionName] = useState({});
@@ -105,38 +108,84 @@ export default function ProductDetailOptions({
 
                   {/* Pills + + Button */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-                    {(option.values ?? []).map((value, valueIndex) => (
-                      <span
-                        key={`${option.id ?? oi}-${value}-${valueIndex}`}
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 6,
-                          padding: "5px 10px", borderRadius: 999,
-                          border: "1px solid var(--p-color-border)",
-                          background: "var(--p-color-bg-surface-secondary)",
-                          fontSize: 12, lineHeight: 1,
-                        }}
-                      >
-                        {value}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newValues = option.values.filter((_, j) => j !== valueIndex);
-                            if (newValues.length === 0) {
-                              setOptionDrafts(optionDrafts.filter((_, i) => i !== oi));
-                            } else {
-                              const updated = [...optionDrafts];
-                              updated[oi] = { ...option, values: newValues };
-                              setOptionDrafts(updated);
-                            }
-                          }}
+                    {(option.values ?? []).map((value, valueIndex) => {
+                      const abbr = option.abbreviations?.[value] ?? "";
+                      return (
+                        <span
+                          key={`${option.id ?? oi}-${value}-${valueIndex}`}
                           style={{
-                            border: "none", background: "transparent", cursor: "pointer",
-                            padding: 0, color: "var(--p-color-text-subdued)", lineHeight: 1,
+                            display: "inline-flex", alignItems: "center", gap: 0,
+                            borderRadius: 999,
+                            border: "1px solid var(--p-color-border)",
+                            background: "var(--p-color-bg-surface-secondary)",
+                            fontSize: 12, lineHeight: 1, overflow: "hidden",
                           }}
-                          aria-label={`Wert ${value} entfernen`}
-                        >✕</button>
-                      </span>
-                    ))}
+                        >
+                          {/* Wert-Label */}
+                          <span style={{ padding: "5px 8px" }}>{value}</span>
+
+                          {/* Kürzel-Badge – inline editierbar */}
+                          <span
+                            title="SKU-Kürzel (klicken zum Bearbeiten)"
+                            style={{
+                              borderLeft: "1px solid var(--p-color-border)",
+                              padding: "5px 6px",
+                              background: "transparent",
+                              outline: `1.5px dashed ${isDark ? "#666" : "#9ca3af"}`,
+                              outlineOffset: "-2px",
+                              borderRadius: 2,
+                              display: "inline-flex", alignItems: "center",
+                            }}
+                          >
+                            <input
+                              value={abbr}
+                              onChange={(e) => {
+                                const updated = [...optionDrafts];
+                                updated[oi] = {
+                                  ...option,
+                                  abbreviations: { ...(option.abbreviations ?? {}), [value]: e.target.value },
+                                };
+                                setOptionDrafts(updated);
+                              }}
+                              style={{
+                                border: "none", outline: "none",
+                                background: "transparent",
+                                fontSize: 11, fontFamily: "monospace",
+                                width: Math.max(24, abbr.length * 8 + 8),
+                                color: isDark ? "#e5e7eb" : "#111",
+                                fontWeight: 400,
+                              }}
+                              title="SKU-Kürzel"
+                              placeholder="???"
+                            />
+                          </span>
+
+                          {/* Löschen */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newValues = option.values.filter((_, j) => j !== valueIndex);
+                              if (newValues.length === 0) {
+                                setOptionDrafts(optionDrafts.filter((_, i) => i !== oi));
+                              } else {
+                                const newAbbr = { ...(option.abbreviations ?? {}) };
+                                delete newAbbr[value];
+                                const updated = [...optionDrafts];
+                                updated[oi] = { ...option, values: newValues, abbreviations: newAbbr };
+                                setOptionDrafts(updated);
+                              }
+                            }}
+                            style={{
+                              borderLeft: "1px solid var(--p-color-border)",
+                              background: "transparent", cursor: "pointer",
+                              padding: "5px 7px", color: "var(--p-color-text-subdued)",
+                              lineHeight: 1, border: "none",
+                            }}
+                            aria-label={`Wert ${value} entfernen`}
+                          >✕</button>
+                        </span>
+                      );
+                    })}
 
                     {/* + Button direkt nach Pills */}
                     {openNewValue[oi] ? (
@@ -173,13 +222,20 @@ export default function ProductDetailOptions({
             </div>
           )}
 
-          <Button
-            size="slim"
-            disabled={(optionDrafts?.length ?? 0) >= 2}
-            onClick={() => setOptionDrafts((prev) => [...prev, { name: "", values: [] }])}
-          >
-            + Neue Option
-          </Button>
+          <InlineStack gap="300" blockAlign="center" wrap>
+            <Button
+              size="slim"
+              disabled={(optionDrafts?.length ?? 0) >= 2}
+              onClick={() => setOptionDrafts((prev) => [...prev, { name: "", values: [] }])}
+            >
+              + Neue Option
+            </Button>
+            {optionDrafts.length > 0 && (
+              <Text variant="bodySm" tone="subdued">
+                Das gestrichelt umrahmte Kürzel pro Wert wird für die automatische SKU-Generierung verwendet (z.&nbsp;B. Blau → <code>bl</code>).
+              </Text>
+            )}
+          </InlineStack>
         </BlockStack>
       </Card>
 

@@ -1,10 +1,20 @@
-export function normalizeOptions(options = []) {
+import { abbreviate } from "./skuAbbreviation.js";
+
+/**
+ * @param {object[]} options
+ * @param {object}   abbreviationsMap  – flache Map { "Blau": "bl", "M": "m", ... } aus dem Metafeld
+ */
+export function normalizeOptions(options = [], abbreviationsMap = {}) {
   return options
     .filter((option) => option?.name !== "Title")
-    .map((option) => ({
-      ...option,
-      values: option.optionValues?.map((value) => value.name).filter(Boolean) ?? option.values ?? [],
-    }))
+    .map((option) => {
+      const vals = option.optionValues?.map((v) => v.name).filter(Boolean) ?? option.values ?? [];
+      // Kürzel: vorhandene option.abbreviations behalten (z. B. nach setState),
+      // dann Metafeld-Map, dann globales Mapping als Fallback
+      const abbreviations = option.abbreviations
+        ?? Object.fromEntries(vals.map((v) => [v, abbreviationsMap[v] ?? abbreviate(v)]));
+      return { ...option, values: vals, abbreviations };
+    })
     .filter((option) => option.name && option.values.length > 0);
 }
 

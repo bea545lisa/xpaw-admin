@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLoaderData, useSearchParams, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
+import { useColorScheme } from "../context/ColorSchemeContext";
 import { ordersLoader } from "../loaders/orders.loader.server";
 import { OrderIcon } from "@shopify/polaris-icons";
 import { Badge, BlockStack, Box, Card, Text } from "@shopify/polaris";
@@ -58,6 +59,8 @@ function formatPrice(amount, currency = "EUR") {
 // ── Hauptkomponente ──────────────────────────────────────────────────────
 
 export default function OrdersPage() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const { orders, accessDenied } = useLoaderData();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -113,13 +116,13 @@ export default function OrdersPage() {
   }
 
   return (
-    <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
+    <div style={{ padding: "20px 32px", minHeight: "100vh", background: isDark ? "#212121" : "#f6f6f7" }}>
       <BlockStack gap="500">
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <OrderIcon width={22} height={22} />
+            <span style={{ display: "flex", fill: isDark ? "#f3f4f6" : "#555" }}><OrderIcon width={22} height={22} /></span>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Bestellungen</h1>
           </div>
           <Text as="p" variant="bodySm" tone="subdued">
@@ -128,13 +131,11 @@ export default function OrdersPage() {
         </div>
 
         {/* Filter-Bar */}
-        <Card paddingInline="200" paddingBlock="100">
           <OrderToolbar
             search={search} setSearch={setSearch}
             financialStatus={financialStatus} setFinancialStatus={setFinancialStatus}
             fulfillmentStatus={fulfillmentStatus} setFulfillmentStatus={setFulfillmentStatus}
           />
-        </Card>
 
         {/* Tabelle */}
         <Card padding="0">
@@ -180,12 +181,13 @@ export default function OrdersPage() {
                         key={order.id}
                         onClick={() => navigate(`/app/orders/${order.numericId}`)}
                         style={{
-                          borderBottom: idx < orders.length - 1 ? "1px solid #f3f4f6" : "none",
+                          borderBottom: `1px solid ${isDark ? "#3a3a3a" : "#f3f4f6"}`,
                           cursor: "pointer",
                           transition: "background 0.1s",
+                          background: isDark ? (idx % 2 === 0 ? "#2f2f2f" : "#282828") : "#fff",
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "#f9fafb"}
-                        onMouseLeave={(e) => e.currentTarget.style.background = ""}
+                        onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#222222" : "#f9fafb"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = isDark ? (idx % 2 === 0 ? "#2f2f2f" : "#282828") : "#fff"}
                       >
                         <td style={{ padding: "12px 16px" }}>
                           <Text as="span" variant="bodySm" fontWeight="semibold">{order.name}</Text>

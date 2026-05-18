@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useColorScheme } from "../context/ColorSchemeContext.js";
 import { createPortal } from "react-dom";
 import { BlockStack, Button, ChoiceList, InlineStack, Select } from "@shopify/polaris";
 import { ArrowDownIcon, ArrowUpIcon, DeleteIcon, SearchIcon } from "@shopify/polaris-icons";
@@ -64,6 +65,8 @@ export default function ProductToolbar({
   onImport,
   onMoreActions,
 }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [activeEditor, setActiveEditor] = useState("status");
   const [overlayPosition, setOverlayPosition] = useState({ left: 8, top: 46 });
@@ -307,17 +310,18 @@ export default function ProductToolbar({
                   onRemove={f.onRemove}
                 />
               ))}
-              <Button
-                className={`toolbar-action-icon ${isFilterBarActive || overlayOpen ? "visible" : ""}`}
-                icon={DeleteIcon}
-                accessibilityLabel="Alle Filter löschen"
-                disabled={!hasAnyFilter}
-                variant="plain"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  resetAllFilters();
-                }}
-              />
+              {hasAnyFilter && (
+                <Button
+                  className="toolbar-action-icon visible"
+                  icon={DeleteIcon}
+                  accessibilityLabel="Alle Filter löschen"
+                  variant="plain"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    resetAllFilters();
+                  }}
+                />
+              )}
               <input
                 className="toolbar-inline-input"
                 aria-label="Suchen und filtern"
@@ -407,7 +411,7 @@ export default function ProductToolbar({
         .toolbar-filter-shell { position: relative; border: 1px solid var(--p-color-border-subdued); border-radius: 10px; background: var(--p-color-bg-surface); }
         .toolbar-filter-row { display: flex; gap: 8px; align-items: center; padding: 8px; }
         .toolbar-unified-search { flex: 1; min-width: 260px; display: flex; align-items: center; gap: 4px; border: 1px solid var(--p-color-border); border-radius: 8px; padding: 0 8px; min-height: 40px; cursor: text; }
-        .toolbar-unified-search.active { box-shadow: 0 0 0 1px var(--p-color-border-focus); }
+        .toolbar-unified-search.active { }
         .toolbar-search-icon :global(button) { min-width: 24px; padding: 0; }
         .toolbar-inline-content { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
         .toolbar-inline-input { border: 0; outline: 0; background: transparent; min-width: 140px; flex: 1; font-size: 14px; color: var(--p-color-text); line-height: 20px; }
@@ -423,8 +427,8 @@ export default function ProductToolbar({
           padding-bottom: 0;
         }
         .toolbar-sort-toggle { margin-left: -8px; }
-        .toolbar-action-icon { display: none; width: 30px; height: 30px; min-width: 30px; padding: 0; border-radius: 999px; flex: 0 0 auto; border: 1px solid var(--p-color-border-subdued); background: var(--p-color-bg-surface-secondary); }
-        .toolbar-action-icon.visible { display: inline-flex; }
+        .toolbar-action-icon { display: none !important; width: 30px; height: 30px; min-width: 30px; padding: 0; border-radius: 999px; flex: 0 0 auto; border: 1px solid var(--p-color-border-subdued); background: var(--p-color-bg-surface-secondary); }
+        .toolbar-action-icon.visible { display: inline-flex !important; }
         .toolbar-action-icon.visible:hover { background: var(--p-color-bg-fill-tertiary); }
         .toolbar-action-icon :global(.Polaris-Button__Icon) { margin: 0; }
         .toolbar-pill { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--p-color-border-subdued); background: var(--p-color-bg-surface-secondary); border-radius: 999px; padding: 3px 8px; font-size: 12px; cursor: pointer; white-space: nowrap; }

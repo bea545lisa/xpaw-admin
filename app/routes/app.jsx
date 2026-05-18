@@ -1,8 +1,10 @@
 import { Outlet, useLoaderData, useNavigate } from "react-router";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
+import { AppProvider as PolarisProvider } from "@shopify/polaris";
 import { Frame } from "@shopify/polaris";
 import AppLayout from "../components/layout/AppLayout";
 import { authenticate } from "../shopify.server";
+import { useColorScheme } from "../context/ColorSchemeContext";
 
 export const loader = async ({ request }) => {
   await authenticate.admin(request);
@@ -19,6 +21,8 @@ export function shouldRevalidate() {
 export default function App() {
   const { apiKey } = useLoaderData();
   const navigate = useNavigate();
+  const { colorScheme } = useColorScheme();
+  const polarisTheme = colorScheme === "dark" ? "dark-experimental" : "light";
 
   const router = {
     history: {
@@ -29,11 +33,13 @@ export default function App() {
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
-      <Frame router={router}>
-        <AppLayout>
-          <Outlet />
-        </AppLayout>
-      </Frame>
+      <PolarisProvider i18n={{}} theme={polarisTheme}>
+        <Frame router={router}>
+          <AppLayout>
+            <Outlet />
+          </AppLayout>
+        </Frame>
+      </PolarisProvider>
     </AppProvider>
   );
 }

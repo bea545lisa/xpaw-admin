@@ -1,21 +1,98 @@
-import { TextField, Text, BlockStack, InlineStack, Divider, Button } from "@shopify/polaris";
-import { useEffect, useState } from "react";
+import { TextField, Text, BlockStack, InlineStack, Divider, Button, InlineError } from "@shopify/polaris";
+import { useEffect, useRef, useState } from "react";
+import { useFetcher } from "react-router";
 import { computeVariantCombinations } from "../../hooks/useVariantDrafts.js";
+import { generateSku } from "../../utils/skuAbbreviation.js";
 
+// ── SKU-Konventions-Check ─────────────────────────────────────────────────────
+function checkConvention(sku) {
+  if (!sku) return null;
+  // Erlaubt: alphanumerisch + Bindestriche, mind. 2 Teile
+  if (!/^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)+$/.test(sku)) {
+    return "SKU folgt nicht der Konvention (Empfehlung: Präfix-Option1-Option2, z.B. 12345-bl-m)";
+  }
+  return null;
+}
+
+// ── SKU-Feld mit Duplikat- und Konventions-Prüfung ───────────────────────────
+function SkuField({ value, onChange, productId }) {
+  const fetcher   = useFetcher();
+  const timerRef  = useRef(null);
+  const [warning, setWarning] = useState(null);
+
+  const conventionWarn = checkConvention(value);
+
+  useEffect(() => {
+    if (!value?.trim()) { setWarning(null); return; }
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      const fd = new FormData();
+      fd.append("action", "checkSku");
+      fd.append("sku", value.trim());
+      if (productId) fd.append("excludeId", productId);
+      fetcher.submit(fd, { method: "post", action: "/app/products" });
+    }, 600);
+    return () => clearTimeout(timerRef.current);
+  }, [value]);
+
+  useEffect(() => {
+    if (fetcher.data?.exists) {
+      setWarning(`SKU bereits vergeben bei: „${fetcher.data.productTitle}"`);
+    } else {
+      setWarning(null);
+    }
+  }, [fetcher.data]);
+
+  const errorMsg = warning ?? conventionWarn;
+
+  return (
+    <BlockStack gap="050">
+      <TextField
+        label="" labelHidden autoComplete="off"
+        value={String(value ?? "")}
+        onChange={onChange}
+        placeholder="—"
+        error={!!warning}
+      />
+      {errorMsg && (
+        <span style={{ fontSize: 11, color: warning ? "#d82c0d" : "#bf8600", lineHeight: 1.3, display: "block" }}>
+          {errorMsg}
+        </span>
+      )}
+    </BlockStack>
+  );
+}
+
+// ── Hauptkomponente ───────────────────────────────────────────────────────────
 export default function VariantsSection({
-  variants, editOptions, setEditOptions, setEditVariants, localImages,
+  variants, editOptions, setEditOptions, setEditVariants, localImages, productId,
 }) {
   const [newValues, setNewValues] = useState({});
   const [previewVariants, setPreviewVariants] = useState([]);
   const [variantImagePicker, setVariantImagePicker] = useState(null);
+
+  // Präfix aus erster vorhandener SKU ableiten, sonst zufällige 5-stellige Nummer
+  const inferPrefix = () => {
+    const firstSku = variants?.find(v => v.sku)?.sku ?? "";
+    if (firstSku.includes("-")) return firstSku.split("-")[0];
+    return String(Math.floor(10000 + Math.random() * 90000));
+  };
+  const [skuPrefix, setSkuPrefix] = useState(inferPrefix);
   const hasRealOptions = editOptions && editOptions.length > 0;
   const defaultVariant = variants?.length === 1 && variants[0]?.title === "Default Title" ? variants[0] : null;
 
   useEffect(() => {
     if (!hasRealOptions) return;
     const computed = computeVariantCombinations(editOptions, variants);
-    setPreviewVariants(computed);
-    setEditVariants(computed);
+    // SKU automatisch generieren für Varianten ohne SKU (wenn Präfix gesetzt)
+    const withSku = computed.map(v => {
+      if (v.sku) return v;
+      if (!skuPrefix) return v;
+      const optionValues = (v.selectedOptions ?? []).map(o => o.value);
+      return { ...v, sku: generateSku(skuPrefix, optionValues) };
+    });
+    setPreviewVariants(withSku);
+    setEditVariants(withSku);
   }, [editOptions, variants, hasRealOptions, setEditVariants]);
 
   const updateVariant = (variantIndex, changes) => {
@@ -59,11 +136,11 @@ export default function VariantsSection({
             </div>
 
             <div style={{ flex: 1 }}>
-              <TextField
-                label="SKU" autoComplete="off"
-                value={String(defaultVariant.sku ?? "")}
+              <Text variant="bodySm" as="p">SKU</Text>
+              <SkuField
+                value={defaultVariant.sku ?? ""}
                 onChange={(val) => setEditVariants([{ ...defaultVariant, sku: val }])}
-                placeholder="—"
+                productId={productId}
               />
             </div>
 
@@ -233,6 +310,40 @@ export default function VariantsSection({
         <>
           <Divider />
           <Text variant="headingSm">Varianten</Text>
+
+          {/* SKU-Generator */}
+          <InlineStack gap="200" blockAlign="end">
+            <div style={{ width: 200 }}>
+              <TextField
+                label="SKU-Präfix"
+                labelHidden={false}
+                autoComplete="off"
+                placeholder="z.B. 12345"
+                helpText="Präfix + Kürzel der Option-Werte"
+                value={skuPrefix}
+                onChange={setSkuPrefix}
+              />
+            </div>
+            <Button
+              disabled={!skuPrefix.trim()}
+              onClick={() => {
+                const updated = previewVariants.map(v => {
+                  const optionValues = (v.selectedOptions ?? []).map(o => o.value);
+                  return { ...v, sku: generateSku(skuPrefix, optionValues) };
+                });
+                setPreviewVariants(updated);
+                setEditVariants(updated);
+              }}
+            >
+              SKU generieren
+            </Button>
+            <Text variant="bodySm" tone="subdued" as="span">
+              {skuPrefix.trim() && previewVariants[0]
+                ? `→ ${generateSku(skuPrefix, (previewVariants[0].selectedOptions ?? []).map(o => o.value))}, …`
+                : ""}
+            </Text>
+          </InlineStack>
+
           <div style={{ display: "grid", gridTemplateColumns: "40px 1fr 90px 90px 70px 90px 90px 50px", gap: 8 }}>
             <div />
             <Text variant="bodySm" tone="subdued">Variante</Text>
@@ -294,11 +405,11 @@ export default function VariantsSection({
                   )}
                 </div>
 
-                {/* SKU */}
-                <TextField label="" labelHidden autoComplete="off"
-                  value={String(v.sku ?? "")}
+                {/* SKU mit Duplikat- und Konventions-Prüfung */}
+                <SkuField
+                  value={v.sku ?? ""}
                   onChange={(val) => updateVariant(vi, { sku: val })}
-                  placeholder="—"
+                  productId={productId}
                 />
                 
                 {/* Barcode */}

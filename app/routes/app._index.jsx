@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useFetcher, useLoaderData, useLocation, useNavigate } from "react-router";
 import { HomeIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
+import { useColorScheme } from "../context/ColorSchemeContext";
 import {
   Badge,
   BlockStack,
@@ -474,6 +475,8 @@ const FULFILLMENT_BADGE = {
 };
 
 export default function Dashboard() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const { products, summary, orders, charts } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
@@ -551,14 +554,14 @@ export default function Dashboard() {
           box-shadow: 0 6px 18px rgba(0,0,0,0.08);
         }
       `}</style>
-      <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
+      <div style={{ padding: "20px 32px", minHeight: "100vh", background: isDark ? "#212121" : "#f6f6f7" }}>
       <BlockStack gap="500">
         <Layout>
           <Layout.Section>
             <BlockStack gap="400">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <HomeIcon width={22} height={22} />
+                  <span style={{ display: "flex", fill: isDark ? "#f3f4f6" : "#555" }}><HomeIcon width={22} height={22} /></span>
                   <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Dashboard</h1>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>

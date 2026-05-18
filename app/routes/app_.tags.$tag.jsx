@@ -3,6 +3,7 @@ import { authenticate } from "../shopify.server";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { HashtagIcon, ArrowLeftIcon, DeleteIcon } from "@shopify/polaris-icons";
 import AppLayout from "../components/layout/AppLayout";
+import { useColorScheme } from "../context/ColorSchemeContext";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
@@ -121,12 +122,22 @@ export const action = async ({ request, params }) => {
 // ── Konstanten ────────────────────────────────────────────────────────────────
 
 const STATUS_LABEL = { ACTIVE: "Aktiv", DRAFT: "Entwurf", ARCHIVED: "Archiviert" };
-const STATUS_COLOR = { ACTIVE: "#16a34a", DRAFT: "#6b7280", ARCHIVED: "#d97706" };
-const STATUS_BG    = { ACTIVE: "#dcfce7", DRAFT: "#f3f4f6", ARCHIVED: "#fef3c7" };
+const STATUS_COLOR = (isDark) => ({
+  ACTIVE:   isDark ? "#6ee7a8" : "#16a34a",
+  DRAFT:    isDark ? "#7eb8e8" : "#6b7280",
+  ARCHIVED: isDark ? "#e8c97d" : "#d97706",
+});
+const STATUS_BG = (isDark) => ({
+  ACTIVE:   isDark ? "#1a3a2a" : "#dcfce7",
+  DRAFT:    isDark ? "#1e2d3d" : "#f3f4f6",
+  ARCHIVED: isDark ? "#332b1a" : "#fef3c7",
+});
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function TagDetail() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const { tag: initialTag, products: initialProducts } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
@@ -251,26 +262,28 @@ export default function TagDetail() {
 
   return (
     <AppLayout>
-      <div style={{ padding: "24px 30px", minHeight: "100vh", background: "#f6f6f7" }}>
+      <div style={{ padding: "24px 30px", minHeight: "100vh", background: isDark ? "#212121" : "#f6f6f7" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-          <button onClick={() => navigate(backUrl)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: "#555" }}>
+          <button onClick={() => navigate(backUrl)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: isDark ? "#b0b7c3" : "#555", fill: isDark ? "#b0b7c3" : "#555" }}>
             <ArrowLeftIcon width={20} height={20} />
           </button>
-          <HashtagIcon width={22} height={22} />
+          <span style={{ display: "flex", fill: isDark ? "#b0b7c3" : "#555" }}>
+            <HashtagIcon width={22} height={22} />
+          </span>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>#{tag}</h1>
           <button onClick={() => { setRenameValue(tag); setRenameOpen(true); }}
-            style={{ marginLeft: 4, padding: "4px 12px", borderRadius: 6, border: "1px solid #d1d5db", background: "#f9fafb", fontSize: 13, cursor: "pointer", color: "#374151" }}>
+            style={{ marginLeft: 4, padding: "4px 12px", borderRadius: 6, border: `1px solid ${isDark ? "#4a4a4a" : "#d1d5db"}`, background: isDark ? "#2c2c2c" : "#f9fafb", fontSize: 13, cursor: "pointer", color: isDark ? "#e5e7eb" : "#374151" }}>
             Umbenennen
           </button>
         </div>
 
         {/* Produktliste */}
-        <div style={cardStyle}>
+        <div style={cardStyle(isDark)}>
           <div style={{ display: "flex", alignItems: "center", marginBottom: 14, gap: 12 }}>
-            <label style={{ ...labelStyle, margin: 0 }}>Produkte ({products.length})</label>
+            <label style={{ ...labelStyle(isDark), margin: 0 }}>Produkte ({products.length})</label>
             <div style={{ flex: 1 }} />
-            <button onClick={openModal} style={btnStyle("secondary")}>+ Produkte hinzufügen</button>
+            <button onClick={openModal} style={btnStyle("secondary", false, isDark)}>+ Produkte hinzufügen</button>
             {selectedIds.length > 0 && (
               <>
                 <span style={{ fontSize: 13, color: "#6b7280" }}>{selectedIds.length} ausgewählt</span>
@@ -289,17 +302,17 @@ export default function TagDetail() {
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid #f0f0f0" }}>
-                  <th colSpan={2} style={{ ...thStyle, padding: "8px 0" }}>
+                <tr style={{ borderBottom: `2px solid ${isDark ? "#2e2e2e" : "#f0f0f0"}` }}>
+                  <th colSpan={2} style={{ ...thStyle(isDark), padding: "8px 0" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 600 }}>
                       <input type="checkbox" checked={selectedIds.length === products.length && products.length > 0} onChange={toggleAll} style={{ cursor: "pointer" }} />
                       Alle Produkte auswählen
                     </label>
                   </th>
-                  <th style={{ ...thStyle, textAlign: "right", cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("price")}>
+                  <th style={{ ...thStyle(isDark), textAlign: "right", cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("price")}>
                     Preis{sortIndicator("price")}
                   </th>
-                  <th style={{ ...thStyle, textAlign: "center", cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("status")}>
+                  <th style={{ ...thStyle(isDark), textAlign: "center", cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("status")}>
                     Status{sortIndicator("status")}
                   </th>
                 </tr>
@@ -308,8 +321,8 @@ export default function TagDetail() {
                 {sortedProducts.map((p) => {
                   const price = p.variants?.edges?.[0]?.node?.price;
                   return (
-                    <tr key={p.id} style={{ borderBottom: "1px solid #f5f5f5", cursor: "pointer" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "#fafafa"}
+                    <tr key={p.id} style={{ borderBottom: `1px solid ${isDark ? "#2a2a2a" : "#f5f5f5"}`, cursor: "pointer" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#252525" : "#fafafa"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                       onClick={() => openProduct(p.id)}>
                       <td style={{ padding: "10px 0", width: 20 }} onClick={(e) => e.stopPropagation()}>
@@ -319,7 +332,7 @@ export default function TagDetail() {
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           {p.featuredImage?.url
                             ? <img src={p.featuredImage.url} alt="" style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
-                            : <div style={{ width: 32, height: 32, borderRadius: 4, background: "#e5e7eb", flexShrink: 0 }} />}
+                            : <div style={{ width: 32, height: 32, borderRadius: 4, background: isDark ? "#333" : "#e5e7eb", flexShrink: 0 }} />}
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 500 }}>{p.title}</div>
                             {p.tags?.length > 0 && (
@@ -327,8 +340,8 @@ export default function TagDetail() {
                                 {p.tags.map((t) => (
                                   <span key={t} style={{
                                     fontSize: 11, padding: "1px 7px", borderRadius: 20,
-                                    background: t === tag ? "#dbeafe" : "#f3f4f6",
-                                    color: t === tag ? "#1d4ed8" : "#6b7280",
+                                    background: t === tag ? "#dbeafe" : (isDark ? "#2a2a2a" : "#f3f4f6"),
+                                    color: t === tag ? "#1d4ed8" : (isDark ? "#e5e7eb" : "#6b7280"),
                                     fontWeight: t === tag ? 600 : 400,
                                   }}>{t}</span>
                                 ))}
@@ -337,11 +350,11 @@ export default function TagDetail() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 14, color: "#374151" }}>
+                      <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 14, color: isDark ? "#b0b7c3" : "#374151" }}>
                         {price ? `€${parseFloat(price).toFixed(2)}` : "—"}
                       </td>
                       <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                        <span style={{ fontSize: 12, fontWeight: 500, padding: "2px 8px", borderRadius: 999, background: STATUS_BG[p.status] ?? "#f3f4f6", color: STATUS_COLOR[p.status] ?? "#6b7280" }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, padding: "2px 8px", borderRadius: 999, background: STATUS_BG(isDark)[p.status] ?? (isDark ? "#2a2a2a" : "#f3f4f6"), color: STATUS_COLOR(isDark)[p.status] ?? "#6b7280" }}>
                           {STATUS_LABEL[p.status] ?? p.status}
                         </span>
                       </td>
@@ -356,18 +369,18 @@ export default function TagDetail() {
         {/* Rename Modal */}
         {renameOpen && (
           <div style={overlayStyle}>
-            <div style={modalBoxStyle}>
+            <div style={modalBoxStyle(isDark)}>
               <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>Tag umbenennen</h2>
               <p style={{ margin: "0 0 12px", color: "#888", fontSize: 13 }}>Alle Produkte mit diesem Tag werden aktualisiert.</p>
               <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && renameFetcher.submit({ intent: "rename", newTag: renameValue.trim() }, { method: "post" })}
-                placeholder="Neuer Tag-Name" style={inputStyle} />
+                placeholder="Neuer Tag-Name" style={inputStyle(isDark)} />
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
-                <button onClick={() => setRenameOpen(false)} style={btnStyle("secondary")}>Abbrechen</button>
+                <button onClick={() => setRenameOpen(false)} style={btnStyle("secondary", false, isDark)}>Abbrechen</button>
                 <button
                   onClick={() => renameFetcher.submit({ intent: "rename", newTag: renameValue.trim() }, { method: "post" })}
                   disabled={renameFetcher.state !== "idle" || !renameValue.trim()}
-                  style={btnStyle("primary", renameFetcher.state !== "idle" || !renameValue.trim())}>
+                  style={btnStyle("primary", renameFetcher.state !== "idle" || !renameValue.trim(), isDark)}>
                   Speichern
                 </button>
               </div>
@@ -378,12 +391,12 @@ export default function TagDetail() {
         {/* Add Modal */}
         {modalOpen && (
           <div style={overlayStyle}>
-            <div style={{ background: "#fff", borderRadius: 14, width: 520, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
-              <div style={{ padding: "18px 20px 12px", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ background: isDark ? "#1e1e1e" : "#fff", borderRadius: 14, width: 520, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 8px 40px rgba(0,0,0,0.18)", border: isDark ? "1px solid #333" : "none" }}>
+              <div style={{ padding: "18px 20px 12px", borderBottom: `1px solid ${isDark ? "#2e2e2e" : "#f0f0f0"}` }}>
                 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Produkte hinzufügen</div>
                 <input autoFocus value={modalSearch} onChange={(e) => handleModalSearch(e.target.value)}
                   placeholder="Produkte suchen…"
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, boxSizing: "border-box", outline: "none" }} />
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${isDark ? "#4a4a4a" : "#d1d5db"}`, fontSize: 14, boxSizing: "border-box", outline: "none", background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111" }} />
               </div>
               <div style={{ flex: 1, overflowY: "auto" }}>
                 {isSearching
@@ -396,17 +409,17 @@ export default function TagDetail() {
                         const checked = modalSelected.includes(p.id);
                         const price = p.variants?.edges?.[0]?.node?.price;
                         return (
-                          <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 20px", borderBottom: "1px solid #f5f5f5", cursor: "pointer", background: checked ? "#f0f9ff" : "transparent" }}>
+                          <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 20px", borderBottom: `1px solid ${isDark ? "#2a2a2a" : "#f5f5f5"}`, cursor: "pointer", background: checked ? (isDark ? "#1e3a5f" : "#f0f9ff") : "transparent" }}>
                             <input type="checkbox" checked={checked} onChange={() => toggleModalSelect(p.id)} style={{ cursor: "pointer", flexShrink: 0 }} />
                             {p.featuredImage?.url
                               ? <img src={p.featuredImage.url} alt="" style={{ width: 36, height: 36, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
-                              : <div style={{ width: 36, height: 36, borderRadius: 4, background: "#e5e7eb", flexShrink: 0 }} />}
+                              : <div style={{ width: 36, height: 36, borderRadius: 4, background: isDark ? "#333" : "#e5e7eb", flexShrink: 0 }} />}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
                               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 3 }}>
                                 <span style={{ fontSize: 12, color: "#9ca3af" }}>{price ? `€${parseFloat(price).toFixed(2)}` : "—"}</span>
                                 {p.tags?.map((t) => (
-                                  <span key={t} style={{ fontSize: 11, padding: "1px 6px", borderRadius: 20, background: "#f3f4f6", color: "#6b7280" }}>{t}</span>
+                                  <span key={t} style={{ fontSize: 11, padding: "1px 6px", borderRadius: 20, background: isDark ? "#2a2a2a" : "#f3f4f6", color: isDark ? "#e5e7eb" : "#6b7280" }}>{t}</span>
                                 ))}
                               </div>
                             </div>
@@ -414,10 +427,10 @@ export default function TagDetail() {
                         );
                       })}
               </div>
-              <div style={{ padding: "12px 20px", borderTop: "1px solid #f0f0f0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                <button onClick={() => setModalOpen(false)} style={btnStyle("secondary")}>Abbrechen</button>
+              <div style={{ padding: "12px 20px", borderTop: `1px solid ${isDark ? "#2e2e2e" : "#f0f0f0"}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button onClick={() => setModalOpen(false)} style={btnStyle("secondary", false, isDark)}>Abbrechen</button>
                 <button onClick={handleAddConfirm} disabled={!modalSelected.length || isAdding}
-                  style={btnStyle("primary", !modalSelected.length || isAdding)}>
+                  style={btnStyle("primary", !modalSelected.length || isAdding, isDark)}>
                   {isAdding ? "Hinzufügen…" : `${modalSelected.length > 0 ? `${modalSelected.length} ` : ""}Hinzufügen`}
                 </button>
               </div>
@@ -435,15 +448,15 @@ export default function TagDetail() {
   );
 }
 
-const cardStyle  = { background: "#fff", borderRadius: 12, border: "1px solid #e3e3e3", padding: "16px 18px" };
-const labelStyle = { display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 };
-const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box", outline: "none" };
-const thStyle    = { padding: "8px 8px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "#6b7280" };
+const cardStyle  = (d) => ({ background: d ? "#1a1a1a" : "#fff", borderRadius: 12, border: `1px solid ${d ? "#2e2e2e" : "#e3e3e3"}`, padding: "16px 18px" });
+const labelStyle = (d) => ({ display: "block", fontSize: 13, fontWeight: 600, color: d ? "#e5e7eb" : "#374151", marginBottom: 8 });
+const inputStyle = (d) => ({ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${d ? "#4a4a4a" : "#ddd"}`, fontSize: 14, boxSizing: "border-box", outline: "none", background: d ? "#2c2c2c" : "#fff", color: d ? "#e5e7eb" : "#111" });
+const thStyle    = (d) => ({ padding: "8px 8px", textAlign: "left", fontSize: 12, fontWeight: 600, color: d ? "#9ca3af" : "#6b7280" });
 const overlayStyle  = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 };
-const modalBoxStyle = { background: "#fff", borderRadius: 12, padding: 24, width: 440, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" };
+const modalBoxStyle = (d) => ({ background: d ? "#1e1e1e" : "#fff", borderRadius: 12, padding: 24, width: 440, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", border: d ? "1px solid #333" : "none" });
 
-function btnStyle(variant, disabled) {
+function btnStyle(variant, disabled, d) {
   const base = { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, border: "none", fontSize: 14, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 500 };
-  if (variant === "primary") return { ...base, background: disabled ? "#ccc" : "#303030", color: "#fff" };
-  return { ...base, background: "#f0f0f0", color: "#333", border: "1px solid #e3e3e3" };
+  if (variant === "primary") return { ...base, background: disabled ? (d ? "#3a3a3a" : "#ccc") : "#303030", color: disabled ? (d ? "#666" : "#fff") : "#fff" };
+  return { ...base, background: d ? "#2c2c2c" : "#f0f0f0", color: d ? "#e5e7eb" : "#333", border: `1px solid ${d ? "#4a4a4a" : "#e3e3e3"}` };
 }

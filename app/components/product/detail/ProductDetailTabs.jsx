@@ -1,8 +1,57 @@
-import { Card, BlockStack, Text, InlineStack, Divider, Badge, Tabs, Button, TextField, Spinner, Icon } from "@shopify/polaris";
+import { Card, BlockStack, Text, InlineStack, Divider, Badge, Tabs, Button, TextField, Spinner, Icon, InlineError } from "@shopify/polaris";
 import { EditIcon, XIcon } from "@shopify/polaris-icons";
 import ProductDetailOptions from "./ProductDetailOptions.jsx";
 import ProductDetailMetafields from "./ProductDetailMetafields.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useFetcher } from "react-router";
+import { useColorScheme } from "../../../context/ColorSchemeContext.js";
+import { buildSkuValidator } from "../../../utils/skuFormat.js";
+
+// ── SKU-Feld mit Konventions- und Duplikat-Prüfung ───────────────────────────
+function SkuField({ value, onChange, productId, skuFormat, selectedOptions }) {
+  const fetcher = useFetcher();
+  const timerRef = useRef(null);
+  const lastChecked = useRef("");
+
+  // expectedParts: 1 Präfix + 1 pro Option (null wenn keine Optionen vorhanden)
+  const expectedParts = selectedOptions?.length > 0 ? 1 + selectedOptions.length : null;
+  const validateConvention = useCallback(buildSkuValidator(skuFormat, expectedParts), [skuFormat, expectedParts]);
+
+  const checkDuplicate = useCallback((sku) => {
+    if (!sku?.trim() || sku === lastChecked.current) return;
+    lastChecked.current = sku;
+    fetcher.submit(
+      { action: "checkSku", sku: sku.trim(), excludeId: productId ?? "" },
+      { method: "post", action: "/app/products" },
+    );
+  }, [productId]);
+
+  const handleChange = (val) => {
+    onChange(val);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => checkDuplicate(val), 600);
+  };
+
+  const isDuplicate = fetcher.data?.exists === true;
+  const conventionWarning = !isDuplicate ? validateConvention(value) : null;
+
+  const error = isDuplicate ? `SKU bereits vergeben (${fetcher.data.productTitle})` : undefined;
+
+  return (
+    <BlockStack gap="100">
+      <TextField
+        label="SKU"
+        value={value}
+        onChange={handleChange}
+        autoComplete="off"
+        error={error}
+      />
+      {conventionWarning && (
+        <span style={{ fontSize: 12, color: "#b45309" }}>⚠ {conventionWarning}</span>
+      )}
+    </BlockStack>
+  );
+}
 
 export default function ProductDetailTabs({
      selectedDetailTab, setSelectedDetailTab, detailTabs,
@@ -13,7 +62,10 @@ export default function ProductDetailTabs({
      openVariantEdit, handleVariantSave, isSaving,
      metafields, product, fetcher, setToast,
      localImages, onVariantImageAssign,
+     skuFormat,
    }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   const cols = "32px 1fr 85px 95px 80px 80px 50px 32px";
   const cellStyle = (align = "left") => ({
@@ -73,7 +125,7 @@ export default function ProductDetailTabs({
                     <TextField label="Preis (€)" value={variantDraft.price} onChange={(val) => setVariantDraft((d) => ({ ...d, price: val }))} type="number" autoComplete="off" />
                     <TextField label="Vergleichspreis (€)" value={variantDraft.compareAtPrice} onChange={(val) => setVariantDraft((d) => ({ ...d, compareAtPrice: val }))} type="number" autoComplete="off" placeholder="leer = kein SALE" />
                     <TextField label="Lagerbestand" value={variantDraft.inventoryQuantity} onChange={(val) => setVariantDraft((d) => ({ ...d, inventoryQuantity: val }))} type="number" autoComplete="off" />
-                    <TextField label="SKU" value={variantDraft.sku} onChange={(val) => setVariantDraft((d) => ({ ...d, sku: val }))} autoComplete="off" />
+                    <SkuField value={variantDraft.sku} onChange={(val) => setVariantDraft((d) => ({ ...d, sku: val }))} productId={product?.id} skuFormat={skuFormat} selectedOptions={[]} />
                     <TextField label="Barcode" value={variantDraft.barcode} onChange={(val) => setVariantDraft((d) => ({ ...d, barcode: val }))} autoComplete="off" />
                   </div>
 
@@ -145,7 +197,7 @@ export default function ProductDetailTabs({
                               {hasVariants ? v.title : "Standard"}
                             </span>
                             {outOfStock && <span style={{ fontSize: 11, flexShrink: 0 }}>⚠</span>}
-                            {isSale && <span style={{ fontSize: "10px", background: "#fee2e2", color: "#dc2626", borderRadius: 999, padding: "3px 8px", fontWeight: 600, flexShrink: 0 }}>SALE</span>}
+                            {isSale && <span style={{ fontSize: "10px", background: isDark ? "#3a1a1a" : "#fee2e2", color: isDark ? "#f87171" : "#dc2626", borderRadius: 999, padding: "3px 8px", fontWeight: 600, flexShrink: 0 }}>SALE</span>}
                           </div>
 
                           <span style={{ ...cellStyle(), color: "var(--p-color-text-secondary)" }}>{v.sku || "—"}</span>
@@ -153,7 +205,7 @@ export default function ProductDetailTabs({
 
                           <div style={{ textAlign: "right" }}>
                             {isSale && <div style={{ fontSize: 11, color: "#9ca3af", textDecoration: "line-through", lineHeight: 1.2 }}>€{parseFloat(v.compareAtPrice).toFixed(2)}</div>}
-                            <span style={{ fontSize: 13, color: isSale ? "#dc2626" : "inherit" }}>€{parseFloat(v.price).toFixed(2)}</span>
+                            <span style={{ fontSize: 13, color: isSale ? "tomato" : "inherit" }}>€{parseFloat(v.price).toFixed(2)}</span>
                           </div>
 
                           <span style={{ ...cellStyle("right"), color: "var(--p-color-text-secondary)", textDecoration: isSale ? "line-through" : "none" }}>
@@ -255,7 +307,7 @@ export default function ProductDetailTabs({
                                 <TextField label="Lagerbestand" value={variantDraft.inventoryQuantity} onChange={val => setVariantDraft(d => ({ ...d, inventoryQuantity: val }))} type="number" autoComplete="off" />
                               </div>
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                                <TextField label="SKU" value={variantDraft.sku} onChange={val => setVariantDraft(d => ({ ...d, sku: val }))} autoComplete="off" />
+                                <SkuField value={variantDraft.sku} onChange={val => setVariantDraft(d => ({ ...d, sku: val }))} productId={product?.id} skuFormat={skuFormat} selectedOptions={v.selectedOptions ?? []} />
                                 <TextField label="Barcode" value={variantDraft.barcode} onChange={val => setVariantDraft(d => ({ ...d, barcode: val }))} autoComplete="off" />
                               </div>
                               <InlineStack gap="200">

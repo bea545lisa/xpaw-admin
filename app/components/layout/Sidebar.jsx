@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Link, useLocation, useNavigation } from "react-router";
-import { HomeIcon, ProductIcon, OrderIcon } from "@shopify/polaris-icons";
+import { useState, useRef } from "react";
+import { Link, useLocation, useNavigate, useNavigation } from "react-router";
+import { HomeIcon, ProductIcon, OrderIcon, SettingsIcon } from "@shopify/polaris-icons";
+import { useColorScheme } from "../../context/ColorSchemeContext";
 
 function ActiveIndicator({ isFirst }) {
   const lineY  = isFirst ? 19 : 54;
@@ -25,49 +26,76 @@ function ActiveIndicator({ isFirst }) {
   );
 }
 
+
 export default function Sidebar() {
-  const location = useLocation();
+  const location  = useLocation();
+  const navigate  = useNavigate();
   const navigation = useNavigation();
-  const [hoveredSub, setHoveredSub] = useState(null);
-  const [produkteHovered, setProduktHovered] = useState(false);
+
+  const { colorScheme, toggle } = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   const pendingPath = navigation.location?.pathname;
-  const activePath = pendingPath ?? location.pathname;
+  const activePath  = pendingPath ?? location.pathname;
 
   const search = location.search || "";
-  const link = (to) => (search ? `${to}${search}` : to);
+  const link   = (to) => (search ? `${to}${search}` : to);
 
   const isInProductArea =
     activePath.startsWith("/app/products") ||
     activePath.startsWith("/app/collections") ||
     activePath.startsWith("/app/tags");
 
-  const submenuOpen = isInProductArea || produkteHovered;
+  // Submenu: offen wenn in Produktbereich ODER nach Hover-Delay
+  const [hoverOpen, setHoverOpen] = useState(false);
+  const hoverTimer = useRef(null);
+  const submenuOpen = isInProductArea || hoverOpen;
 
-  const hasActiveSub =
-    activePath.startsWith("/app/collections") ||
-    activePath.startsWith("/app/tags");
+  const handleProductAreaEnter = () => {
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHoverOpen(true), 1000);
+  };
 
+  const handleProductAreaLeave = () => {
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHoverOpen(false), 150);
+  };
+
+  const hasActiveSub   = activePath.startsWith("/app/collections") || activePath.startsWith("/app/tags");
   const isProductsActive = activePath.startsWith("/app/products") && !hasActiveSub;
 
+  const [hoveredSub, setHoveredSub] = useState(null);
   const activeSubIndex = activePath.startsWith("/app/collections") ? 0
     : activePath.startsWith("/app/tags") ? 1
     : null;
-
   const indicatorTarget = hoveredSub !== null ? hoveredSub : activeSubIndex;
+
+  // Klick auf "Produkte":
+  // – Wenn bereits auf Produktliste → nicht neu laden
+  // – Sonst → navigieren
+  const handleProductsClick = (e) => {
+    e.preventDefault();
+    clearTimeout(hoverTimer.current);
+    if (!isProductsActive) {
+      navigate(link("/app/products"));
+    }
+  };
 
   return (
     <aside style={{
       width: 240,
       minHeight: "100vh",
-      background: "#f1f1f1",
+      background: isDark ? "#1a1a1a" : "#f1f1f1",
+      borderRight: `1px solid ${isDark ? "#2e2e2e" : "#e5e7eb"}`,
       flexShrink: 0,
       boxSizing: "border-box",
       padding: "24px 12px 16px",
+      display: "flex",
+      flexDirection: "column",
     }}>
       <div style={{ padding: "0 10px", marginBottom: 24 }}>
-        <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>RexPaw</div>
-        <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>Shopify Admin</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: isDark ? "#f9fafb" : "#111827", letterSpacing: "-0.5px" }}>RexPaw</div>
+        <div style={{ fontSize: 12, color: isDark ? "#6b7280" : "#9ca3af", marginTop: 2 }}>Shopify Admin</div>
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -78,23 +106,26 @@ export default function Sidebar() {
           Dashboard
         </Link>
 
-        <Link
-          to={link("/app/products")}
+        {/* Produkte – Hover mit Delay + kein Reload wenn schon aktiv */}
+        <a
+          href={link("/app/products")}
+          onClick={handleProductsClick}
+          onMouseEnter={handleProductAreaEnter}
+          onMouseLeave={handleProductAreaLeave}
           className={`sb-item${isProductsActive ? " active" : ""}`}
-          onMouseEnter={() => setProduktHovered(true)}
-          onMouseLeave={() => setProduktHovered(false)}
         >
           <span style={{ opacity: submenuOpen ? 1 : 0.55, display: "flex" }}>
             <ProductIcon width={18} height={18} />
           </span>
           Produkte
-        </Link>
+        </a>
 
+        {/* Submenu – gleicher Timer wie Produkte-Link → kein Springen */}
         {submenuOpen && (
           <div
             style={{ position: "relative" }}
-            onMouseEnter={() => setProduktHovered(true)}
-            onMouseLeave={() => setProduktHovered(false)}
+            onMouseEnter={handleProductAreaEnter}
+            onMouseLeave={handleProductAreaLeave}
           >
             {indicatorTarget !== null && (
               <ActiveIndicator isFirst={indicatorTarget === 0} />
@@ -126,7 +157,34 @@ export default function Sidebar() {
           </span>
           Bestellungen
         </Link>
+
+        {/* Trennlinie vor Einstellungen */}
+        <div style={{ margin: "8px 10px", borderTop: `1px solid ${isDark ? "#2e2e2e" : "#e5e7eb"}` }} />
+
+        <Link to={link("/app/settings")} className={`sb-item${activePath.startsWith("/app/settings") ? " active" : ""}`}>
+          <span style={{ opacity: activePath.startsWith("/app/settings") ? 1 : 0.55, display: "flex" }}>
+            <SettingsIcon width={18} height={18} />
+          </span>
+          Einstellungen
+        </Link>
       </nav>
+
+      {/* Dark-Mode-Toggle ganz unten */}
+      <div style={{ marginTop: "auto", paddingTop: 16, borderTop: `1px solid ${isDark ? "#2e2e2e" : "#e5e7eb"}`, marginLeft: -4, marginRight: -4 }}>
+        <button
+          onClick={toggle}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 10,
+            padding: "8px 14px", borderRadius: 8, border: "none",
+            background: "transparent", cursor: "pointer",
+            color: "var(--p-color-text-subdued)", fontSize: 13,
+          }}
+          title={isDark ? "Light Mode aktivieren" : "Dark Mode aktivieren"}
+        >
+          <span style={{ fontSize: 16 }}>{isDark ? "☀️" : "🌙"}</span>
+          {isDark ? "Light Mode" : "Dark Mode"}
+        </button>
+      </div>
     </aside>
   );
 }

@@ -60,6 +60,9 @@ type Pages = {
   "/app/products": {
     params: {};
   };
+  "/app/settings": {
+    params: {};
+  };
   "/app/orders": {
     params: {};
   };
@@ -74,7 +77,7 @@ type Pages = {
 type RouteFiles = {
   "root.jsx": {
     id: "root";
-    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/collections/:id" | "/app/products/:id" | "/app/orders/:id" | "/app/tags/:tag" | "/auth/login" | "/auth/*" | "/app" | "/app/collections" | "/app/additional" | "/app/products" | "/app/orders" | "/app/upload" | "/app/tags";
+    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/collections/:id" | "/app/products/:id" | "/app/orders/:id" | "/app/tags/:tag" | "/auth/login" | "/auth/*" | "/app" | "/app/collections" | "/app/additional" | "/app/products" | "/app/settings" | "/app/orders" | "/app/upload" | "/app/tags";
   };
   "routes/webhooks.app.scopes_update.jsx": {
     id: "routes/webhooks.app.scopes_update";
@@ -114,7 +117,7 @@ type RouteFiles = {
   };
   "routes/app.jsx": {
     id: "routes/app";
-    page: "/app" | "/app/collections" | "/app/additional" | "/app/products" | "/app/orders" | "/app/upload" | "/app/tags";
+    page: "/app" | "/app/collections" | "/app/additional" | "/app/products" | "/app/settings" | "/app/orders" | "/app/upload" | "/app/tags";
   };
   "routes/app.collections.jsx": {
     id: "routes/app.collections";
@@ -127,6 +130,10 @@ type RouteFiles = {
   "routes/app.products.jsx": {
     id: "routes/app.products";
     page: "/app/products";
+  };
+  "routes/app.settings.jsx": {
+    id: "routes/app.settings";
+    page: "/app/settings";
   };
   "routes/app.orders.jsx": {
     id: "routes/app.orders";
@@ -161,6 +168,7 @@ type RouteModules = {
   "routes/app.collections": typeof import("./app/routes/app.collections.jsx");
   "routes/app.additional": typeof import("./app/routes/app.additional.jsx");
   "routes/app.products": typeof import("./app/routes/app.products.jsx");
+  "routes/app.settings": typeof import("./app/routes/app.settings.jsx");
   "routes/app.orders": typeof import("./app/routes/app.orders.jsx");
   "routes/app.upload": typeof import("./app/routes/app.upload.jsx");
   "routes/app._index": typeof import("./app/routes/app._index.jsx");

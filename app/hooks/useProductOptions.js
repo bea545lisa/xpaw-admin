@@ -1,13 +1,17 @@
 import { useState, useMemo, useEffect } from "react";
 import { normalizeOptions, buildOptionsFromVariants } from "../utils/productOptions.js";
 
-export function useProductOptions({ product, fetcher, setLocalVariants, setToast }) {
-  const initialOptions = useMemo(() =>
-    buildOptionsFromVariants(
+export function useProductOptions({ product, fetcher, setLocalVariants, setToast, abbreviationsMap = {}, shopAbbreviations = {} }) {
+  // Kombinierte Map: Produkt-spezifisch hat Vorrang vor Shop-weit
+  const combinedAbbreviations = useMemo(() => ({ ...shopAbbreviations, ...abbreviationsMap }), []);
+
+  const initialOptions = useMemo(() => {
+    const opts = buildOptionsFromVariants(
       product.variants?.edges?.map((e) => e.node) ?? [],
       product.options ?? []
-    ), []
-  );
+    );
+    return normalizeOptions(opts, combinedAbbreviations);
+  }, []);
 
   const [optionDrafts, setOptionDrafts] = useState(initialOptions);
 
@@ -23,7 +27,7 @@ export function useProductOptions({ product, fetcher, setLocalVariants, setToast
       const next = fetcher.data.product;
       const nextVariants = next.variants?.edges?.map((e) => e.node) ?? [];
       setLocalVariants(nextVariants);
-      setOptionDrafts(normalizeOptions(next.options ?? []));
+      setOptionDrafts(normalizeOptions(next.options ?? [], combinedAbbreviations));
     }
   }, [fetcher.data]);
 
@@ -43,8 +47,18 @@ export function useProductOptions({ product, fetcher, setLocalVariants, setToast
       return;
     }
 
+    // Kürzel aller Optionen zu einer flachen Map zusammenführen
+    const abbreviations = Object.assign(
+      {}, ...optionDrafts.map((o) => o.abbreviations ?? {})
+    );
+
     fetcher.submit(
-      { action: "updateOptions", id: product.id, options: JSON.stringify(normalized) },
+      {
+        action: "updateOptions",
+        id: product.id,
+        options: JSON.stringify(normalized),
+        abbreviations: JSON.stringify(abbreviations),
+      },
       { method: "POST" }
     );
   };

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BlockStack, Button, ChoiceList } from "@shopify/polaris";
+import { useColorScheme } from "../context/ColorSchemeContext.js";
 import { DeleteIcon, SearchIcon } from "@shopify/polaris-icons";
 
 // ── Pill ─────────────────────────────────────────────────────────────────────
@@ -48,6 +49,8 @@ export default function OrderToolbar({
   financialStatus, setFinancialStatus,
   fulfillmentStatus, setFulfillmentStatus,
 }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const [overlayOpen, setOverlayOpen]       = useState(false);
   const [activeEditor, setActiveEditor]     = useState("financial");
   const [overlayPosition, setOverlayPosition] = useState({ left: 8, top: 46 });
@@ -133,14 +136,15 @@ export default function OrderToolbar({
                   onRemove={f.onRemove}
                 />
               ))}
-              <Button
-                className={`otb-action-icon ${isFilterBarActive || overlayOpen ? "visible" : ""}`}
-                icon={DeleteIcon}
-                accessibilityLabel="Alle Filter löschen"
-                disabled={!hasAnyFilter}
-                variant="plain"
-                onClick={(e) => { e.stopPropagation(); resetAll(); }}
-              />
+              {hasAnyFilter && (
+                <Button
+                  className="otb-action-icon visible"
+                  icon={DeleteIcon}
+                  accessibilityLabel="Alle Filter löschen"
+                  variant="plain"
+                  onClick={(e) => { e.stopPropagation(); resetAll(); }}
+                />
+              )}
               <input
                 className="otb-input"
                 aria-label="Bestellungen suchen"
@@ -200,12 +204,12 @@ export default function OrderToolbar({
         .otb-shell { position: relative; border: 1px solid var(--p-color-border-subdued); border-radius: 10px; background: var(--p-color-bg-surface); }
         .otb-row { display: flex; gap: 8px; align-items: center; padding: 8px; }
         .otb-search { flex: 1; display: flex; align-items: center; gap: 4px; border: 1px solid var(--p-color-border); border-radius: 8px; padding: 0 8px; min-height: 40px; cursor: text; }
-        .otb-search.active { box-shadow: 0 0 0 1px var(--p-color-border-focus); }
+        .otb-search.active { }
         .otb-search-icon :global(button) { min-width: 24px; padding: 0; }
         .otb-inline-content { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
         .otb-input { border: 0; outline: 0; background: transparent; min-width: 160px; flex: 1; font-size: 14px; color: var(--p-color-text); line-height: 20px; }
-        .otb-action-icon { display: none; width: 30px; height: 30px; min-width: 30px; padding: 0; border-radius: 999px; flex: 0 0 auto; border: 1px solid var(--p-color-border-subdued); background: var(--p-color-bg-surface-secondary); }
-        .otb-action-icon.visible { display: inline-flex; }
+        .otb-action-icon { display: none !important; width: 30px; height: 30px; min-width: 30px; padding: 0; border-radius: 999px; flex: 0 0 auto; border: 1px solid var(--p-color-border-subdued); background: var(--p-color-bg-surface-secondary); }
+        .otb-action-icon.visible { display: inline-flex !important; }
         .otb-action-icon.visible:hover { background: var(--p-color-bg-fill-tertiary); }
         .otb-action-icon :global(.Polaris-Button__Icon) { margin: 0; }
         .toolbar-pill { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--p-color-border-subdued); background: var(--p-color-bg-surface-secondary); border-radius: 999px; padding: 3px 8px; font-size: 12px; cursor: pointer; white-space: nowrap; }

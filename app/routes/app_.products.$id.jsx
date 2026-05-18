@@ -1,5 +1,6 @@
 import { useLoaderData, useNavigate, useLocation, useFetcher } from "react-router";
 import AppLayout from "../components/layout/AppLayout";
+import { useColorScheme } from "../context/ColorSchemeContext";
 import { authenticate } from "../shopify.server";
 import { SkeletonBodyText, SkeletonDisplayText, Layout, Card, BlockStack, Text, Badge, Modal, Toast, Icon, Button,} from "@shopify/polaris";
 import { ArrowLeftIcon } from "@shopify/polaris-icons";
@@ -19,6 +20,7 @@ import { useImageUpload } from "../hooks/useImageUpload.jsx";
 
 import { normalizeOptions } from "../utils/productOptions.js";
 import { formatDate } from "../utils/dateFunctions.js";
+import { getSkuFormat, getSkuAbbreviations } from "../services/settings.server";
 
 import ProductDetailSeo from "../components/product/detail/ProductDetailSeo.jsx";
 import ProductDetailDescription from "../components/product/detail/ProductDetailDescription.jsx";
@@ -31,9 +33,9 @@ import ImagesSection from "../components/shared/ImagesSection.jsx";
 // ─── Loader ────────────────────────────────────────────────────────────────────
 
 export const loader = async ({ request, params }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const requestUrl = new URL(request.url);
-  const shop = requestUrl.searchParams.get("shop");
+  const shop = requestUrl.searchParams.get("shop") || session.shop;
 
   const res = await admin.graphql(`
     query getProduct($id: ID!) {
@@ -136,7 +138,12 @@ export const loader = async ({ request, params }) => {
   const locJson = await locRes.json();
   const locationId = locJson.data.locations.edges[0]?.node?.id ?? null;
 
-  return { product: data.data.product, allTags, allVendors, allProductTypes, allCollections, locationId, shop };
+  const [skuFormat, skuAbbreviations] = await Promise.all([
+    getSkuFormat(shop),
+    getSkuAbbreviations(shop),
+  ]);
+
+  return { product: data.data.product, allTags, allVendors, allProductTypes, allCollections, locationId, shop, skuFormat, skuAbbreviations };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
@@ -338,6 +345,28 @@ export const action = async ({ request }) => {
       .filter((option) => option.name && option.values.length > 0);
 
     await updateProductOptions(admin, formData.get("id"), validOptions);
+
+    // Kürzel-Metafeld speichern (falls mitgeschickt)
+    const abbreviationsRaw = formData.get("abbreviations");
+    if (abbreviationsRaw) {
+      await admin.graphql(`
+        mutation($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            userErrors { field message }
+          }
+        }
+      `, {
+        variables: {
+          metafields: [{
+            ownerId: formData.get("id"),
+            namespace: "rexpaw",
+            key: "option_abbreviations",
+            type: "json",
+            value: abbreviationsRaw,
+          }],
+        },
+      });
+    }
 
     const refreshRes = await admin.graphql(`
     query($id: ID!) {
@@ -585,7 +614,17 @@ function getVariantStockState(quantity) {
 
 export default function ProductDetail() {
 
-  const { product, allTags = [], allVendors = [], allProductTypes = [], allCollections = [], locationId, shop } = useLoaderData();
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const { product, allTags = [], allVendors = [], allProductTypes = [], allCollections = [], locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
+
+  // Kürzel-Map aus Metafeld (rexpaw.option_abbreviations)
+  const abbreviationsMap = (() => {
+    const mf = product.metafields?.edges?.find(
+      (e) => e.node.namespace === "rexpaw" && e.node.key === "option_abbreviations"
+    );
+    try { return mf ? JSON.parse(mf.node.value) : {}; } catch { return {}; }
+  })();
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = location.state?.from ?? `/app/products${location.search}`;
@@ -649,7 +688,7 @@ export default function ProductDetail() {
     setOptionDrafts,
     optionsDirty,
     handleOptionsSave,
-  } = useProductOptions({ product, fetcher, setLocalVariants });
+  } = useProductOptions({ product, fetcher, setLocalVariants, abbreviationsMap, shopAbbreviations: skuAbbreviations ?? {} });
 
   const hasVariants = localVariants.length > 1 || localVariants[0]?.title !== "Default Title";
   const totalVariants = localVariants.length > 1 ? `${localVariants.length}` : "";
@@ -808,7 +847,7 @@ export default function ProductDetail() {
 
   return (
     <AppLayout>
-    <div style={{ padding: "8px 0" }}>
+    <div style={{ padding: "20px 32px", minHeight: "100vh", background: isDark ? "#212121" : "#f6f6f7" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -944,6 +983,7 @@ export default function ProductDetail() {
               product={product}
               fetcher={fetcher}
               setToast={setToast}
+              skuFormat={skuFormat}
             />
 
           </BlockStack>

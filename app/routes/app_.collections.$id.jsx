@@ -3,6 +3,7 @@ import { authenticate } from "../shopify.server";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { CollectionIcon, ArrowLeftIcon, ImageIcon, DeleteIcon } from "@shopify/polaris-icons";
 import AppLayout from "../components/layout/AppLayout";
+import { useColorScheme } from "../context/ColorSchemeContext";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
@@ -153,12 +154,22 @@ const SORT_OPTIONS = [
 ];
 
 const STATUS_LABEL = { ACTIVE: "Aktiv", DRAFT: "Entwurf", ARCHIVED: "Archiviert" };
-const STATUS_COLOR = { ACTIVE: "#16a34a", DRAFT: "#6b7280", ARCHIVED: "#d97706" };
-const STATUS_BG    = { ACTIVE: "#dcfce7", DRAFT: "#f3f4f6", ARCHIVED: "#fef3c7" };
+const STATUS_COLOR = (isDark) => ({
+  ACTIVE:   isDark ? "#6ee7a8" : "#16a34a",
+  DRAFT:    isDark ? "#7eb8e8" : "#6b7280",
+  ARCHIVED: isDark ? "#e8c97d" : "#d97706",
+});
+const STATUS_BG = (isDark) => ({
+  ACTIVE:   isDark ? "#1a3a2a" : "#dcfce7",
+  DRAFT:    isDark ? "#1e2d3d" : "#f3f4f6",
+  ARCHIVED: isDark ? "#332b1a" : "#fef3c7",
+});
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CollectionDetail() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const { collection, shop } = useLoaderData();
   const collectionGid = collection.id;
   const navigate = useNavigate();
@@ -331,18 +342,20 @@ export default function CollectionDetail() {
 
   return (
     <AppLayout>
-    <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
+    <div style={{ padding: "20px 32px", minHeight: "100vh", background: isDark ? "#212121" : "#f6f6f7" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-        <button onClick={() => navigate(backUrl)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: "#555" }}>
+        <button onClick={() => navigate(backUrl)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: isDark ? "#b0b7c3" : "#555", fill: isDark ? "#b0b7c3" : "#555" }}>
           <ArrowLeftIcon width={20} height={20} />
         </button>
-        <CollectionIcon width={22} height={22} />
+        <span style={{ display: "flex", fill: isDark ? "#b0b7c3" : "#555" }}>
+          <CollectionIcon width={22} height={22} />
+        </span>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{collection.title}</h1>
         <div style={{ flex: 1 }} />
         <button onClick={handleSave} disabled={isSaving || !isDirty} style={{
           padding: "8px 20px", borderRadius: 8, border: "none",
-          background: isSaving || !isDirty ? "#ccc" : "#303030", color: "#fff",
+          background: isSaving || !isDirty ? (isDark ? "#3a3a3a" : "#ccc") : "#303030", color: isSaving || !isDirty ? (isDark ? "#666" : "#fff") : "#fff",
           fontSize: 14, fontWeight: 500, cursor: isSaving || !isDirty ? "not-allowed" : "pointer",
         }}>
           {isSaving ? "Speichern…" : "Speichern"}
@@ -352,8 +365,8 @@ export default function CollectionDetail() {
       <div style={{ display: "flex", gap: 24, alignItems: "stretch", marginBottom: 24 }}>
         {/* Linke Spalte — Bild, Sortierung, Infos */}
         <div style={{ width: "33%", display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ ...cardStyle, flex: 1, display: "flex", flexDirection: "column" }}>
-            <label style={labelStyle}>Bild</label>
+          <div style={{ ...cardStyle(isDark), flex: 1, display: "flex", flexDirection: "column" }}>
+            <label style={labelStyle(isDark)}>Bild</label>
             {imageUrl ? (
               <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 10, flex: 1, minHeight: 120, maxHeight: 400 }}>
                 <img src={imageUrl} alt="" style={{ width: "100%", height: "100%", display: "block", borderRadius: 8, objectFit: "cover" }} />
@@ -365,69 +378,69 @@ export default function CollectionDetail() {
               </div>
             ) : (
               <div onClick={() => fileInputRef.current?.click()} style={{
-                flex: 1, minHeight: 120, borderRadius: 8, border: "2px dashed #d1d5db",
+                flex: 1, minHeight: 120, borderRadius: 8, border: `2px dashed ${isDark ? "#4a4a4a" : "#d1d5db"}`,
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: "#9ca3af", gap: 8, marginBottom: 10,
+                cursor: "pointer", color: isDark ? "#b0b7c3" : "#9ca3af", gap: 8, marginBottom: 10,
               }}>
                 {uploadProgress !== null
                   ? <div style={{ fontWeight: 600, color: "#303030" }}>{uploadProgress}%</div>
-                  : <><ImageIcon width={28} height={28} /><span style={{ fontSize: 13 }}>Bild hochladen</span></>}
+                  : <><span style={{ display: "flex", fill: isDark ? "#b0b7c3" : "#9ca3af" }}><ImageIcon width={28} height={28} /></span><span style={{ fontSize: 13 }}>Bild hochladen</span></>}
               </div>
             )}
             <button type="button" onClick={() => fileInputRef.current?.click()} style={{
-              width: "100%", padding: "7px 0", borderRadius: 7, border: "1px solid #d1d5db",
-              background: "#f9fafb", fontSize: 13, cursor: "pointer", color: "#374151",
+              width: "100%", padding: "7px 0", borderRadius: 7, border: `1px solid ${isDark ? "#4a4a4a" : "#d1d5db"}`,
+              background: isDark ? "#2c2c2c" : "#f9fafb", fontSize: 13, cursor: "pointer", color: isDark ? "#e5e7eb" : "#374151",
             }}>
               {imageUrl ? "Bild ändern" : "Bild auswählen"}
             </button>
             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
           </div>
 
-          <div style={cardStyle}>
-            <label style={labelStyle}>Sortierung der Produkte</label>
-            <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+          <div style={cardStyle(isDark)}>
+            <label style={labelStyle(isDark)}>Sortierung der Produkte</label>
+            <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} style={{ ...inputStyle(isDark), cursor: "pointer" }}>
               {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
-          <div style={{ ...cardStyle, fontSize: 13, color: "#6b7280" }}>
+          <div style={{ ...cardStyle(isDark), fontSize: 13, color: isDark ? "#9ca3af" : "#6b7280" }}>
             <div><strong>Geändert:</strong> {new Date(collection.updatedAt).toLocaleDateString("de-DE")}</div>
           </div>
         </div>
 
         {/* Rechte Spalte — Titel, Beschreibung, SEO */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={cardStyle}>
-            <label style={labelStyle}>Titel</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} />
+          <div style={cardStyle(isDark)}>
+            <label style={labelStyle(isDark)}>Titel</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} style={inputStyle(isDark)} />
           </div>
 
-          <div style={cardStyle}>
-            <label style={labelStyle}>Beschreibung</label>
+          <div style={cardStyle(isDark)}>
+            <label style={labelStyle(isDark)}>Beschreibung</label>
             <textarea value={descriptionHtml} onChange={e => setDesc(e.target.value)} rows={5}
-              style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+              style={{ ...inputStyle(isDark), resize: "vertical", fontFamily: "inherit" }}
               placeholder="Beschreibung der Kollektion…" />
           </div>
 
           {/* SEO */}
-          <div style={cardStyle}>
-            <label style={{ ...labelStyle, marginBottom: 14 }}>SEO</label>
-            <label style={subLabelStyle}>URL-Handle</label>
+          <div style={cardStyle(isDark)}>
+            <label style={{ ...labelStyle(isDark), marginBottom: 14 }}>SEO</label>
+            <label style={subLabelStyle(isDark)}>URL-Handle</label>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
               <span style={{ fontSize: 13, color: "#9ca3af", whiteSpace: "nowrap" }}>/collections/</span>
-              <input value={handle} onChange={e => setHandle(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
+              <input value={handle} onChange={e => setHandle(e.target.value)} style={{ ...inputStyle(isDark), marginBottom: 0 }} />
             </div>
-            <label style={subLabelStyle}>Meta-Titel</label>
-            <input value={seoTitle} onChange={e => setSeoTitle(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} placeholder={title} />
-            <label style={subLabelStyle}>Meta-Beschreibung</label>
+            <label style={subLabelStyle(isDark)}>Meta-Titel</label>
+            <input value={seoTitle} onChange={e => setSeoTitle(e.target.value)} style={{ ...inputStyle(isDark), marginBottom: 14 }} placeholder={title} />
+            <label style={subLabelStyle(isDark)}>Meta-Beschreibung</label>
             <textarea value={seoDesc} onChange={e => setSeoDesc(e.target.value)} rows={3}
-              style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+              style={{ ...inputStyle(isDark), resize: "vertical", fontFamily: "inherit" }}
               placeholder="Beschreibung für Suchmaschinen…" />
             {(seoTitle || seoDesc) && (
-              <div style={{ marginTop: 14, padding: "10px 12px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+              <div style={{ marginTop: 14, padding: "10px 12px", background: isDark ? "#252525" : "#f8fafc", borderRadius: 8, border: `1px solid ${isDark ? "#3a3a3a" : "#e2e8f0"}` }}>
                 <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Vorschau Suchergebnis</div>
-                <div style={{ fontSize: 14, color: "#1a0dab", fontWeight: 500 }}>{seoTitle || title}</div>
-                <div style={{ fontSize: 13, color: "#4d5156", marginTop: 2, lineHeight: 1.4 }}>{seoDesc || descriptionHtml.replace(/<[^>]+>/g, "")}</div>
+                <div style={{ fontSize: 14, color: isDark ? "#93c5fd" : "#1a0dab", fontWeight: 500 }}>{seoTitle || title}</div>
+                <div style={{ fontSize: 13, color: isDark ? "#9ca3af" : "#4d5156", marginTop: 2, lineHeight: 1.4 }}>{seoDesc || descriptionHtml.replace(/<[^>]+>/g, "")}</div>
               </div>
             )}
           </div>
@@ -435,13 +448,13 @@ export default function CollectionDetail() {
       </div>
 
       {/* Produktliste */}
-      <div style={cardStyle}>
+      <div style={cardStyle(isDark)}>
         <div style={{ display: "flex", alignItems: "center", marginBottom: 14, gap: 12 }}>
-          <label style={{ ...labelStyle, margin: 0 }}>Produkte ({products.length})</label>
+          <label style={{ ...labelStyle(isDark), margin: 0 }}>Produkte ({products.length})</label>
           <div style={{ flex: 1 }} />
           <button onClick={openModal} style={{
-            padding: "5px 14px", borderRadius: 7, border: "1px solid #d1d5db",
-            background: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500, color: "#374151",
+            padding: "5px 14px", borderRadius: 7, border: `1px solid ${isDark ? "#4a4a4a" : "#d1d5db"}`,
+            background: isDark ? "#2c2c2c" : "#fff", fontSize: 13, cursor: "pointer", fontWeight: 500, color: isDark ? "#e5e7eb" : "#374151",
           }}>+ Produkte hinzufügen</button>
           {selectedIds.length > 0 && (
             <>
@@ -460,7 +473,7 @@ export default function CollectionDetail() {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid #f0f0f0" }}>
+              <tr style={{ borderBottom: `2px solid ${isDark ? "#2e2e2e" : "#f0f0f0"}` }}>
                 <th colSpan={2} style={{ ...thStyle, padding: "8px 0" }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 600 }}>
                     <input type="checkbox" checked={selectedIds.length === products.length && products.length > 0} onChange={toggleAll} style={{ cursor: "pointer" }} />
@@ -479,8 +492,8 @@ export default function CollectionDetail() {
               {sortedProducts.map(p => {
                 const price = p.variants?.edges?.[0]?.node?.price;
                 return (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #f5f5f5", cursor: "pointer" }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
+                  <tr key={p.id} style={{ borderBottom: `1px solid ${isDark ? "#2a2a2a" : "#f5f5f5"}`, cursor: "pointer" }}
+                    onMouseEnter={e => e.currentTarget.style.background = isDark ? "#252525" : "#fafafa"}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     onClick={() => openProduct(p.id)}
                   >
@@ -491,7 +504,7 @@ export default function CollectionDetail() {
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         {p.featuredImage?.url
                           ? <img src={p.featuredImage.url} alt="" style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
-                          : <div style={{ width: 32, height: 32, borderRadius: 4, background: "#e5e7eb", flexShrink: 0 }} />}
+                          : <div style={{ width: 32, height: 32, borderRadius: 4, background: isDark ? "#333" : "#e5e7eb", flexShrink: 0 }} />}
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 500 }}>{p.title}</div>
                           {p.collections?.edges?.length > 0 && (
@@ -499,8 +512,8 @@ export default function CollectionDetail() {
                               {p.collections.edges.map(({ node: c }) => (
                                 <span key={c.id} style={{
                                   fontSize: 11, padding: "1px 7px", borderRadius: 20,
-                                  background: c.id === collectionGid ? "#dbeafe" : "#f3f4f6",
-                                  color: c.id === collectionGid ? "#1d4ed8" : "#6b7280",
+                                  background: c.id === collectionGid ? (isDark ? "#1e3a5f" : "#dbeafe") : (isDark ? "#2a2a2a" : "#f3f4f6"),
+                                  color: c.id === collectionGid ? (isDark ? "#93c5fd" : "#1d4ed8") : "#6b7280",
                                   fontWeight: c.id === collectionGid ? 600 : 400,
                                 }}>{c.title}</span>
                               ))}
@@ -509,11 +522,11 @@ export default function CollectionDetail() {
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 14, color: "#374151" }}>
+                    <td style={{ padding: "10px 8px", textAlign: "right", fontSize: 14, color: isDark ? "#b0b7c3" : "#374151" }}>
                       {price ? `€${parseFloat(price).toFixed(2)}` : "—"}
                     </td>
                     <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                      <span style={{ fontSize: 12, fontWeight: 500, padding: "2px 8px", borderRadius: 999, background: STATUS_BG[p.status] ?? "#f3f4f6", color: STATUS_COLOR[p.status] ?? "#6b7280" }}>
+                      <span style={{ fontSize: 12, fontWeight: 500, padding: "2px 8px", borderRadius: 999, background: STATUS_BG(isDark)[p.status] ?? (isDark ? "#2a2a2a" : "#f3f4f6"), color: STATUS_COLOR(isDark)[p.status] ?? "#6b7280" }}>
                         {STATUS_LABEL[p.status] ?? p.status}
                       </span>
                     </td>
@@ -538,8 +551,8 @@ export default function CollectionDetail() {
         const isAdding = addFetcher.state !== "idle";
         return (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-            <div style={{ background: "#fff", borderRadius: 14, width: 520, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
-              <div style={{ padding: "18px 20px 12px", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ background: isDark ? "#1e1e1e" : "#fff", borderRadius: 14, width: 520, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 8px 40px rgba(0,0,0,0.35)", border: isDark ? "1px solid #333" : "none" }}>
+              <div style={{ padding: "18px 20px 12px", borderBottom: `1px solid ${isDark ? "#2e2e2e" : "#f0f0f0"}` }}>
                 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Produkte hinzufügen</div>
                 <input autoFocus value={modalSearch} onChange={e => handleModalSearch(e.target.value)}
                   placeholder="Produkte suchen…"
@@ -560,7 +573,7 @@ export default function CollectionDetail() {
                             <input type="checkbox" checked={checked} onChange={() => toggleModalSelect(p.id)} style={{ cursor: "pointer", flexShrink: 0 }} />
                             {p.featuredImage?.url
                               ? <img src={p.featuredImage.url} alt="" style={{ width: 36, height: 36, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
-                              : <div style={{ width: 36, height: 36, borderRadius: 4, background: "#e5e7eb", flexShrink: 0 }} />}
+                              : <div style={{ width: 36, height: 36, borderRadius: 4, background: isDark ? "#333" : "#e5e7eb", flexShrink: 0 }} />}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
                               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 3 }}>
@@ -574,12 +587,12 @@ export default function CollectionDetail() {
                         );
                       })}
               </div>
-              <div style={{ padding: "12px 20px", borderTop: "1px solid #f0f0f0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                <button onClick={() => setModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", fontSize: 14, cursor: "pointer" }}>Abbrechen</button>
+              <div style={{ padding: "12px 20px", borderTop: `1px solid ${isDark ? "#2e2e2e" : "#f0f0f0"}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button onClick={() => setModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${isDark ? "#4a4a4a" : "#d1d5db"}`, background: isDark ? "#2c2c2c" : "#fff", fontSize: 14, cursor: "pointer", color: isDark ? "#e5e7eb" : "#111" }}>Abbrechen</button>
                 <button onClick={handleAddConfirm} disabled={!modalSelected.length || isAdding} style={{
                   padding: "8px 16px", borderRadius: 8, border: "none",
-                  background: !modalSelected.length || isAdding ? "#ccc" : "#303030",
-                  color: "#fff", fontSize: 14, fontWeight: 500,
+                  background: !modalSelected.length || isAdding ? (isDark ? "#3a3a3a" : "#ccc") : "#303030",
+                  color: !modalSelected.length || isAdding ? (isDark ? "#666" : "#fff") : "#fff", fontSize: 14, fontWeight: 500,
                   cursor: !modalSelected.length || isAdding ? "not-allowed" : "pointer",
                 }}>
                   {isAdding ? "Hinzufügen…" : `${modalSelected.length > 0 ? `${modalSelected.length} ` : ""}Hinzufügen`}
@@ -600,8 +613,8 @@ export default function CollectionDetail() {
   );
 }
 
-const cardStyle    = { background: "#fff", borderRadius: 12, border: "1px solid #e3e3e3", padding: "16px 18px" };
-const labelStyle   = { display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 };
-const subLabelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "#6b7280", marginBottom: 6 };
-const inputStyle   = { width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, boxSizing: "border-box", outline: "none", fontFamily: "inherit", marginBottom: 0 };
+const cardStyle    = (isDark) => ({ background: isDark ? "#1e1e1e" : "#fff", borderRadius: 12, border: `1px solid ${isDark ? "#2e2e2e" : "#e3e3e3"}`, padding: "16px 18px" });
+const labelStyle   = (isDark) => ({ display: "block", fontSize: 13, fontWeight: 600, color: isDark ? "#e5e7eb" : "#374151", marginBottom: 8 });
+const subLabelStyle = (isDark) => ({ display: "block", fontSize: 12, fontWeight: 600, color: isDark ? "#9ca3af" : "#6b7280", marginBottom: 6 });
+const inputStyle   = (isDark) => ({ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${isDark ? "#4a4a4a" : "#d1d5db"}`, fontSize: 14, boxSizing: "border-box", outline: "none", fontFamily: "inherit", marginBottom: 0, background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111" });
 const thStyle      = { padding: "8px 8px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "#6b7280" };

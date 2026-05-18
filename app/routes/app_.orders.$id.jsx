@@ -1,6 +1,7 @@
 import { useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import AppLayout from "../components/layout/AppLayout";
+import { useColorScheme } from "../context/ColorSchemeContext";
 import { OrderIcon, ArrowLeftIcon } from "@shopify/polaris-icons";
 import {
   Badge,
@@ -145,6 +146,8 @@ export const loader = async ({ request, params }) => {
 // ── Komponente ───────────────────────────────────────────────────────────
 
 export default function OrderDetail() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const { order } = useLoaderData();
   const navigate = useNavigate();
 
@@ -157,7 +160,7 @@ export default function OrderDetail() {
 
   return (
     <AppLayout>
-      <div style={{ padding: "20px 32px", minHeight: "100vh", background: "#f6f6f7" }}>
+      <div style={{ padding: "20px 32px", minHeight: "100vh", background: isDark ? "#212121" : "#f6f6f7" }}>
         <BlockStack gap="500">
 
           {/* Header */}
