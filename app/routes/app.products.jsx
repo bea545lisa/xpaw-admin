@@ -23,6 +23,7 @@ import { useProductFilters } from "../hooks/useProductFilters.js";
 import { authenticate } from "../shopify.server";
 import { productsLoader } from "../loaders/products.loader.server";
 import { productsAction } from "../actions/products.action.server.js";
+import { ProductContext } from "../context/ProductContext";
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
@@ -33,8 +34,6 @@ export const action = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
   return productsAction({ request }, admin);
 };
-
-import { ProductContext } from "../context/ProductContext";
 
 const PAGE_SIZE = 50;
 
