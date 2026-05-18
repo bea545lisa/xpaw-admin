@@ -1,19 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLoaderData, useSearchParams, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import { ordersLoader } from "../loaders/orders.loader.server";
-import { OrderIcon, SearchIcon } from "@shopify/polaris-icons";
-import {
-  Badge,
-  BlockStack,
-  Box,
-  Button,
-  Card,
-  InlineStack,
-  Select,
-  Text,
-  TextField,
-} from "@shopify/polaris";
+import { OrderIcon } from "@shopify/polaris-icons";
+import { Badge, BlockStack, Box, Card, Text } from "@shopify/polaris";
+import OrderToolbar from "../components/OrderToolbar";
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
@@ -64,23 +55,6 @@ function formatPrice(amount, currency = "EUR") {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(amount);
 }
 
-// ── Filter-Optionen ──────────────────────────────────────────────────────
-
-const FINANCIAL_OPTIONS = [
-  { label: "Alle Zahlungen", value: "" },
-  { label: "Bezahlt", value: "paid" },
-  { label: "Ausstehend", value: "pending" },
-  { label: "Erstattet", value: "refunded" },
-  { label: "Storniert", value: "voided" },
-];
-
-const FULFILLMENT_OPTIONS = [
-  { label: "Alle Versandstatus", value: "" },
-  { label: "Offen", value: "unfulfilled" },
-  { label: "Versendet", value: "shipped" },
-  { label: "Teilweise", value: "partial" },
-];
-
 // ── Hauptkomponente ──────────────────────────────────────────────────────
 
 export default function OrdersPage() {
@@ -89,25 +63,33 @@ export default function OrdersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState(searchParams.get("search") || "");
-  const financialStatus = searchParams.get("financialStatus") || "";
-  const fulfillmentStatus = searchParams.get("fulfillmentStatus") || "";
+  const [financialStatus, setFinancialStatus] = useState(searchParams.get("financialStatus") || "");
+  const [fulfillmentStatus, setFulfillmentStatus] = useState(searchParams.get("fulfillmentStatus") || "");
+
+  // Einen kombinierten Effect: baut die URL aus allen drei Werten in einem Schritt
+  const committedSearch      = useRef(searchParams.get("search") || "");
+  const committedFinancial   = useRef(searchParams.get("financialStatus") || "");
+  const committedFulfillment = useRef(searchParams.get("fulfillmentStatus") || "");
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      const next = new URLSearchParams(searchParams);
-      if (search) next.set("search", search); else next.delete("search");
-      next.delete("cursor");
-      setSearchParams(next);
-    }, 350);
-    return () => clearTimeout(t);
-  }, [search]);
+    const searchChanged     = search !== committedSearch.current;
+    const financialChanged  = financialStatus !== committedFinancial.current;
+    const fulfillmentChanged = fulfillmentStatus !== committedFulfillment.current;
+    if (!searchChanged && !financialChanged && !fulfillmentChanged) return;
 
-  const setFilter = (key, value) => {
-    const next = new URLSearchParams(searchParams);
-    if (value) next.set(key, value); else next.delete(key);
-    next.delete("cursor");
-    setSearchParams(next);
-  };
+    const delay = searchChanged ? 350 : 0;
+    const t = setTimeout(() => {
+      committedSearch.current      = search;
+      committedFinancial.current   = financialStatus;
+      committedFulfillment.current = fulfillmentStatus;
+      const next = new URLSearchParams();
+      if (search)            next.set("search", search);
+      if (financialStatus)   next.set("financialStatus", financialStatus);
+      if (fulfillmentStatus) next.set("fulfillmentStatus", fulfillmentStatus);
+      setSearchParams(next, { replace: true });
+    }, delay);
+    return () => clearTimeout(t);
+  }, [search, financialStatus, fulfillmentStatus]);
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.totalPrice, 0);
   const currency = orders[0]?.currency ?? "EUR";
@@ -146,51 +128,12 @@ export default function OrdersPage() {
         </div>
 
         {/* Filter-Bar */}
-        <Card>
-          <Box padding="300">
-            <InlineStack gap="300" blockAlign="center" wrap={false}>
-              <div style={{ flex: 1, maxWidth: 320 }}>
-                <TextField
-                  prefix={<SearchIcon width={16} height={16} />}
-                  placeholder="Bestellnummer oder E-Mail…"
-                  value={search}
-                  onChange={setSearch}
-                  autoComplete="off"
-                  clearButton
-                  onClearButtonClick={() => setSearch("")}
-                />
-              </div>
-              <div style={{ minWidth: 180 }}>
-                <Select
-                  label=""
-                  labelHidden
-                  options={FINANCIAL_OPTIONS}
-                  value={financialStatus}
-                  onChange={(v) => setFilter("financialStatus", v)}
-                />
-              </div>
-              <div style={{ minWidth: 200 }}>
-                <Select
-                  label=""
-                  labelHidden
-                  options={FULFILLMENT_OPTIONS}
-                  value={fulfillmentStatus}
-                  onChange={(v) => setFilter("fulfillmentStatus", v)}
-                />
-              </div>
-              {(search || financialStatus || fulfillmentStatus) && (
-                <Button
-                  variant="plain"
-                  onClick={() => {
-                    setSearch("");
-                    setSearchParams({});
-                  }}
-                >
-                  Zurücksetzen
-                </Button>
-              )}
-            </InlineStack>
-          </Box>
+        <Card paddingInline="200" paddingBlock="100">
+          <OrderToolbar
+            search={search} setSearch={setSearch}
+            financialStatus={financialStatus} setFinancialStatus={setFinancialStatus}
+            fulfillmentStatus={fulfillmentStatus} setFulfillmentStatus={setFulfillmentStatus}
+          />
         </Card>
 
         {/* Tabelle */}

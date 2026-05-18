@@ -1,4 +1,4 @@
-import { useNavigation } from "react-router";
+import { useNavigation, useLocation } from "react-router";
 import Sidebar from "./Sidebar";
 
 // ── Skeletons ──────────────────────────────────────────────────────────
@@ -151,14 +151,18 @@ function pickSkeleton(pathname) {
 
 export default function AppLayout({ children }) {
   const navigation = useNavigation();
-  const isNavigating = navigation.state === "loading";
+  const location   = useLocation();
+
+  // Skeleton nur bei echtem Seitenwechsel — nicht bei reinen Filter-/Param-Änderungen
+  const isPageChange = navigation.state === "loading"
+    && navigation.location?.pathname !== location.pathname;
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8f8f8" }}>
       <Sidebar />
       <main style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ minHeight: "100vh", maxWidth: "1600px", margin: "0 auto" }}>
-          {isNavigating ? pickSkeleton(navigation.location?.pathname) : children}
+          {isPageChange ? pickSkeleton(navigation.location?.pathname) : children}
         </div>
       </main>
     </div>

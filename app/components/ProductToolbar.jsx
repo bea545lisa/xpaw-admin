@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BlockStack, Button, ChoiceList, InlineStack, Select } from "@shopify/polaris";
-import { ArrowDownIcon, ArrowUpIcon, DeleteIcon, PlusIcon, SearchIcon } from "@shopify/polaris-icons";
+import { ArrowDownIcon, ArrowUpIcon, DeleteIcon, SearchIcon } from "@shopify/polaris-icons";
 
 const STATUS_LABELS = { ACTIVE: "Aktiv", DRAFT: "Entwurf", ARCHIVED: "Archiviert" };
 const OPERATOR_OPTIONS = [
@@ -110,15 +111,12 @@ export default function ProductToolbar({
       setActiveEditor(editor);
     }
 
-    const shellRect = toolbarShellRef.current?.getBoundingClientRect();
     const anchorRect = anchorElement?.getBoundingClientRect();
-    if (shellRect && anchorRect) {
-      const width = Math.min(540, shellRect.width - 16);
-      const desiredLeft = anchorRect.left - shellRect.left - 28;
-      const maxLeft = Math.max(8, shellRect.width - width - 8);
-      const left = Math.min(Math.max(8, desiredLeft), maxLeft);
-      const top = anchorRect.bottom - shellRect.top + 8;
-      setOverlayPosition({ left, top });
+    if (anchorRect) {
+      setOverlayPosition({
+        left: Math.max(8, anchorRect.left),
+        top: anchorRect.bottom + 8,
+      });
     }
 
     setOverlayOpen(true);
@@ -311,16 +309,6 @@ export default function ProductToolbar({
               ))}
               <Button
                 className={`toolbar-action-icon ${isFilterBarActive || overlayOpen ? "visible" : ""}`}
-                icon={PlusIcon}
-                accessibilityLabel="Filter hinzufügen"
-                variant="plain"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openOverlay(activeEditor, event.currentTarget);
-                }}
-              />
-              <Button
-                className={`toolbar-action-icon ${isFilterBarActive || overlayOpen ? "visible" : ""}`}
                 icon={DeleteIcon}
                 accessibilityLabel="Alle Filter löschen"
                 disabled={!hasAnyFilter}
@@ -368,7 +356,7 @@ export default function ProductToolbar({
           </div>
         </div>
 
-        {overlayOpen && (
+        {overlayOpen && typeof document !== "undefined" && createPortal(
           <div
             ref={overlayRef}
             className="toolbar-editor-overlay"
@@ -407,7 +395,8 @@ export default function ProductToolbar({
                 <Button onClick={closeOverlay}>Fertig</Button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
 
@@ -445,7 +434,7 @@ export default function ProductToolbar({
         .toolbar-pill-remove { width: 18px; height: 18px; min-width: 18px; border: 0; border-radius: 999px; background: var(--p-color-bg-surface); color: var(--p-color-text-subdued); display: inline-flex; align-items: center; justify-content: center; padding: 0; line-height: 1; opacity: 0; transition: opacity 120ms ease, background-color 120ms ease; }
         .toolbar-pill-remove:hover { background: var(--p-color-bg-fill-tertiary); }
         .toolbar-pill:hover .toolbar-pill-remove { opacity: 1; }
-        .toolbar-editor-overlay { position: absolute; width: min(540px, calc(100% - 16px)); border: 1px solid var(--p-color-border-subdued); border-radius: 10px; background: var(--p-color-bg-surface); box-shadow: 0 10px 24px rgba(0,0,0,0.12); display: grid; grid-template-columns: 180px 1fr; z-index: 20; }
+        .toolbar-editor-overlay { position: fixed; width: 540px; border: 1px solid var(--p-color-border-subdued); border-radius: 10px; background: var(--p-color-bg-surface); box-shadow: 0 10px 24px rgba(0,0,0,0.12); display: grid; grid-template-columns: 180px 1fr; z-index: 9999; }
         .toolbar-editor-categories { border-right: 1px solid var(--p-color-border-subdued); padding: 8px; display: grid; gap: 4px; }
         .toolbar-editor-tab { text-align: left; border: 0; background: transparent; border-radius: 6px; padding: 8px; cursor: pointer; font-size: 13px; color: var(--p-color-text-subdued); }
         .toolbar-editor-tab.active { background: var(--p-color-bg-fill-tertiary); color: var(--p-color-text); font-weight: 600; }
