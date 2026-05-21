@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Kürzel-Input Mockup</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f6f6f7; padding: 40px; }
+  h2 { font-size: 14px; color: #555; margin: 0 0 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .section { background: #fff; border-radius: 10px; padding: 20px 24px; margin-bottom: 24px; border: 1px solid #e3e3e3; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* Base pill */
+  .pill {
+    display: inline-flex; align-items: center; gap: 0;
+    border-radius: 999px; border: 1px solid #d1d5db;
+    background: #f9fafb; font-size: 13px; overflow: hidden;
+  }
+  .pill-label { padding: 5px 9px; }
+  .pill-sep { width: 1px; background: #d1d5db; align-self: stretch; }
+
+  /* Input base */
+  .pill input {
+    border: none; outline: none; background: transparent;
+    font-size: 12px; font-family: monospace; width: 28px;
+    padding: 5px 6px; text-align: center;
+  }
+
+  /* ① Unterstrichen */
+  .underline input {
+    border-bottom: 1.5px solid #9ca3af;
+    border-radius: 0;
+  }
+
+  /* ② Grauer Hintergrund */
+  .gray-bg .pill-abbr { background: #f0f0f0; }
+
+  /* ③ Gestrichelter Rahmen */
+  .dashed .pill-abbr {
+    outline: 1.5px dashed #9ca3af;
+    outline-offset: -2px;
+  }
+
+  /* ④ Kursiv */
+  .italic input { font-style: italic; font-family: inherit; color: #555; }
+
+  /* Dark variants */
+  .dark { background: #1a1a1a; }
+  .dark .section { background: #222; border-color: #333; }
+  .dark h2 { color: #9ca3af; }
+  .dark .pill { border-color: #3a3a3a; background: #2c2c2c; color: #e5e7eb; }
+  .dark .pill-sep { background: #3a3a3a; }
+  .dark .underline input { border-bottom-color: #666; color: #e5e7eb; }
+  .dark .gray-bg .pill-abbr { background: #383838; }
+  .dark .dashed .pill-abbr { outline-color: #666; }
+  .dark .italic input { color: #b0b7c3; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .label { font-size: 11px; color: #888; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<div class="grid">
+
+  <!-- LIGHT MODE -->
+  <div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:16px;color:#111">☀️ Light Mode</div>
+
+    <div class="section">
+      <div class="label">① Unterstrichen</div>
+      <div class="row underline">
+        <span class="pill">
+          <span class="pill-label">rot</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="ro" title="Kürzel">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#aaa;font-size:11px">✕</span>
+        </span>
+        <span class="pill">
+          <span class="pill-label">blau</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="bl" title="Kürzel">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#aaa;font-size:11px">✕</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">② Grauer Hintergrund</div>
+      <div class="row gray-bg">
+        <span class="pill">
+          <span class="pill-label">rot</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="ro" title="Kürzel">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#aaa;font-size:11px">✕</span>
+        </span>
+        <span class="pill">
+          <span class="pill-label">blau</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="bl" title="Kürzel">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#aaa;font-size:11px">✕</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">③ Gestrichelter Rahmen</div>
+      <div class="row dashed">
+        <span class="pill">
+          <span class="pill-label">rot</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="ro" title="Kürzel">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#aaa;font-size:11px">✕</span>
+        </span>
+        <span class="pill">
+          <span class="pill-label">blau</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="bl" title="Kürzel">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#aaa;font-size:11px">✕</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">④ Kursiv</div>
+      <div class="row italic">
+        <span class="pill">
+          <span class="pill-label">rot</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="ro" title="Kürzel">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#aaa;font-size:11px">✕</span>
+        </span>
+        <span class="pill">
+          <span class="pill-label">blau</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="bl" title="Kürzel">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#aaa;font-size:11px">✕</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DARK MODE -->
+  <div class="dark" style="border-radius:12px;padding:20px">
+    <div style="font-size:16px;font-weight:700;margin-bottom:16px;color:#e5e7eb">🌙 Dark Mode</div>
+
+    <div class="section">
+      <div class="label">① Unterstrichen</div>
+      <div class="row underline">
+        <span class="pill">
+          <span class="pill-label">rot</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="ro" title="Kürzel" style="color:#e5e7eb">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#555;font-size:11px">✕</span>
+        </span>
+        <span class="pill">
+          <span class="pill-label">blau</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="bl" title="Kürzel" style="color:#e5e7eb">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#555;font-size:11px">✕</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">② Grauer Hintergrund</div>
+      <div class="row gray-bg">
+        <span class="pill">
+          <span class="pill-label">rot</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center;background:#383838">
+            <input value="ro" title="Kürzel" style="color:#e5e7eb">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#555;font-size:11px">✕</span>
+        </span>
+        <span class="pill">
+          <span class="pill-label">blau</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center;background:#383838">
+            <input value="bl" title="Kürzel" style="color:#e5e7eb">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#555;font-size:11px">✕</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">③ Gestrichelter Rahmen</div>
+      <div class="row dashed">
+        <span class="pill">
+          <span class="pill-label">rot</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center;outline:1.5px dashed #666;outline-offset:-2px">
+            <input value="ro" title="Kürzel" style="color:#e5e7eb">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#555;font-size:11px">✕</span>
+        </span>
+        <span class="pill">
+          <span class="pill-label">blau</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center;outline:1.5px dashed #666;outline-offset:-2px">
+            <input value="bl" title="Kürzel" style="color:#e5e7eb">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#555;font-size:11px">✕</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">④ Kursiv</div>
+      <div class="row italic">
+        <span class="pill">
+          <span class="pill-label">rot</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="ro" title="Kürzel" style="color:#b0b7c3;font-style:italic">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#555;font-size:11px">✕</span>
+        </span>
+        <span class="pill">
+          <span class="pill-label">blau</span>
+          <span class="pill-sep"></span>
+          <span class="pill-abbr" style="display:inline-flex;align-items:center">
+            <input value="bl" title="Kürzel" style="color:#b0b7c3;font-style:italic">
+          </span>
+          <span style="padding:5px 8px;cursor:pointer;color:#555;font-size:11px">✕</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -272,7 +272,7 @@ export default function ProductItem({
                     />
                     <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: 3 }}>
                       {editingTitle ? (
-                        <div style={{ display: "flex", gap: 4, alignItems: "center", width: "100%" }}>
+                        <div style={{ display: "flex", gap: 4, alignItems: "center", width: "100%" }} onClick={(e) => e.stopPropagation()}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <TextField
                               label="" labelHidden
