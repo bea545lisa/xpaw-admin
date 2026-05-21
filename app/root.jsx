@@ -51,7 +51,7 @@ export default function Root() {
       <head>
         <meta charSet="utf-8" />
         <meta name="shopify-api-key" content={apiKey} />
-        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+        {/* App Bridge via CDN deaktiviert — wird von AppProvider geladen */}
         <Meta />
         <Links />
       </head>

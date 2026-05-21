@@ -32,7 +32,7 @@ export default function App() {
   };
 
   return (
-    <AppProvider isEmbeddedApp apiKey={apiKey}>
+    <AppProvider embedded apiKey={apiKey}>
       <PolarisProvider i18n={{}} theme={polarisTheme}>
         <Frame router={router}>
           <AppLayout>
