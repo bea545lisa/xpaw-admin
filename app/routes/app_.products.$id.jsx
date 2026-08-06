@@ -52,7 +52,22 @@ export const loader = async ({ request, params }) => {
         }
         options { id name values optionValues { id name } }
         metafields(first: 20) {
-          edges { node { id namespace key type value } }
+          edges {
+            node {
+              id namespace key type value
+              definition { id name }
+              references(first: 50) {
+                edges {
+                  node {
+                    ... on Metaobject {
+                      id handle type
+                      fields { key value }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
         variants(first: 50) {
           edges {
@@ -488,6 +503,35 @@ export const action = async ({ request }) => {
 
   // Metafield hinzufügen
   if (type === "createMetafield") {
+    const namespace = formData.get("namespace");
+    const key = formData.get("key");
+    const metafieldType = formData.get("type");
+    const name = formData.get("name") || key;
+
+    // Definition anlegen, damit das Metafield im Storefront/Theme verfügbar ist
+    // (ohne Definition mit Storefront-Zugriff bleibt ein per API gesetztes Metafield
+    // in der Storefront API unsichtbar). Falls die Definition schon existiert,
+    // liefert Shopify einen userError ("TAKEN"), den wir ignorieren.
+    await admin.graphql(`
+      mutation($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          createdDefinition { id }
+          userErrors { field message code }
+        }
+      }
+    `, {
+      variables: {
+        definition: {
+          name,
+          namespace,
+          key,
+          type: metafieldType,
+          ownerType: "PRODUCT",
+          access: { storefront: "PUBLIC_READ" },
+        },
+      },
+    });
+
     const res = await admin.graphql(`
       mutation($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) {
@@ -499,9 +543,9 @@ export const action = async ({ request }) => {
       variables: {
         metafields: [{
           ownerId: formData.get("productId"),
-          namespace: formData.get("namespace"),
-          key: formData.get("key"),
-          type: formData.get("type"),
+          namespace,
+          key,
+          type: metafieldType,
           value: formData.get("value"),
         }],
       },
@@ -509,6 +553,42 @@ export const action = async ({ request }) => {
     const json = await res.json();
     const metafield = json.data?.metafieldsSet?.metafields?.[0] ?? null;
     return { ok: true, type: "createMetafield", metafield };
+  }
+
+  // Metaobjects eines Typs durchsuchen (für list.metaobject_reference)
+  if (type === "searchMetaobjects") {
+    const metaobjectType = formData.get("metaobjectType");
+    const res = await admin.graphql(`
+      query($type: String!) {
+        metaobjects(type: $type, first: 100) {
+          edges { node { id handle fields { key value } } }
+        }
+      }
+    `, { variables: { type: metaobjectType } });
+    const json = await res.json();
+    const metaobjects = json.data?.metaobjects?.edges?.map(e => e.node) ?? [];
+    return { ok: true, type: "searchMetaobjects", metaobjects };
+  }
+
+  if (type === "deleteMetafield") {
+    const metafieldId = formData.get("metafieldId");
+    await admin.graphql(`
+      mutation($metafields: [MetafieldIdentifierInput!]!) {
+        metafieldsDelete(metafields: $metafields) {
+          deletedMetafields { key }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        metafields: [{
+          ownerId: formData.get("productId"),
+          namespace: formData.get("namespace"),
+          key: formData.get("key"),
+        }],
+      },
+    });
+    return { ok: true, type: "deleteMetafield", metafieldId };
   }
 
   if (type === "updateMetafield") {
@@ -525,12 +605,28 @@ export const action = async ({ request }) => {
       variables: {
         metafields: [{
           ownerId: formData.get("productId"),
-          id: metafieldId,
+          namespace: formData.get("namespace"),
+          key: formData.get("key"),
+          type: formData.get("type"),
           value,
         }],
       },
     });
-    return { ok: true, type: "updateMetafield", metafieldId, value };
+
+    const definitionId = formData.get("definitionId");
+    const name = formData.get("name");
+    if (definitionId && name) {
+      await admin.graphql(`
+        mutation($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { id name }
+            userErrors { field message }
+          }
+        }
+      `, { variables: { definition: { id: definitionId, name } } });
+    }
+
+    return { ok: true, type: "updateMetafield", metafieldId, value, definitionId, name };
   }
 
   // Bilder ---------------------------------------------------

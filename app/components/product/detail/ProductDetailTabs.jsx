@@ -168,7 +168,7 @@ export default function ProductDetailTabs({
 
                       <div key={v.id} style={{
                         borderBottom: "1px solid var(--p-color-border-subdued)",
-                        background: outOfStock && !isEditing ? "#fff7ed" : "transparent",
+                        background: outOfStock && !isEditing ? (isDark ? "#3a2a1a" : "#fff7ed") : "transparent",
                       }}>
 
                         {/* Tabellenzeile */}
