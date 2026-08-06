@@ -380,11 +380,12 @@ export default function MetafieldsPage() {
         border: `1px solid ${isDark ? "#1f4a75" : "#91caff"}`, borderRadius: 6,
         padding: "8px 10px", marginBottom: 20,
       }}>
-        ℹ️ Übersetzte Labels im Shop-Frontend funktionieren nicht automatisch (Liquid kann den
-        Definitionsnamen nicht auslesen). Dafür in <code>rexpaw-storefront/sections/main-product.liquid</code> im{" "}
-        <code>custom_metafields</code>-Block einen <code>{"{% when 'dein_key' %}"}</code>-Zweig ergänzen und die
-        Übersetzung in <code>locales/de.json</code> / <code>locales/en.default.json</code> unter{" "}
-        <code>products.product.custom_metafields.dein_key</code> eintragen.
+        ℹ️ Der Name hier ist nur für die Admin-App. Für eine eigene Beschriftung im Shop trage rechts
+        bei einem Feld ein <strong>Shop-Label</strong> ein — wird direkt als Shop-Metafield gespeichert,
+        Liquid liest es automatisch aus. Ohne Shop-Label zeigt der Shop den aus dem Key abgeleiteten
+        Text (z.B. <code>versanddauer</code> → &quot;Versanddauer&quot;). Kein Bearbeiten von{" "}
+        <code>main-product.liquid</code> mehr nötig. Einschränkung: nur eine Sprache, keine
+        automatische Übersetzung je Shop-Locale.
       </div>
 
       {showNewDef && (
@@ -470,6 +471,21 @@ export default function MetafieldsPage() {
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{def.name}</div>
                     <div style={{ fontSize: 12, color: "#9ca3af" }}>{def.namespace}.{def.key} · {def.type.name}</div>
                   </div>
+                  {def.type.name !== "list.metaobject_reference" && (
+                    <input
+                      placeholder="Shop-Label (optional)"
+                      value={labelDrafts[def.key] ?? fieldLabels[def.key] ?? ""}
+                      onChange={(e) => setLabelDrafts((prev) => ({ ...prev, [def.key]: e.target.value }))}
+                      onBlur={() => saveLabel(def.key)}
+                      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                      title="Wird im Shop-Frontend als Beschriftung angezeigt (statt automatisch abgeleitetem Key)"
+                      style={{
+                        width: 160, padding: "6px 10px", borderRadius: 6, fontSize: 13,
+                        border: `1px solid ${isDark ? "#4a4a4a" : "#ddd"}`,
+                        background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111",
+                      }}
+                    />
+                  )}
                   <button onClick={() => openEdit(def)} style={iconBtnStyle(isDark)} title="Umbenennen">
                     <Icon source={EditIcon} tone="subdued" />
                   </button>

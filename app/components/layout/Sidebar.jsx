@@ -3,9 +3,9 @@ import { Link, useLocation, useNavigate, useNavigation } from "react-router";
 import { HomeIcon, ProductIcon, OrderIcon, SettingsIcon } from "@shopify/polaris-icons";
 import { useColorScheme } from "../../context/ColorSchemeContext";
 
-function ActiveIndicator({ isFirst }) {
-  const lineY  = isFirst ? 19 : 54;
-  const curveY = isFirst ? 26 : 61;
+function ActiveIndicator({ index }) {
+  const lineY  = 19 + index * 35;
+  const curveY = 26 + index * 35;
   const ax     = 10;
 
   return (
@@ -44,7 +44,8 @@ export default function Sidebar() {
   const isInProductArea =
     activePath.startsWith("/app/products") ||
     activePath.startsWith("/app/collections") ||
-    activePath.startsWith("/app/tags");
+    activePath.startsWith("/app/tags") ||
+    activePath.startsWith("/app/metafields");
 
   // Submenu: offen wenn in Produktbereich ODER nach Hover-Delay
   const [hoverOpen, setHoverOpen] = useState(false);
@@ -61,12 +62,13 @@ export default function Sidebar() {
     hoverTimer.current = setTimeout(() => setHoverOpen(false), 150);
   };
 
-  const hasActiveSub   = activePath.startsWith("/app/collections") || activePath.startsWith("/app/tags");
+  const hasActiveSub   = activePath.startsWith("/app/collections") || activePath.startsWith("/app/tags") || activePath.startsWith("/app/metafields");
   const isProductsActive = activePath.startsWith("/app/products") && !hasActiveSub;
 
   const [hoveredSub, setHoveredSub] = useState(null);
   const activeSubIndex = activePath.startsWith("/app/collections") ? 0
     : activePath.startsWith("/app/tags") ? 1
+    : activePath.startsWith("/app/metafields") ? 2
     : null;
   const indicatorTarget = hoveredSub !== null ? hoveredSub : activeSubIndex;
 
@@ -128,7 +130,7 @@ export default function Sidebar() {
             onMouseLeave={handleProductAreaLeave}
           >
             {indicatorTarget !== null && (
-              <ActiveIndicator isFirst={indicatorTarget === 0} />
+              <ActiveIndicator index={indicatorTarget} />
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
               <Link
@@ -146,6 +148,14 @@ export default function Sidebar() {
                 onMouseLeave={() => setHoveredSub(null)}
               >
                 Tags
+              </Link>
+              <Link
+                to={link("/app/metafields")}
+                className={`sb-sub${activePath.startsWith("/app/metafields") ? " active" : ""}`}
+                onMouseEnter={() => setHoveredSub(2)}
+                onMouseLeave={() => setHoveredSub(null)}
+              >
+                Metafields
               </Link>
             </div>
           </div>

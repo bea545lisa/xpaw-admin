@@ -28,3 +28,13 @@ export async function getSkuFormat(shop) {
 export async function getSkuAbbreviations(shop) {
   return getSetting(shop, "sku_abbreviations", null); // null = nur eingebaute Map verwenden
 }
+
+// Store-weite Standard-Reihenfolge für Metafields (Liste von Keys). Einzelne Produkte
+// können das per Drag & Drop individuell überschreiben (gespeichert als Produkt-Metafield).
+export async function getMetafieldOrder(shop) {
+  return getSetting(shop, "metafield_order", []);
+}
+
+export async function setMetafieldOrder(shop, order) {
+  await setSetting(shop, "metafield_order", order);
+}
