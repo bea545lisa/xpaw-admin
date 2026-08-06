@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 const MAX_HEIGHT = 220;
 const GAP = 4;
 
-export default function PositionedDropdown({ anchorRef, open, children }) {
+export default function PositionedDropdown({ anchorRef, open, children, minWidth }) {
   const [rect, setRect] = useState(null);
 
-  useEffect(() => {
-    if (!open) return;
+  useLayoutEffect(() => {
+    if (!open) {
+      setRect(null);
+      return;
+    }
 
     const updateRect = () => {
       if (anchorRef.current) setRect(anchorRef.current.getBoundingClientRect());
@@ -23,12 +26,16 @@ export default function PositionedDropdown({ anchorRef, open, children }) {
     };
   }, [open, anchorRef]);
 
-  if (!open || !rect) return null;
+  // Solange kein plausibler Rect vorliegt (Anchor noch nicht gelayoutet), lieber nichts
+  // rendern als ein Dropdown bei (0,0) aufblitzen zu lassen.
+  if (!open || !rect || (rect.width === 0 && rect.height === 0)) return null;
 
   const spaceBelow = window.innerHeight - rect.bottom - GAP;
   const spaceAbove = rect.top - GAP;
   const openAbove = spaceBelow < MAX_HEIGHT && spaceAbove > spaceBelow;
   const maxHeight = Math.min(MAX_HEIGHT, openAbove ? spaceAbove : spaceBelow);
+  const width = minWidth ? Math.max(rect.width, minWidth) : rect.width;
+  const left = Math.min(rect.left, window.innerWidth - width - GAP);
 
   return createPortal(
     <div style={{
@@ -36,8 +43,8 @@ export default function PositionedDropdown({ anchorRef, open, children }) {
       ...(openAbove
         ? { bottom: window.innerHeight - rect.top + GAP }
         : { top: rect.bottom + GAP }),
-      left: rect.left,
-      width: rect.width,
+      left,
+      width,
       background: "var(--p-color-bg-surface)",
       border: "1px solid var(--p-color-border)",
       borderRadius: 6,
