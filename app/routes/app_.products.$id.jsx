@@ -167,13 +167,21 @@ export const loader = async ({ request, params }) => {
     allMetafieldDefinitions = defsJson.data?.metafieldDefinitions?.edges?.map(e => e.node) ?? [];
   } catch (e) { /* falls API nicht verfügbar: leer */ }
 
+  // Aktive Shop-Sprachen (für Metaobject-Übersetzungen bei Eigenschaften)
+  let locales = [];
+  try {
+    const localesRes = await admin.graphql(`query { shopLocales { locale name primary published } }`);
+    const localesJson = await localesRes.json();
+    locales = (localesJson.data?.shopLocales ?? []).filter(l => l.published);
+  } catch (e) { /* falls Scope fehlt: leer */ }
+
   const [skuFormat, skuAbbreviations, defaultMetafieldOrder] = await Promise.all([
     getSkuFormat(shop),
     getSkuAbbreviations(shop),
     getMetafieldOrder(shop),
   ]);
 
-  return { product: data.data.product, allTags, allVendors, allProductTypes, allCollections, allMetafieldDefinitions, defaultMetafieldOrder, locationId, shop, skuFormat, skuAbbreviations };
+  return { product: data.data.product, allTags, allVendors, allProductTypes, allCollections, allMetafieldDefinitions, defaultMetafieldOrder, locales, locationId, shop, skuFormat, skuAbbreviations };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
@@ -658,6 +666,61 @@ export const action = async ({ request }) => {
     return { ok: true, type: "createMetaobject", metaobject };
   }
 
+  // Übersetzbare Inhalte (Bezeichnung/Wert) + Digest + bestehende Übersetzungen eines Metaobjects laden
+  if (type === "getMetaobjectTranslations") {
+    const metaobjectId = formData.get("metaobjectId");
+    const locales = JSON.parse(formData.get("locales") || "[]");
+
+    const contentRes = await admin.graphql(`
+      query($id: ID!) {
+        translatableResource(resourceId: $id) {
+          translatableContent { key value digest locale }
+        }
+      }
+    `, { variables: { id: metaobjectId } });
+    const contentJson = await contentRes.json();
+    const translatableContent = contentJson.data?.translatableResource?.translatableContent ?? [];
+
+    const translations = {};
+    for (const locale of locales) {
+      const tRes = await admin.graphql(`
+        query($id: ID!, $locale: String!) {
+          translatableResource(resourceId: $id) {
+            translations(locale: $locale) { key value locale }
+          }
+        }
+      `, { variables: { id: metaobjectId, locale } });
+      const tJson = await tRes.json();
+      translations[locale] = tJson.data?.translatableResource?.translations ?? [];
+    }
+
+    return { ok: true, type: "getMetaobjectTranslations", metaobjectId, translatableContent, translations };
+  }
+
+  if (type === "saveMetaobjectTranslation") {
+    const metaobjectId = formData.get("metaobjectId");
+    const locale = formData.get("locale");
+    const key = formData.get("key");
+    const value = formData.get("value");
+    const digest = formData.get("digest");
+
+    const res = await admin.graphql(`
+      mutation($id: ID!, $translations: [TranslationInput!]!) {
+        translationsRegister(resourceId: $id, translations: $translations) {
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        id: metaobjectId,
+        translations: [{ locale, key, value, translatableContentDigest: digest }],
+      },
+    });
+    const json = await res.json();
+    const userErrors = json.data?.translationsRegister?.userErrors ?? [];
+    return { ok: userErrors.length === 0, type: "saveMetaobjectTranslation", metaobjectId, locale, key, value, userErrors };
+  }
+
   if (type === "deleteMetafield") {
     const metafieldId = formData.get("metafieldId");
     await admin.graphql(`
@@ -808,7 +871,7 @@ export default function ProductDetail() {
 
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { product, allTags = [], allVendors = [], allProductTypes = [], allCollections = [], allMetafieldDefinitions = [], defaultMetafieldOrder = [], locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
+  const { product, allTags = [], allVendors = [], allProductTypes = [], allCollections = [], allMetafieldDefinitions = [], defaultMetafieldOrder = [], locales = [], locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
 
   // Kürzel-Map aus Metafeld (rexpaw.option_abbreviations)
   const abbreviationsMap = (() => {
@@ -1176,6 +1239,7 @@ export default function ProductDetail() {
               metafields={metafields}
               allMetafieldDefinitions={allMetafieldDefinitions}
               defaultMetafieldOrder={defaultMetafieldOrder}
+              locales={locales}
               product={product}
               fetcher={fetcher}
               setToast={setToast}

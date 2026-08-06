@@ -19,17 +19,20 @@ export const loader = async ({ request }) => {
         id
         metafield(namespace: "custom", key: "field_labels") { value }
       }
+      shopLocales { locale name primary published }
     }
   `);
   const defsJson = await defsRes.json();
   const definitions = defsJson.data?.metafieldDefinitions?.edges?.map(e => e.node) ?? [];
   const shopId = defsJson.data?.shop?.id;
+  // { locale: { key: label } }
   let fieldLabels = {};
   try { fieldLabels = JSON.parse(defsJson.data?.shop?.metafield?.value ?? "{}"); } catch { /* leer */ }
+  const locales = (defsJson.data?.shopLocales ?? []).filter((l) => l.published);
 
   const order = await getMetafieldOrder(session.shop);
 
-  return { definitions, order, shopId, fieldLabels };
+  return { definitions, order, shopId, fieldLabels, locales };
 };
 
 export const action = async ({ request }) => {
@@ -45,6 +48,7 @@ export const action = async ({ request }) => {
 
   if (type === "saveFieldLabel") {
     const shopId = formData.get("shopId");
+    const locale = formData.get("locale");
     const key = formData.get("key");
     const label = formData.get("label");
 
@@ -58,8 +62,10 @@ export const action = async ({ request }) => {
     const currentJson = await currentRes.json();
     let labels = {};
     try { labels = JSON.parse(currentJson.data?.shop?.metafield?.value ?? "{}"); } catch { /* leer */ }
-    if (label.trim()) labels[key] = label.trim();
-    else delete labels[key];
+    if (!labels[locale]) labels[locale] = {};
+    if (label.trim()) labels[locale][key] = label.trim();
+    else delete labels[locale][key];
+    if (Object.keys(labels[locale]).length === 0) delete labels[locale];
 
     const res = await admin.graphql(`
       mutation($metafields: [MetafieldsSetInput!]!) {
@@ -81,7 +87,7 @@ export const action = async ({ request }) => {
     });
     const json = await res.json();
     const userErrors = json.data?.metafieldsSet?.userErrors ?? [];
-    return { ok: userErrors.length === 0, type: "saveFieldLabel", key, label: label.trim(), userErrors };
+    return { ok: userErrors.length === 0, type: "saveFieldLabel", locale, key, label: label.trim(), userErrors };
   }
 
   if (type === "createDefinition") {
@@ -216,7 +222,7 @@ function slugify(name) {
 export default function MetafieldsPage() {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { definitions: initialDefinitions, order: initialOrder, shopId, fieldLabels: initialFieldLabels } = useLoaderData();
+  const { definitions: initialDefinitions, order: initialOrder, shopId, fieldLabels: initialFieldLabels, locales } = useLoaderData();
   const fetcher = useFetcher();
   const labelFetcher = useFetcher();
 
@@ -287,17 +293,20 @@ export default function MetafieldsPage() {
     if (d.type !== "saveFieldLabel") return;
     if (!d.ok) { setToast(`Fehler: ${d.userErrors?.[0]?.message ?? "unbekannt"}`); return; }
     setFieldLabels((prev) => {
-      const next = { ...prev };
-      if (d.label) next[d.key] = d.label; else delete next[d.key];
+      const next = { ...prev, [d.locale]: { ...prev[d.locale] } };
+      if (d.label) next[d.locale][d.key] = d.label; else delete next[d.locale][d.key];
       return next;
     });
     setToast("Shop-Label gespeichert");
   }, [labelFetcher.state, labelFetcher.data]);
 
-  const saveLabel = (key) => {
-    const value = labelDrafts[key] ?? fieldLabels[key] ?? "";
+  const draftKey = (locale, key) => `${locale}:${key}`;
+
+  const saveLabel = (locale, key) => {
+    const dk = draftKey(locale, key);
+    const value = labelDrafts[dk] ?? fieldLabels[locale]?.[key] ?? "";
     labelFetcher.submit(
-      { action: "saveFieldLabel", shopId, key, label: value },
+      { action: "saveFieldLabel", shopId, locale, key, label: value },
       { method: "POST" }
     );
   };
@@ -381,11 +390,10 @@ export default function MetafieldsPage() {
         padding: "8px 10px", marginBottom: 20,
       }}>
         ℹ️ Der Name hier ist nur für die Admin-App. Für eine eigene Beschriftung im Shop trage rechts
-        bei einem Feld ein <strong>Shop-Label</strong> ein — wird direkt als Shop-Metafield gespeichert,
-        Liquid liest es automatisch aus. Ohne Shop-Label zeigt der Shop den aus dem Key abgeleiteten
-        Text (z.B. <code>versanddauer</code> → &quot;Versanddauer&quot;). Kein Bearbeiten von{" "}
-        <code>main-product.liquid</code> mehr nötig. Einschränkung: nur eine Sprache, keine
-        automatische Übersetzung je Shop-Locale.
+        pro Sprache ein <strong>Shop-Label</strong> ein — wird direkt als Shop-Metafield gespeichert,
+        Liquid liest automatisch die passende Sprache des Besuchers aus. Ohne Shop-Label zeigt der
+        Shop den aus dem Key abgeleiteten Text (z.B. <code>versanddauer</code> → &quot;Versanddauer&quot;,
+        unabhängig von der Sprache). Kein Bearbeiten von <code>main-product.liquid</code> mehr nötig.
       </div>
 
       {showNewDef && (
@@ -430,72 +438,95 @@ export default function MetafieldsPage() {
         {orderedDefinitions.length === 0 ? (
           <div style={{ padding: 32, textAlign: "center", color: "#888" }}>Keine Metafield-Definitionen gefunden</div>
         ) : (
-          orderedDefinitions.map((def, i) => (
-            <div
-              key={def.id}
-              draggable
-              onDragStart={() => setDragKey(def.key)}
-              onDragEnd={() => setDragKey(null)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); handleDrop(def.key); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "12px 16px",
-                borderBottom: i < orderedDefinitions.length - 1 ? `1px solid ${isDark ? "#3a3a3a" : "#f0f0f0"}` : "none",
-                background: isDark ? "#1a1a1a" : "#fff",
-                opacity: dragKey === def.key ? 0.5 : 1,
-              }}
-            >
-              <span style={{ cursor: "grab", color: "var(--p-color-text-subdued)", userSelect: "none" }} title="Ziehen zum Sortieren">⠿</span>
+          orderedDefinitions.map((def, i) => {
+            const filledCount = locales.filter((loc) => fieldLabels[loc.locale]?.[def.key]).length;
+            return (
+            <div key={def.id} style={{
+              borderBottom: i < orderedDefinitions.length - 1 ? `1px solid ${isDark ? "#3a3a3a" : "#f0f0f0"}` : "none",
+              background: isDark ? "#1a1a1a" : "#fff",
+            }}>
+              <div
+                draggable
+                onDragStart={() => setDragKey(def.key)}
+                onDragEnd={() => setDragKey(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); handleDrop(def.key); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "12px 16px",
+                  opacity: dragKey === def.key ? 0.5 : 1,
+                }}
+              >
+                <span style={{ cursor: "grab", color: "var(--p-color-text-subdued)", userSelect: "none" }} title="Ziehen zum Sortieren">⠿</span>
 
-              {editingKey === def.key ? (
-                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && saveEdit(def)}
-                    style={{
-                      flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 14,
-                      border: `1px solid ${isDark ? "#4a4a4a" : "#ddd"}`,
-                      background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111",
-                    }}
-                  />
-                  <button onClick={() => saveEdit(def)} style={saveBtnStyle()}>Speichern</button>
-                  <button onClick={() => setEditingKey(null)} style={iconBtnStyle(isDark)} title="Abbrechen">
-                    <Icon source={XIcon} tone="subdued" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{def.name}</div>
-                    <div style={{ fontSize: 12, color: "#9ca3af" }}>{def.namespace}.{def.key} · {def.type.name}</div>
-                  </div>
-                  {def.type.name !== "list.metaobject_reference" && (
+                {editingKey === def.key ? (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <input
-                      placeholder="Shop-Label (optional)"
-                      value={labelDrafts[def.key] ?? fieldLabels[def.key] ?? ""}
-                      onChange={(e) => setLabelDrafts((prev) => ({ ...prev, [def.key]: e.target.value }))}
-                      onBlur={() => saveLabel(def.key)}
-                      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                      title="Wird im Shop-Frontend als Beschriftung angezeigt (statt automatisch abgeleitetem Key)"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveEdit(def)}
                       style={{
-                        width: 160, padding: "6px 10px", borderRadius: 6, fontSize: 13,
+                        width: 160, flexShrink: 0, padding: "6px 10px", borderRadius: 6, fontSize: 14,
                         border: `1px solid ${isDark ? "#4a4a4a" : "#ddd"}`,
                         background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111",
                       }}
                     />
-                  )}
-                  <button onClick={() => openEdit(def)} style={iconBtnStyle(isDark)} title="Umbenennen">
-                    <Icon source={EditIcon} tone="subdued" />
-                  </button>
-                  <button onClick={() => setDeleteTarget(def)} style={iconBtnStyle(isDark, true)} title="Löschen">
-                    <Icon source={DeleteIcon} tone="critical" />
-                  </button>
-                </>
-              )}
+                    {def.type.name !== "list.metaobject_reference" && locales.map((loc) => {
+                      const dk = draftKey(loc.locale, def.key);
+                      return (
+                        <div key={loc.locale} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 11, color: "#9ca3af", width: 24, flexShrink: 0, textAlign: "right" }}>
+                            {loc.locale.toUpperCase()}
+                          </span>
+                          <input
+                            placeholder={loc.primary ? "Shop-Label (optional)" : `Label (${loc.name})`}
+                            value={labelDrafts[dk] ?? fieldLabels[loc.locale]?.[def.key] ?? ""}
+                            onChange={(e) => setLabelDrafts((prev) => ({ ...prev, [dk]: e.target.value }))}
+                            onBlur={() => saveLabel(loc.locale, def.key)}
+                            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                            title={`Shop-Label für ${loc.name} (${loc.locale})`}
+                            style={{
+                              width: 130, padding: "5px 8px", borderRadius: 6, fontSize: 12,
+                              border: `1px solid ${isDark ? "#4a4a4a" : "#ddd"}`,
+                              background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111",
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                    <button onClick={() => saveEdit(def)} style={saveBtnStyle()}>Speichern</button>
+                    <button onClick={() => setEditingKey(null)} style={iconBtnStyle(isDark)} title="Abbrechen">
+                      <Icon source={XIcon} tone="subdued" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{def.name}</div>
+                      <div style={{ fontSize: 12, color: "#9ca3af" }}>{def.namespace}.{def.key} · {def.type.name}</div>
+                      {filledCount > 0 && (
+                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 0 }}>
+                          {locales.filter((loc) => fieldLabels[loc.locale]?.[def.key])
+                            .map((loc) => (
+                              <span key={loc.locale}>
+                                <strong>{loc.locale.toUpperCase()}:</strong> {fieldLabels[loc.locale][def.key]}{" "}
+                              </span>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => openEdit(def)} style={iconBtnStyle(isDark)} title="Umbenennen &amp; Shop-Labels">
+                      <Icon source={EditIcon} tone="subdued" />
+                    </button>
+                    <button onClick={() => setDeleteTarget(def)} style={iconBtnStyle(isDark, true)} title="Löschen">
+                      <Icon source={DeleteIcon} tone="critical" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

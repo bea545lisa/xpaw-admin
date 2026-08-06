@@ -54,18 +54,23 @@ function computeInitialOrder(fields, defaultOrder = []) {
 
 // Editor für list.metaobject_reference-Metafields: zeigt referenzierte
 // Metaobjects als Bezeichnung/Wert-Paare, erlaubt Hinzufügen/Entfernen
-function MetaobjectReferenceField({ field, productId, onChange, onDelete, setToast, dragHandle }) {
+function MetaobjectReferenceField({ field, productId, locales = [], onChange, onDelete, setToast, dragHandle }) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const searchFetcher = useFetcher();
   const updateFetcher = useFetcher();
   const metaobjectFetcher = useFetcher();
+  const translationFetcher = useFetcher();
+  const saveTranslationFetcher = useFetcher();
   const [showNewForm, setShowNewForm] = useState(false);
   const [showBezeichnungDropdown, setShowBezeichnungDropdown] = useState(false);
   const [showWertDropdown, setShowWertDropdown] = useState(false);
   const [newDraft, setNewDraft] = useState({ bezeichnung: "", wert: "" });
   const [editingRefId, setEditingRefId] = useState(null);
   const [editDraft, setEditDraft] = useState({ bezeichnung: "", wert: "" });
+  // { [refId]: { translatableContent: [...], translations: { locale: [...] } } }
+  const [translationData, setTranslationData] = useState({});
+  const [translationDrafts, setTranslationDrafts] = useState({});
   const bezeichnungRef = useRef(null);
   const wertRef = useRef(null);
 
@@ -174,6 +179,54 @@ function MetaobjectReferenceField({ field, productId, onChange, onDelete, setToa
       bezeichnung: ref.fields.find((f) => f.key === "bezeichnung")?.value ?? "",
       wert: ref.fields.find((f) => f.key === "wert")?.value ?? "",
     });
+    if (locales.length > 0 && !translationData[ref.id]) {
+      translationFetcher.submit(
+        { action: "getMetaobjectTranslations", metaobjectId: ref.id, locales: JSON.stringify(locales.map((l) => l.locale)) },
+        { method: "POST" }
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (translationFetcher.state !== "idle" || translationFetcher.data?.type !== "getMetaobjectTranslations") return;
+    const d = translationFetcher.data;
+    setTranslationData((prev) => ({
+      ...prev,
+      [d.metaobjectId]: { translatableContent: d.translatableContent, translations: d.translations },
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [translationFetcher.state, translationFetcher.data]);
+
+  useEffect(() => {
+    if (saveTranslationFetcher.state !== "idle" || saveTranslationFetcher.data?.type !== "saveMetaobjectTranslation") return;
+    const d = saveTranslationFetcher.data;
+    if (!d.ok) { setToast?.(`Fehler: ${d.userErrors?.[0]?.message ?? "unbekannt"}`); return; }
+    setTranslationData((prev) => {
+      const entry = prev[d.metaobjectId];
+      if (!entry) return prev;
+      const nextTranslations = { ...entry.translations };
+      const list = (nextTranslations[d.locale] ?? []).filter((t) => t.key !== d.key);
+      if (d.value) list.push({ key: d.key, value: d.value, locale: d.locale });
+      nextTranslations[d.locale] = list;
+      return { ...prev, [d.metaobjectId]: { ...entry, translations: nextTranslations } };
+    });
+    setToast?.("Übersetzung gespeichert");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveTranslationFetcher.state, saveTranslationFetcher.data]);
+
+  const translationDraftKey = (refId, locale, key) => `${refId}:${locale}:${key}`;
+
+  const saveTranslation = (ref, locale, key) => {
+    const entry = translationData[ref.id];
+    const content = entry?.translatableContent?.find((c) => c.key === key);
+    if (!content) return;
+    const dk = translationDraftKey(ref.id, locale, key);
+    const existing = entry.translations?.[locale]?.find((t) => t.key === key)?.value ?? "";
+    const value = translationDrafts[dk] ?? existing;
+    saveTranslationFetcher.submit(
+      { action: "saveMetaobjectTranslation", metaobjectId: ref.id, locale, key, value, digest: content.digest },
+      { method: "POST" }
+    );
   };
 
   const saveEditRef = (ref) => {
@@ -235,27 +288,70 @@ function MetaobjectReferenceField({ field, productId, onChange, onDelete, setToa
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {references.map((ref) => {
             if (editingRefId === ref.id) {
+              const translationLocales = locales.filter((l) => !l.primary);
+              const entry = translationData[ref.id];
               return (
-                <InlineStack key={ref.id} gap="100" blockAlign="end">
-                  <div style={{ width: 130 }}>
-                    <TextField
-                      label="Bezeichnung"
-                      value={editDraft.bezeichnung}
-                      onChange={(val) => setEditDraft((d) => ({ ...d, bezeichnung: val }))}
-                      autoComplete="off"
-                    />
-                  </div>
-                  <div style={{ width: 150 }}>
-                    <TextField
-                      label="Wert"
-                      value={editDraft.wert}
-                      onChange={(val) => setEditDraft((d) => ({ ...d, wert: val }))}
-                      autoComplete="off"
-                    />
-                  </div>
-                  <Button size="slim" onClick={() => setEditingRefId(null)}>Abbrechen</Button>
-                  <Button variant="primary" size="slim" onClick={() => saveEditRef(ref)}>Speichern</Button>
-                </InlineStack>
+                <div key={ref.id} style={{
+                  width: "100%", padding: 10, borderRadius: 8,
+                  border: `1px dashed ${isDark ? "#4a4a4a" : "var(--p-color-border)"}`,
+                }}>
+                  <BlockStack gap="150">
+                    <InlineStack gap="100" blockAlign="end">
+                      <div style={{ width: 130 }}>
+                        <TextField
+                          label="Bezeichnung"
+                          value={editDraft.bezeichnung}
+                          onChange={(val) => setEditDraft((d) => ({ ...d, bezeichnung: val }))}
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div style={{ width: 150 }}>
+                        <TextField
+                          label="Wert"
+                          value={editDraft.wert}
+                          onChange={(val) => setEditDraft((d) => ({ ...d, wert: val }))}
+                          autoComplete="off"
+                        />
+                      </div>
+                      <Button size="slim" onClick={() => setEditingRefId(null)}>Abbrechen</Button>
+                      <Button variant="primary" size="slim" onClick={() => saveEditRef(ref)}>Speichern</Button>
+                    </InlineStack>
+
+                    {translationLocales.length > 0 && (
+                      <BlockStack gap="100">
+                        <Text variant="bodyXs" tone="subdued">Übersetzungen</Text>
+                        {!entry ? (
+                          <Text variant="bodyXs" tone="subdued">Lade…</Text>
+                        ) : (
+                          translationLocales.map((loc) => (
+                            <InlineStack key={loc.locale} gap="100" blockAlign="center">
+                              <span style={{ fontSize: 11, color: "#9ca3af", width: 24, flexShrink: 0, textAlign: "right" }}>
+                                {loc.locale.toUpperCase()}
+                              </span>
+                              {["bezeichnung", "wert"].map((k) => {
+                                const dk = translationDraftKey(ref.id, loc.locale, k);
+                                const existing = entry.translations?.[loc.locale]?.find((t) => t.key === k)?.value ?? "";
+                                return (
+                                  <div key={k} style={{ width: 120 }}>
+                                    <TextField
+                                      label=""
+                                      labelHidden
+                                      placeholder={k === "bezeichnung" ? "Bezeichnung" : "Wert"}
+                                      value={translationDrafts[dk] ?? existing}
+                                      onChange={(val) => setTranslationDrafts((prev) => ({ ...prev, [dk]: val }))}
+                                      onBlur={() => saveTranslation(ref, loc.locale, k)}
+                                      autoComplete="off"
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </InlineStack>
+                          ))
+                        )}
+                      </BlockStack>
+                    )}
+                  </BlockStack>
+                </div>
               );
             }
             const { label, value } = splitMetaobjectFields(ref.fields);
@@ -333,7 +429,7 @@ function MetaobjectReferenceField({ field, productId, onChange, onDelete, setToa
   );
 }
 
-export default function ProductDetailMetafields({ metafields, allMetafieldDefinitions = [], defaultMetafieldOrder = [], productId, fetcher, setToast }) {
+export default function ProductDetailMetafields({ metafields, allMetafieldDefinitions = [], defaultMetafieldOrder = [], locales = [], productId, fetcher, setToast }) {
 
   const orderFetcher = useFetcher();
   const [localMetafields, setLocalMetafields] = useState(metafields);
@@ -757,6 +853,7 @@ return (
                   <MetaobjectReferenceField
                     field={field}
                     productId={productId}
+                    locales={locales}
                     setToast={setToast}
                     onDelete={requestDelete}
                     dragHandle={dragHandle}
