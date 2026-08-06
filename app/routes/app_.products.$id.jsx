@@ -20,7 +20,7 @@ import { useImageUpload } from "../hooks/useImageUpload.jsx";
 
 import { normalizeOptions } from "../utils/productOptions.js";
 import { formatDate } from "../utils/dateFunctions.js";
-import { getSkuFormat, getSkuAbbreviations } from "../services/settings.server";
+import { getSkuFormat, getSkuAbbreviations, getMetafieldOrder, setMetafieldOrder } from "../services/settings.server";
 
 import ProductDetailSeo from "../components/product/detail/ProductDetailSeo.jsx";
 import ProductDetailDescription from "../components/product/detail/ProductDetailDescription.jsx";
@@ -153,21 +153,67 @@ export const loader = async ({ request, params }) => {
   const locJson = await locRes.json();
   const locationId = locJson.data.locations.edges[0]?.node?.id ?? null;
 
-  const [skuFormat, skuAbbreviations] = await Promise.all([
+  // Alle im Store existierenden Produkt-Metafield-Definitionen (für Schnell-Anlegen-Buttons)
+  let allMetafieldDefinitions = [];
+  try {
+    const defsRes = await admin.graphql(`
+      query {
+        metafieldDefinitions(ownerType: PRODUCT, first: 100) {
+          edges { node { id name namespace key type { name } } }
+        }
+      }
+    `);
+    const defsJson = await defsRes.json();
+    allMetafieldDefinitions = defsJson.data?.metafieldDefinitions?.edges?.map(e => e.node) ?? [];
+  } catch (e) { /* falls API nicht verfügbar: leer */ }
+
+  const [skuFormat, skuAbbreviations, defaultMetafieldOrder] = await Promise.all([
     getSkuFormat(shop),
     getSkuAbbreviations(shop),
+    getMetafieldOrder(shop),
   ]);
 
-  return { product: data.data.product, allTags, allVendors, allProductTypes, allCollections, locationId, shop, skuFormat, skuAbbreviations };
+  return { product: data.data.product, allTags, allVendors, allProductTypes, allCollections, allMetafieldDefinitions, defaultMetafieldOrder, locationId, shop, skuFormat, skuAbbreviations };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
 
 export const action = async ({ request }) => {
 
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const type = formData.get("action");
+
+  if (type === "saveMetafieldOrder") {
+    const scope = formData.get("scope"); // "default" (store-weit) oder "product" (nur dieses Produkt)
+    const order = JSON.parse(formData.get("order") || "[]");
+
+    if (scope === "default") {
+      await setMetafieldOrder(session.shop, order);
+      return { ok: true, type: "saveMetafieldOrder", scope, order };
+    }
+
+    // Produkt-Override: als verstecktes Metafield am Produkt speichern
+    await admin.graphql(`
+      mutation($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id namespace key type value }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        metafields: [{
+          ownerId: formData.get("productId"),
+          namespace: "rexpaw",
+          key: "metafields_order",
+          type: "json",
+          value: JSON.stringify(order),
+        }],
+      },
+    });
+    return { ok: true, type: "saveMetafieldOrder", scope, order };
+  }
 
   if (type === "duplicate") {
     const res = await admin.graphql(`
@@ -570,6 +616,48 @@ export const action = async ({ request }) => {
     return { ok: true, type: "searchMetaobjects", metaobjects };
   }
 
+  // Felder eines referenzierten Metaobjects bearbeiten (z.B. "eigenschaften"-Eintrag)
+  if (type === "updateMetaobject") {
+    const metaobjectId = formData.get("metaobjectId");
+    const fields = JSON.parse(formData.get("fields") || "[]");
+    const res = await admin.graphql(`
+      mutation($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+        metaobjectUpdate(id: $id, metaobject: $metaobject) {
+          metaobject { id fields { key value } }
+          userErrors { field message }
+        }
+      }
+    `, { variables: { id: metaobjectId, metaobject: { fields } } });
+    const json = await res.json();
+    const metaobject = json.data?.metaobjectUpdate?.metaobject ?? null;
+    return { ok: true, type: "updateMetaobject", metaobjectId, metaobject };
+  }
+
+  // Neues Metaobject anlegen (z.B. neuer "eigenschaften"-Eintrag)
+  if (type === "createMetaobject") {
+    const metaobjectType = formData.get("metaobjectType");
+    const fields = JSON.parse(formData.get("fields") || "[]");
+    const res = await admin.graphql(`
+      mutation($metaobject: MetaobjectCreateInput!) {
+        metaobjectCreate(metaobject: $metaobject) {
+          metaobject { id handle type fields { key value } }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        metaobject: {
+          type: metaobjectType,
+          fields,
+          capabilities: { publishable: { status: "ACTIVE" } },
+        },
+      },
+    });
+    const json = await res.json();
+    const metaobject = json.data?.metaobjectCreate?.metaobject ?? null;
+    return { ok: true, type: "createMetaobject", metaobject };
+  }
+
   if (type === "deleteMetafield") {
     const metafieldId = formData.get("metafieldId");
     await admin.graphql(`
@@ -613,9 +701,8 @@ export const action = async ({ request }) => {
       },
     });
 
-    const definitionId = formData.get("definitionId");
     const name = formData.get("name");
-    if (definitionId && name) {
+    if (name) {
       await admin.graphql(`
         mutation($definition: MetafieldDefinitionUpdateInput!) {
           metafieldDefinitionUpdate(definition: $definition) {
@@ -623,10 +710,19 @@ export const action = async ({ request }) => {
             userErrors { field message }
           }
         }
-      `, { variables: { definition: { id: definitionId, name } } });
+      `, {
+        variables: {
+          definition: {
+            namespace: formData.get("namespace"),
+            key: formData.get("key"),
+            ownerType: "PRODUCT",
+            name,
+          },
+        },
+      });
     }
 
-    return { ok: true, type: "updateMetafield", metafieldId, value, definitionId, name };
+    return { ok: true, type: "updateMetafield", metafieldId, value, name };
   }
 
   // Bilder ---------------------------------------------------
@@ -712,7 +808,7 @@ export default function ProductDetail() {
 
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { product, allTags = [], allVendors = [], allProductTypes = [], allCollections = [], locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
+  const { product, allTags = [], allVendors = [], allProductTypes = [], allCollections = [], allMetafieldDefinitions = [], defaultMetafieldOrder = [], locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
 
   // Kürzel-Map aus Metafeld (rexpaw.option_abbreviations)
   const abbreviationsMap = (() => {
@@ -763,6 +859,8 @@ export default function ProductDetail() {
   });
 
   const metafields = product.metafields?.edges?.map(e => e.node) ?? [];
+  // interne/versteckte Felder (z.B. Reihenfolge-Speicher) zählen nicht als sichtbares Metafield
+  const visibleMetafieldsCount = metafields.filter(f => f.namespace !== "rexpaw").length;
 
 
   // ── Varianten (lokaler State für optimistic UI) ──
@@ -857,7 +955,7 @@ export default function ProductDetail() {
   const detailTabs = [
     { id: "variants", content: `Varianten${variantStockRows.length ? ` (${variantStockRows.length})` : ""}` },
     //{ id: "shipping", content: "Shipping" },
-    { id: "metafields", content: "Metafields" },
+    { id: "metafields", content: `Metafields${visibleMetafieldsCount ? ` (${visibleMetafieldsCount})` : ""}` },
   ];
 
 
@@ -1076,6 +1174,8 @@ export default function ProductDetail() {
               handleVariantSave={handleVariantSave}
               isSaving={isSaving}
               metafields={metafields}
+              allMetafieldDefinitions={allMetafieldDefinitions}
+              defaultMetafieldOrder={defaultMetafieldOrder}
               product={product}
               fetcher={fetcher}
               setToast={setToast}

@@ -3,8 +3,11 @@ import { useEffect, useRef} from "react";
 import { useProductCollections } from "../../../hooks/useProductCollections.js";
 import { useProductTags } from "../../../hooks/useProductTags.js";
 import PositionedDropdown from "../../ui/PositionedDropdown.jsx";
+import { useColorScheme } from "../../../context/ColorSchemeContext.js";
 
 export default function ProductDetailOrganisation({ product, allCollections, allTags, fetcher }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const collections = useProductCollections({ initialCollections: product.collections?.edges?.map(e => e.node) ?? [], allCollections, fetcher, productId: product.id });
   const tags = useProductTags({ initialTags: product.tags ?? [], allTags, fetcher, productId: product.id });
 
@@ -14,8 +17,8 @@ export default function ProductDetailOrganisation({ product, allCollections, all
   const pill = {
     display: "inline-flex", alignItems: "center", gap: 6,
     padding: "5px 10px", borderRadius: 999,
-    border: "1px solid var(--p-color-border)",
-    background: "var(--p-color-bg-surface-secondary)",
+    border: isDark ? "1px solid rgba(255,255,255,0.28)" : "1px solid var(--p-color-border)",
+    background: isDark ? "rgba(255,255,255,0.08)" : "var(--p-color-bg-surface-secondary)",
     fontSize: 12, lineHeight: 1,
   };
   const removeBtn = {
