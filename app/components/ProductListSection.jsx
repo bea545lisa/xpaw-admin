@@ -13,6 +13,7 @@ export default function ProductListSection({
   fetcher, setToast, allTags, allCollections,
   handleBulkDelete,
   host, shop,
+  locales, translatedLocalesByProduct,
   mode, visibleCount, setVisibleCount,
   currentPage, setCurrentPage, totalPages,
 }) {
@@ -80,6 +81,8 @@ export default function ProductListSection({
             products={visibleProducts}
             host={host}
             shop={shop}
+            locales={locales}
+            translatedLocalesByProduct={translatedLocalesByProduct}
             setProductList={setLocalProducts}
             selectedIds={selectedIds}
             toggleSelect={toggleSelect}

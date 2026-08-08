@@ -52,7 +52,7 @@ export function HydrateFallback() {
 export default function Products() {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { products: initialProducts, host, locationId, shop } = useLoaderData();
+  const { products: initialProducts, host, locationId, shop, locales = [], translatedLocalesByProduct = {} } = useLoaderData();
   const location = useLocation();
 
   const [editId, setEditId] = useState(null);
@@ -244,6 +244,8 @@ export default function Products() {
                   handleBulkDelete={handleBulkDelete}
                   host={host}
                   shop={shop}
+                  locales={locales}
+                  translatedLocalesByProduct={translatedLocalesByProduct}
                   mode={mode}
                   visibleCount={visibleCount}
                   setVisibleCount={setVisibleCount}

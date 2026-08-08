@@ -5,6 +5,7 @@ import { useProductContext } from "../../../context/ProductContext.jsx";
 import { useNavigate, useLocation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useColorScheme } from "../../../context/ColorSchemeContext.js";
+import LocaleFlag from "../../shared/LocaleFlag.jsx";
 
 import {
   ViewIcon,
@@ -119,7 +120,7 @@ function ImageStrip({ product, onClick }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ProductItem({
-  product, selected, onSelect, isPendingDelete, isRestored, index, shop }) {
+  product, selected, onSelect, isPendingDelete, isRestored, index, shop, translatedLocales = [] }) {
 
   const { onDelete, onStatusToggle, onTitleSave, onDuplicate, openMenuId, setOpenMenuId } = useProductContext();
   const { colorScheme } = useColorScheme();
@@ -286,18 +287,25 @@ export default function ProductItem({
                           <Button size="slim" onClick={() => { setTitleValue(product.node.title); setEditingTitle(false); }}>✕</Button>
                         </div>
                       ) : (
-                        <Text variant="bodyMd" fontWeight="semibold">
-                          <span
-                            style={{
-                              cursor: "pointer",
-                              color: isDark ? "#f3f4f6" : "#111827",
-                            }}
-                            onClick={(e) => { e.stopPropagation(); handleTitleClick(); }}
-                            title="Klicken zum Bearbeiten"
-                          >
-                            {product.node.title}
-                          </span>
-                        </Text>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Text variant="bodyMd" fontWeight="semibold">
+                            <span
+                              style={{
+                                cursor: "pointer",
+                                color: isDark ? "#f3f4f6" : "#111827",
+                              }}
+                              onClick={(e) => { e.stopPropagation(); handleTitleClick(); }}
+                              title="Klicken zum Bearbeiten"
+                            >
+                              {product.node.title}
+                            </span>
+                          </Text>
+                          {translatedLocales.map((loc) => (
+                            <span key={loc.locale} title={`Übersetzung vorhanden (${loc.name})`}>
+                              <LocaleFlag locale={loc.locale} round size={12} />
+                            </span>
+                          ))}
+                        </div>
                       )}
                       {(templateBadge || showMetaRow) && (
                         <div
@@ -323,7 +331,7 @@ export default function ProductItem({
                               {metaFields.map((f, i) => (
                                 <span key={f.id}>
                                   {i > 0 && "  ·  "}
-                                  <strong style={{ color: isDark ? "#b0b7c3" : "#6b7280" }}>{f.key}</strong>: {f.value}
+                                  <strong style={{ color: isDark ? "#b0b7c3" : "#6b7280" }}>{f.key}</strong>: {f.displayValue ?? f.value}
                                 </span>
                               ))}
                             </span>

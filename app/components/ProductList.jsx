@@ -6,6 +6,7 @@ import { useProductContext } from "../context/ProductContext";
 export default function ProductList({
   products,
   host, shop,
+  locales = [], translatedLocalesByProduct = {},
   selectedIds,
   toggleSelect,
   setProductList,
@@ -39,6 +40,7 @@ export default function ProductList({
                       product={p}
                       host={host}
                       shop={shop}
+                      translatedLocales={(translatedLocalesByProduct[p.node.id] ?? []).map((l) => locales.find((loc) => loc.locale === l)).filter(Boolean)}
                       selected={selectedIds.includes(p.node.id)}
                       onSelect={() => toggleSelect(p.node.id)}
                       isPendingDelete={pendingDeleteIds.includes(p.node.id)}
