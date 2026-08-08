@@ -61,7 +61,7 @@ export function useProductCollections({ initialCollections, allCollections, fetc
   };
 
   return {
-    localCollections, collectionSearch, setCollectionSearch,
+    localCollections, setLocalCollections, collectionSearch, setCollectionSearch,
     showCollectionSearch, setShowCollectionSearch,
     collectionResults, setCollectionResults,
     collectionInputRef, filteredCollectionSuggestions,

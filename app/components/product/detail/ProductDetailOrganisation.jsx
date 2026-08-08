@@ -1,11 +1,14 @@
 import { Card, BlockStack, Text, Button, InlineStack, Divider, TextField } from "@shopify/polaris";
-import { useEffect, useRef} from "react";
+import { GlobeIcon } from "@shopify/polaris-icons";
+import { useEffect, useRef, useState } from "react";
+import { useFetcher } from "react-router";
 import { useProductCollections } from "../../../hooks/useProductCollections.js";
 import { useProductTags } from "../../../hooks/useProductTags.js";
 import PositionedDropdown from "../../ui/PositionedDropdown.jsx";
 import { useColorScheme } from "../../../context/ColorSchemeContext.js";
+import LocaleFlag from "../../shared/LocaleFlag.jsx";
 
-export default function ProductDetailOrganisation({ product, allCollections, allTags, fetcher }) {
+export default function ProductDetailOrganisation({ product, allCollections, allTags, fetcher, setToast, locales = [] }) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const collections = useProductCollections({ initialCollections: product.collections?.edges?.map(e => e.node) ?? [], allCollections, fetcher, productId: product.id });
@@ -13,6 +16,101 @@ export default function ProductDetailOrganisation({ product, allCollections, all
 
   const tagInputRef = useRef(null);
   const collectionInputRef = useRef(null);
+
+  // ── Collection-Pill: deutschen Titel umbenennen ──
+  const renameCollectionFetcher = useFetcher();
+  const [collectionTitleDrafts, setCollectionTitleDrafts] = useState({}); // { [id]: draftTitle }
+
+  const saveCollectionTitle = (c) => {
+    const draft = (collectionTitleDrafts[c.id] ?? c.title).trim();
+    if (!draft || draft === c.title) return;
+    renameCollectionFetcher.submit({ action: "updateCollectionTitle", id: c.id, title: draft }, { method: "POST" });
+  };
+
+  useEffect(() => {
+    if (renameCollectionFetcher.state !== "idle" || renameCollectionFetcher.data?.type !== "updateCollectionTitle") return;
+    const d = renameCollectionFetcher.data;
+    if (!d.ok) { setToast?.(`Fehler: ${d.error}`); return; }
+    collections.setLocalCollections((prev) => prev.map((c) => c.id === d.id ? { ...c, title: d.title } : c));
+    setCollectionTitleDrafts((prev) => { const n = { ...prev }; delete n[d.id]; return n; });
+    setToast?.("Kollektion umbenannt");
+  }, [renameCollectionFetcher.state, renameCollectionFetcher.data]);
+
+  // ── Collection-Pill: Titel-Übersetzung ──
+  const translationLocales = locales.filter((l) => !l.primary);
+  const primaryLocale = locales.find((l) => l.primary)?.locale;
+  const pillTranslationFetcher = useFetcher();
+  const savePillTranslationFetcher = useFetcher();
+  const autoTranslatePillFetcher = useFetcher();
+  const [openPillTranslation, setOpenPillTranslation] = useState(null); // collection id oder null
+  const [pillTranslationData, setPillTranslationData] = useState({}); // { [id]: { digest, translations: { locale: value } } }
+  const [pillTranslationDrafts, setPillTranslationDrafts] = useState({}); // `${id}:${locale}` -> value
+  const [autoTranslatingPillKey, setAutoTranslatingPillKey] = useState(null); // `${id}:${locale}`
+
+  const togglePillTranslation = (c) => {
+    const willOpen = openPillTranslation !== c.id;
+    setOpenPillTranslation(willOpen ? c.id : null);
+    if (!willOpen || pillTranslationData[c.id] || translationLocales.length === 0) return;
+    pillTranslationFetcher.submit(
+      { action: "getCollectionPillTranslation", id: c.id, locales: JSON.stringify(translationLocales.map((l) => l.locale)) },
+      { method: "POST" }
+    );
+  };
+
+  useEffect(() => {
+    if (pillTranslationFetcher.state !== "idle" || pillTranslationFetcher.data?.type !== "getCollectionPillTranslation") return;
+    const d = pillTranslationFetcher.data;
+    setPillTranslationData((prev) => ({ ...prev, [d.id]: { digest: d.digest, translations: d.translations } }));
+  }, [pillTranslationFetcher.state, pillTranslationFetcher.data]);
+
+  useEffect(() => {
+    if (savePillTranslationFetcher.state !== "idle" || savePillTranslationFetcher.data?.type !== "saveCollectionPillTranslation") return;
+    const d = savePillTranslationFetcher.data;
+    if (!d.ok) { setToast?.(`Fehler: ${d.error}`); return; }
+    setPillTranslationData((prev) => {
+      const entry = prev[d.id];
+      if (!entry) return prev;
+      return { ...prev, [d.id]: { ...entry, translations: { ...entry.translations, [d.locale]: d.value } } };
+    });
+    setToast?.("Übersetzung gespeichert");
+  }, [savePillTranslationFetcher.state, savePillTranslationFetcher.data]);
+
+  const savePillTranslation = (id, locale) => {
+    const entry = pillTranslationData[id];
+    if (!entry?.digest) return;
+    const dk = `${id}:${locale}`;
+    const value = pillTranslationDrafts[dk] ?? entry.translations[locale] ?? "";
+    savePillTranslationFetcher.submit(
+      { action: "saveCollectionPillTranslation", id, locale, value, digest: entry.digest },
+      { method: "POST" }
+    );
+  };
+
+  useEffect(() => {
+    if (autoTranslatePillFetcher.state !== "idle" || autoTranslatePillFetcher.data?.type !== "autoTranslateCollectionPill") return;
+    const d = autoTranslatePillFetcher.data;
+    setAutoTranslatingPillKey(null);
+    if (!d.ok) { setToast?.(`Fehler: ${d.error}`); return; }
+    setPillTranslationData((prev) => {
+      const entry = prev[d.id];
+      if (!entry) return prev;
+      return { ...prev, [d.id]: { ...entry, translations: { ...entry.translations, [d.locale]: d.value } } };
+    });
+    setPillTranslationDrafts((prev) => {
+      const next = { ...prev };
+      delete next[`${d.id}:${d.locale}`];
+      return next;
+    });
+    setToast?.("Automatisch übersetzt");
+  }, [autoTranslatePillFetcher.state, autoTranslatePillFetcher.data]);
+
+  const handleAutoTranslatePill = (id, locale) => {
+    setAutoTranslatingPillKey(`${id}:${locale}`);
+    autoTranslatePillFetcher.submit(
+      { action: "autoTranslateCollectionPill", id, locale, sourceLocale: primaryLocale ?? "de" },
+      { method: "POST" }
+    );
+  };
 
   const pill = {
     display: "inline-flex", alignItems: "center", gap: 6,
@@ -55,13 +153,85 @@ export default function ProductDetailOrganisation({ product, allCollections, all
             <Text variant="bodySm" fontWeight="semibold">Collections</Text>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               {collections.localCollections.map((c) => (
-                <span key={c.id} style={pill}>
+                <span key={c.id} style={{ ...pill, cursor: translationLocales.length > 0 ? "pointer" : "default" }} onClick={() => translationLocales.length > 0 && togglePillTranslation(c)}>
                   {c.title}
-                  <button onClick={() => collections.handleCollectionRemove(c.id)} style={removeBtn}>✕</button>
+                  <button onClick={(e) => { e.stopPropagation(); collections.handleCollectionRemove(c.id); }} style={removeBtn}>✕</button>
                 </span>
               ))}
               <Button size="micro" onClick={() => { collections.setShowCollectionSearch(true); collections.setCollectionResults(allCollections); }}>+</Button>
             </div>
+
+            {openPillTranslation && translationLocales.length > 0 && (() => {
+              const c = collections.localCollections.find((col) => col.id === openPillTranslation);
+              if (!c) return null;
+              const entry = pillTranslationData[c.id];
+              return (
+                <div style={{
+                  display: "flex", flexDirection: "column", gap: 8,
+                  padding: 10, borderRadius: 8,
+                  border: `1px solid ${isDark ? "#4a4a4a" : "var(--p-color-border)"}`,
+                  background: isDark ? "rgba(255,255,255,0.06)" : "var(--p-color-bg-surface-secondary)",
+                }}>
+                  <InlineStack gap="100" blockAlign="center" wrap={false}>
+                    {primaryLocale && (
+                      <span style={{ width: 20, flexShrink: 0, display: "flex", justifyContent: "flex-start" }}>
+                        <LocaleFlag locale={primaryLocale} size={20} round />
+                      </span>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <TextField
+                        label="" labelHidden autoComplete="off"
+                        value={collectionTitleDrafts[c.id] ?? c.title}
+                        onChange={(val) => setCollectionTitleDrafts((prev) => ({ ...prev, [c.id]: val }))}
+                        onBlur={() => saveCollectionTitle(c)}
+                      />
+                    </div>
+                    <div style={{ width: 96, flexShrink: 0 }} />
+                  </InlineStack>
+
+                  {!entry ? (
+                    <Text variant="bodyXs" tone="subdued">Lade…</Text>
+                  ) : (
+                    translationLocales.map((loc) => {
+                      const dk = `${c.id}:${loc.locale}`;
+                      const existing = entry.translations?.[loc.locale] ?? "";
+                      const autoKey = `${c.id}:${loc.locale}`;
+                      return (
+                        <InlineStack key={loc.locale} gap="100" blockAlign="center" wrap={false}>
+                          <span style={{ width: 20, flexShrink: 0, display: "flex", justifyContent: "flex-start" }}>
+                            <LocaleFlag locale={loc.locale} title={loc.name} size={20} round />
+                          </span>
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="" labelHidden
+                              disabled={!entry.digest}
+                              placeholder={entry.digest ? c.title : "Erst auf der Kollektionsseite speichern"}
+                              value={pillTranslationDrafts[dk] ?? existing}
+                              onChange={(val) => setPillTranslationDrafts((prev) => ({ ...prev, [dk]: val }))}
+                              onBlur={() => savePillTranslation(c.id, loc.locale)}
+                              autoComplete="off"
+                            />
+                          </div>
+                          <Button
+                            size="micro"
+                            icon={GlobeIcon}
+                            disabled={!entry.digest || autoTranslatingPillKey === autoKey}
+                            onClick={() => handleAutoTranslatePill(c.id, loc.locale)}
+                          >
+                            {autoTranslatingPillKey === autoKey ? "Übersetze…" : "Übersetzen"}
+                          </Button>
+                        </InlineStack>
+                      );
+                    })
+                  )}
+
+                  <InlineStack align="end">
+                    <Button size="slim" onClick={() => setOpenPillTranslation(null)}>Fertig</Button>
+                  </InlineStack>
+                </div>
+              );
+            })()}
+
             {collections.showCollectionSearch && (
               <div style={{ position: "relative" }}>
                 <div ref={collectionInputRef}>

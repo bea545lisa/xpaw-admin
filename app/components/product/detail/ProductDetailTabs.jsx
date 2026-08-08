@@ -60,7 +60,7 @@ export default function ProductDetailTabs({
      variantDraft, setVariantDraft,
      editingVariantId, setEditingVariantId,
      openVariantEdit, handleVariantSave, isSaving,
-     metafields, allMetafieldDefinitions, defaultMetafieldOrder, locales, product, fetcher, setToast,
+     metafields, allMetafieldDefinitions, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, product, fetcher, setToast,
      localImages, onVariantImageAssign,
      skuFormat,
    }) {
@@ -82,15 +82,17 @@ export default function ProductDetailTabs({
   }, [fetcher.data]);
 
   return (
-    <>
-      <Card>
-        <BlockStack gap="300">
+    <Card>
+      <BlockStack gap="300">
+        <div style={{ marginLeft: -16 }}>
           <Tabs tabs={detailTabs} selected={selectedDetailTab} onSelect={setSelectedDetailTab} />
-        </BlockStack>
-      </Card>
+        </div>
+      </BlockStack>
+
+      <div style={{ height: 20 }} />
 
       {selectedDetailTab === 0 ? (
-        <>
+        <BlockStack gap="300">
           <ProductDetailOptions
             optionDrafts={optionDrafts}
             setOptionDrafts={setOptionDrafts}
@@ -98,10 +100,14 @@ export default function ProductDetailTabs({
             handleOptionsSave={handleOptionsSave}
             optionsNotice={optionsNotice}
             setToast={setToast}
+            locales={locales}
+            productId={product.id}
+            productImages={product.images?.edges?.map((e) => e.node) ?? []}
+            optionSwatches={optionSwatches}
           />
 
-          <Card>
-            <BlockStack gap="300">
+          <div style={{ borderTop: `1px dashed ${isDark ? "#6b6b6b" : "#c4c4c4"}` }} />
+          <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
                 <Text variant="headingSm">
                   {hasVariants ? `Varianten (${totalVariants})` : "Preis & Lager"}
@@ -168,7 +174,6 @@ export default function ProductDetailTabs({
 
                       <div key={v.id} style={{
                         borderBottom: "1px solid var(--p-color-border-subdued)",
-                        background: outOfStock && !isEditing ? (isDark ? "#3a2a1a" : "#fff7ed") : "transparent",
                       }}>
 
                         {/* Tabellenzeile */}
@@ -193,10 +198,10 @@ export default function ProductDetailTabs({
                           </div>
 
                           <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                            <span style={{ ...cellStyle(), color: outOfStock ? "#f97316" : "inherit" }}>
+                            <span style={{ ...cellStyle(), color: outOfStock ? "tomato" : "inherit" }}>
                               {hasVariants ? v.title : "Standard"}
                             </span>
-                            {outOfStock && <span style={{ fontSize: 11, flexShrink: 0 }}>⚠</span>}
+                            {outOfStock && <span style={{ fontSize: 11, flexShrink: 0, color: "tomato" }}>⚠</span>}
                             {isSale && <span style={{ fontSize: "10px", background: isDark ? "#3a1a1a" : "#fee2e2", color: isDark ? "#f87171" : "#dc2626", borderRadius: 999, padding: "3px 8px", fontWeight: 600, flexShrink: 0 }}>SALE</span>}
                           </div>
 
@@ -212,7 +217,7 @@ export default function ProductDetailTabs({
                             {v.compareAtPrice ? `€${parseFloat(v.compareAtPrice).toFixed(2)}` : "—"}
                           </span>
 
-                          <span style={{ ...cellStyle("right"), color: outOfStock ? "#f97316" : "var(--p-color-text-secondary)" }}>
+                          <span style={{ ...cellStyle("right"), color: outOfStock ? "tomato" : "var(--p-color-text-secondary)" }}>
                             {v.inventoryQuantity ?? 0}
                           </span>
 
@@ -323,46 +328,23 @@ export default function ProductDetailTabs({
                 </BlockStack>
               )}
             </BlockStack>
-          </Card>
-        </>
-
-      /*) : selectedDetailTab === 1 ? (
-        <Card>
-          <BlockStack gap="300">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text variant="headingSm">Shipping</Text>
-              <Text variant="bodySm" tone="subdued">Versand pro Variante</Text>
-            </InlineStack>
-            <Divider />
-            <BlockStack gap="200">
-              {localVariants.map((variant) => (
-                <div key={variant.id} style={{ display: "grid", gap: 8, padding: 12, borderRadius: 8, border: "1px solid var(--p-color-border-subdued)" }}>
-                  <InlineStack align="space-between" blockAlign="center" wrap>
-                    <Text variant="bodySm" fontWeight="semibold">{variant.title || "Standard"}</Text>
-                    <Badge tone={variant.inventoryItem?.requiresShipping ? "success" : "warning"}>
-                      {variant.inventoryItem?.requiresShipping ? "Versand erforderlich" : "Kein Versand"}
-                    </Badge>
-                  </InlineStack>
-                  <Text variant="bodySm" tone="subdued">
-                    {variant.inventoryItem?.tracked ? "Inventar wird verfolgt" : "Inventar wird nicht verfolgt"}
-                  </Text>
-                </div>
-              ))}
-            </BlockStack>
           </BlockStack>
-        </Card>
-      */
+
       ) : (
-        <ProductDetailMetafields
-          metafields={metafields}
-          allMetafieldDefinitions={allMetafieldDefinitions}
-          defaultMetafieldOrder={defaultMetafieldOrder}
-          locales={locales}
-          productId={product.id}
-          fetcher={fetcher}
-          setToast={setToast}
-        />
+        <BlockStack gap="300">
+          <ProductDetailMetafields
+            metafields={metafields}
+            allMetafieldDefinitions={allMetafieldDefinitions}
+            defaultMetafieldOrder={defaultMetafieldOrder}
+            locales={locales}
+            shopId={shopId}
+            fieldLabels={fieldLabels}
+            productId={product.id}
+            fetcher={fetcher}
+            setToast={setToast}
+          />
+        </BlockStack>
       )}
-    </>
+    </Card>
   );
 }

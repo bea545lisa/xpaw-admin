@@ -6,6 +6,7 @@ import { collectionsLoader } from "../loaders/collections.loader.server";
 import { collectionsAction } from "../actions/collections.action.server";
 import { CollectionIcon, SearchIcon, PlusIcon, EditIcon, DeleteIcon } from "@shopify/polaris-icons";
 import DeleteModal from "../components/shared/DeleteModal";
+import LocaleFlag from "../components/shared/LocaleFlag";
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
@@ -20,8 +21,10 @@ export const action = async ({ request }) => {
 export default function CollectionsPage() {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { collections } = useLoaderData();
+  const { collections, locales, translatedLocalesByCollection = {} } = useLoaderData();
   const fetcher = useFetcher();
+  const translationFetcher = useFetcher();
+  const saveTranslationFetcher = useFetcher();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,6 +38,8 @@ export default function CollectionsPage() {
 
   const [renameTarget, setRenameTarget] = useState(null); // { id, title }
   const [renameTitle, setRenameTitle] = useState("");
+  const [renameTranslations, setRenameTranslations] = useState(null); // { digest, translations: { locale: value } }
+  const [renameTranslationDrafts, setRenameTranslationDrafts] = useState({});
 
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, title }
 
@@ -77,6 +82,30 @@ export default function CollectionsPage() {
     fd.append("intent", "create");
     fd.append("title", createTitle.trim());
     fetcher.submit(fd, { method: "post" });
+  };
+
+  // Übersetzungen für Rename-Modal laden
+  useEffect(() => {
+    if (translationFetcher.state !== "idle" || translationFetcher.data?.intent !== "getTitleTranslation") return;
+    const d = translationFetcher.data;
+    setRenameTranslations({ digest: d.digest, translations: d.translations });
+  }, [translationFetcher.state, translationFetcher.data]);
+
+  useEffect(() => {
+    if (saveTranslationFetcher.state !== "idle" || saveTranslationFetcher.data?.intent !== "saveTitleTranslation") return;
+    const d = saveTranslationFetcher.data;
+    if (d.error) { setToast(`Fehler: ${d.error}`); return; }
+    setRenameTranslations((prev) => prev && { ...prev, translations: { ...prev.translations, [d.locale]: d.value } });
+    setToast("Übersetzung gespeichert");
+  }, [saveTranslationFetcher.state, saveTranslationFetcher.data]);
+
+  const saveRenameTranslation = (locale) => {
+    if (!renameTarget || !renameTranslations?.digest) return;
+    const value = renameTranslationDrafts[locale] ?? renameTranslations.translations[locale] ?? "";
+    saveTranslationFetcher.submit(
+      { intent: "saveTitleTranslation", id: renameTarget.id, locale, value, digest: renameTranslations.digest },
+      { method: "post" }
+    );
   };
 
   const submitRename = () => {
@@ -128,6 +157,7 @@ export default function CollectionsPage() {
           <tr style={{ background: isDark ? "#222" : "#f9f9f9", borderBottom: `1px solid ${isDark ? "#444" : "#e3e3e3"}` }}>
             <th style={thStyle}>Titel</th>
             <th style={thStyle}>Beschreibung</th>
+            <th style={thStyle}>Übersetzungen</th>
             <th style={thStyle}>Produkte</th>
             <th style={thStyle}>Geändert am</th>
             <th style={{ ...thStyle, width: 72, minWidth: 72, padding: "10px 8px" }} />
@@ -136,7 +166,7 @@ export default function CollectionsPage() {
           <tbody>
           {collections.length === 0 && (
             <tr>
-              <td colSpan={4} style={{ padding: 32, textAlign: "center", color: "#888" }}>
+              <td colSpan={5} style={{ padding: 32, textAlign: "center", color: "#888" }}>
                 Keine Kollektionen gefunden
               </td>
             </tr>
@@ -147,7 +177,19 @@ export default function CollectionsPage() {
               collection={col}
               isDark={isDark}
               index={i}
-              onRename={() => { setRenameTarget(col); setRenameTitle(col.title); }}
+              translatedLocales={(translatedLocalesByCollection[col.id] ?? []).map((l) => locales.find((loc) => loc.locale === l)).filter(Boolean)}
+              onRename={() => {
+                setRenameTarget(col);
+                setRenameTitle(col.title);
+                setRenameTranslations(null);
+                setRenameTranslationDrafts({});
+                if (locales.length > 0) {
+                  translationFetcher.submit(
+                    { intent: "getTitleTranslation", id: col.id, locales: JSON.stringify(locales.map((l) => l.locale)) },
+                    { method: "post" }
+                  );
+                }
+              }}
               onDelete={() => setDeleteTarget(col)}
               onOpen={() => navigate(`/app/collections/${col.id.split("/").pop()}`, { state: { from: `${location.pathname}${location.search}` } })}
             />
@@ -185,14 +227,41 @@ export default function CollectionsPage() {
           confirmLabel="Speichern"
           disabled={isBusy || !renameTitle.trim()}
         >
-          <input
-            autoFocus
-            value={renameTitle}
-            onChange={(e) => setRenameTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitRename()}
-            placeholder="Neuer Titel"
-            style={inputStyle}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 24, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+              <LocaleFlag locale="de" title="Deutsch" round />
+            </span>
+            <input
+              autoFocus
+              value={renameTitle}
+              onChange={(e) => setRenameTitle(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitRename()}
+              placeholder="Neuer Titel"
+              style={{ ...inputStyle, marginBottom: 0 }}
+            />
+          </div>
+          {locales.length > 0 && (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              {!renameTranslations ? (
+                <div style={{ fontSize: 12, color: "#9ca3af" }}>Lade Übersetzungen…</div>
+              ) : locales.map((loc) => (
+                <div key={loc.locale} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 24, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+                    <LocaleFlag locale={loc.locale} title={loc.name} round />
+                  </span>
+                  <input
+                    disabled={!renameTranslations.digest}
+                    placeholder={renameTranslations.digest ? (renameTitle || "Titel") : "Erst Original speichern"}
+                    value={renameTranslationDrafts[loc.locale] ?? renameTranslations.translations[loc.locale] ?? ""}
+                    onChange={(e) => setRenameTranslationDrafts((prev) => ({ ...prev, [loc.locale]: e.target.value }))}
+                    onBlur={() => saveRenameTranslation(loc.locale)}
+                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                    style={{ ...inputStyle, marginBottom: 0, fontSize: 13, opacity: renameTranslations.digest ? 1 : 0.5 }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </Modal>
       )}
 
@@ -223,7 +292,7 @@ export default function CollectionsPage() {
 
 // ── Hilfskomponenten ──────────────────────────────────────────────────
 
-function CollectionRow({ collection, isDark, onRename, onDelete, onOpen, index }) {
+function CollectionRow({ collection, isDark, onRename, onDelete, onOpen, index, translatedLocales = [] }) {
   const [hovered, setHovered] = useState(false);
 
   const description = collection.descriptionHtml
@@ -252,6 +321,19 @@ function CollectionRow({ collection, isDark, onRename, onDelete, onOpen, index }
           <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             {description}
           </span>
+        ) : (
+          <span style={{ color: isDark ? "#4b5563" : "#d1d5db" }}>—</span>
+        )}
+      </td>
+      <td style={tdStyle}>
+        {translatedLocales.length > 0 ? (
+          <div style={{ display: "flex", gap: 4 }}>
+            {translatedLocales.map((loc) => (
+              <span key={loc.locale} title={`Übersetzung vorhanden (${loc.name})`}>
+                <LocaleFlag locale={loc.locale} title={loc.name} round size={16} />
+              </span>
+            ))}
+          </div>
         ) : (
           <span style={{ color: isDark ? "#4b5563" : "#d1d5db" }}>—</span>
         )}

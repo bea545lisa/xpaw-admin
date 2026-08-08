@@ -352,6 +352,50 @@ export async function addProductMedia(admin, productId, resourceUrl) {
   return data.data.productCreateMedia.media[0];
 }
 
+// Eigenständige Datei über Shopifys Files-API (NICHT an das Produkt gebunden, taucht also nicht
+// in der normalen Produkt-Bildergalerie auf) — für Swatch-Muster, die nur als Minibild bei einem
+// Optionswert dienen sollen. Kann deshalb auch NICHT als Varianten-Bild verwendet werden, da
+// Shopifys Varianten-Bild-Zuordnung ausschließlich Produkt-Media akzeptiert.
+export async function createStandaloneFile(admin, resourceUrl) {
+  const res = await admin.graphql(`
+    mutation fileCreate($files: [FileCreateInput!]!) {
+      fileCreate(files: $files) {
+        files {
+          id
+          fileStatus
+          ... on MediaImage { image { url } }
+        }
+        userErrors { field message }
+      }
+    }
+  `, {
+    variables: {
+      files: [{
+        originalSource: resourceUrl,
+        contentType: "IMAGE",
+      }]
+    }
+  });
+  const data = await res.json();
+  const errors = data.data?.fileCreate?.userErrors ?? [];
+  if (errors.length) return { error: errors[0].message };
+  let file = data.data?.fileCreate?.files?.[0] ?? null;
+
+  // fileCreate verarbeitet asynchron — URL ist direkt danach oft noch leer. Kurz nachfragen.
+  for (let i = 0; i < 4 && file?.id && !file?.image?.url; i++) {
+    await new Promise((r) => setTimeout(r, 700));
+    const pollRes = await admin.graphql(`
+      query($id: ID!) {
+        node(id: $id) { ... on MediaImage { id fileStatus image { url } } }
+      }
+    `, { variables: { id: file.id } });
+    const pollJson = await pollRes.json();
+    file = pollJson.data?.node ?? file;
+  }
+
+  return { file };
+}
+
 export async function reorderProductMedia(admin, productId, mediaIds) {
   const res = await admin.graphql(`
     mutation reorderMedia($id: ID!, $moves: [MoveInput!]!) {

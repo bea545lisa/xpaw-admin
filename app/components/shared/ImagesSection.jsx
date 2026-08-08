@@ -1,11 +1,14 @@
 import { Text, BlockStack, Spinner, Banner, Icon } from "@shopify/polaris";
 import { ImageAddIcon } from "@shopify/polaris-icons";
+import { useColorScheme } from "../../context/ColorSchemeContext";
 
 export default function ImagesSection({
   localImages, setLocalImages,
   uploadingImage, uploadProgress, uploadError, setUploadError,
   fileInputRef, handleImagesUpload, reorderImages, deleteImage,
 }) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   return (
     <BlockStack gap="100">
       <div style={{ marginBottom: 0 }}>
@@ -72,10 +75,12 @@ export default function ImagesSection({
         onDrop={(e) => { e.preventDefault(); handleImagesUpload(Array.from(e.dataTransfer.files)); }}
         onClick={() => !uploadingImage && fileInputRef.current?.click()}
         style={{
-          border: "2px dashed var(--p-color-border)",
+          border: `1px solid ${isDark ? "#4a4a4a" : "var(--p-color-border)"}`,
           borderRadius: 8, padding: "20px", textAlign: "center",
           cursor: uploadingImage ? "not-allowed" : "pointer",
-          background: uploadingImage ? "var(--p-color-bg-surface-disabled)" : "var(--p-color-bg-surface-secondary)",
+          background: uploadingImage
+            ? "var(--p-color-bg-surface-disabled)"
+            : (isDark ? "rgba(255,255,255,0.06)" : "var(--p-color-bg-surface-secondary)"),
           transition: "background 0.2s",
           minHeight: 163,  
           display: "flex",

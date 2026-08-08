@@ -6,6 +6,7 @@ import { getMetafieldOrder, setMetafieldOrder } from "../services/settings.serve
 import { SettingsIcon, EditIcon, DeleteIcon, XIcon } from "@shopify/polaris-icons";
 import { Icon } from "@shopify/polaris";
 import DeleteModal from "../components/shared/DeleteModal";
+import LocaleFlag from "../components/shared/LocaleFlag.jsx";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -237,6 +238,7 @@ export default function MetafieldsPage() {
   const [editingKey, setEditingKey] = useState(null);
   const [editName, setEditName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [hoveredKey, setHoveredKey] = useState(null);
   const [fieldLabels, setFieldLabels] = useState(initialFieldLabels);
   const [labelDrafts, setLabelDrafts] = useState({});
 
@@ -301,6 +303,7 @@ export default function MetafieldsPage() {
   }, [labelFetcher.state, labelFetcher.data]);
 
   const draftKey = (locale, key) => `${locale}:${key}`;
+  const keyDerivedLabel = (key) => key.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 
   const saveLabel = (locale, key) => {
     const dk = draftKey(locale, key);
@@ -322,6 +325,11 @@ export default function MetafieldsPage() {
       { action: "updateDefinition", namespace: def.namespace, key: def.key, name: editName.trim() },
       { method: "POST" }
     );
+  };
+
+  const savePrimaryLabel = (def, locale) => {
+    saveEdit(def);
+    saveLabel(locale, def.key);
   };
 
   const confirmDelete = () => {
@@ -451,6 +459,8 @@ export default function MetafieldsPage() {
                 onDragEnd={() => setDragKey(null)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); handleDrop(def.key); }}
+                onMouseEnter={() => setHoveredKey(def.key)}
+                onMouseLeave={() => setHoveredKey(null)}
                 style={{
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "12px 16px",
@@ -461,32 +471,23 @@ export default function MetafieldsPage() {
 
                 {editingKey === def.key ? (
                   <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && saveEdit(def)}
-                      style={{
-                        width: 160, flexShrink: 0, padding: "6px 10px", borderRadius: 6, fontSize: 14,
-                        border: `1px solid ${isDark ? "#4a4a4a" : "#ddd"}`,
-                        background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111",
-                      }}
-                    />
-                    {def.type.name !== "list.metaobject_reference" && locales.map((loc) => {
+                    {locales.map((loc) => {
+                      const isPrimary = loc.primary;
                       const dk = draftKey(loc.locale, def.key);
                       return (
                         <div key={loc.locale} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 11, color: "#9ca3af", width: 24, flexShrink: 0, textAlign: "right" }}>
-                            {loc.locale.toUpperCase()}
+                          <span style={{ width: 20, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+                            <LocaleFlag locale={loc.locale} title={loc.name} size={20} round />
                           </span>
                           <input
-                            placeholder={loc.primary ? "Shop-Label (optional)" : `Label (${loc.name})`}
-                            value={labelDrafts[dk] ?? fieldLabels[loc.locale]?.[def.key] ?? ""}
-                            onChange={(e) => setLabelDrafts((prev) => ({ ...prev, [dk]: e.target.value }))}
-                            onBlur={() => saveLabel(loc.locale, def.key)}
+                            placeholder={isPrimary ? "Name" : keyDerivedLabel(def.key)}
+                            value={isPrimary ? editName : (labelDrafts[dk] ?? fieldLabels[loc.locale]?.[def.key] ?? "")}
+                            onChange={(e) => isPrimary ? setEditName(e.target.value) : setLabelDrafts((prev) => ({ ...prev, [dk]: e.target.value }))}
+                            onBlur={() => isPrimary ? savePrimaryLabel(def, loc.locale) : saveLabel(loc.locale, def.key)}
                             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                            title={`Shop-Label für ${loc.name} (${loc.locale})`}
+                            title={isPrimary ? "Name (Admin & Shop, Deutsch)" : `Shop-Label für ${loc.name} (${loc.locale})`}
                             style={{
-                              width: 130, padding: "5px 8px", borderRadius: 6, fontSize: 12,
+                              width: isPrimary ? 160 : 130, padding: isPrimary ? "6px 10px" : "5px 8px", borderRadius: 6, fontSize: isPrimary ? 14 : 12,
                               border: `1px solid ${isDark ? "#4a4a4a" : "#ddd"}`,
                               background: isDark ? "#2c2c2c" : "#fff", color: isDark ? "#e5e7eb" : "#111",
                             }}
@@ -494,7 +495,7 @@ export default function MetafieldsPage() {
                         </div>
                       );
                     })}
-                    <button onClick={() => saveEdit(def)} style={saveBtnStyle()}>Speichern</button>
+                    <button onClick={() => savePrimaryLabel(def, locales.find((l) => l.primary)?.locale)} style={saveBtnStyle()}>Speichern</button>
                     <button onClick={() => setEditingKey(null)} style={iconBtnStyle(isDark)} title="Abbrechen">
                       <Icon source={XIcon} tone="subdued" />
                     </button>
@@ -509,18 +510,21 @@ export default function MetafieldsPage() {
                           {locales.filter((loc) => fieldLabels[loc.locale]?.[def.key])
                             .map((loc) => (
                               <span key={loc.locale}>
-                                <strong>{loc.locale.toUpperCase()}:</strong> {fieldLabels[loc.locale][def.key]}{" "}
+                                <strong style={{ color: isDark ? "#e5e7eb" : "#111" }}>{loc.locale.toUpperCase()}:</strong>{" "}
+                                {fieldLabels[loc.locale][def.key]}{" "}
                               </span>
                             ))}
                         </div>
                       )}
                     </div>
-                    <button onClick={() => openEdit(def)} style={iconBtnStyle(isDark)} title="Umbenennen &amp; Shop-Labels">
-                      <Icon source={EditIcon} tone="subdued" />
-                    </button>
-                    <button onClick={() => setDeleteTarget(def)} style={iconBtnStyle(isDark, true)} title="Löschen">
-                      <Icon source={DeleteIcon} tone="critical" />
-                    </button>
+                    <div style={{ display: "flex", gap: 4, visibility: hoveredKey === def.key ? "visible" : "hidden" }}>
+                      <button onClick={() => openEdit(def)} style={iconBtnStyle(isDark)} title="Umbenennen &amp; Shop-Labels">
+                        <Icon source={EditIcon} tone="subdued" />
+                      </button>
+                      <button onClick={() => setDeleteTarget(def)} style={iconBtnStyle(isDark, true)} title="Löschen">
+                        <Icon source={DeleteIcon} tone="critical" />
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

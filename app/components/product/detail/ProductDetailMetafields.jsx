@@ -1,15 +1,23 @@
 import { useState, useRef, useEffect } from "react";
 import { useFetcher } from "react-router";
-import { Card, BlockStack, Text, Button, InlineStack, Divider, TextField, Icon, Modal } from "@shopify/polaris";
-import { EditIcon, XIcon, DeleteIcon } from "@shopify/polaris-icons";
+import { BlockStack, Text, Button, InlineStack, Divider, TextField, Icon, Modal } from "@shopify/polaris";
+import { EditIcon, XIcon, DeleteIcon, GlobeIcon } from "@shopify/polaris-icons";
 import PositionedDropdown from "../../ui/PositionedDropdown.jsx";
 import { useColorScheme } from "../../../context/ColorSchemeContext.js";
+import LocaleFlag from "../../shared/LocaleFlag.jsx";
+
+function keyDerivedLabel(key) {
+  return String(key ?? "").replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
 
 const METAOBJECT_REFERENCE_LIST = "list.metaobject_reference";
 // "eigenschaften" ist immer an den Metaobjekt-Typ "produktmerkmal" gebunden (siehe Metafield-
 // Definition in Shopify). Wird als Fallback gebraucht, solange noch keine Verknüpfung existiert
 // und der Typ sich nicht aus references[0] ableiten lässt.
 const EIGENSCHAFTEN_METAOBJECT_TYPE = "produktmerkmal";
+
+// Nur diese Metafield-Typen sind bei Shopify übersetzbar
+const TRANSLATABLE_TYPES = ["single_line_text_field", "multi_line_text_field", "json"];
 
 // Zerlegt ein referenziertes Metaobject in Label/Wert (Bezeichnung/Wert-Paar wie bei "eigenschaften")
 function splitMetaobjectFields(fields) {
@@ -54,7 +62,10 @@ function computeInitialOrder(fields, defaultOrder = []) {
 
 // Editor für list.metaobject_reference-Metafields: zeigt referenzierte
 // Metaobjects als Bezeichnung/Wert-Paare, erlaubt Hinzufügen/Entfernen
-function MetaobjectReferenceField({ field, productId, locales = [], onChange, onDelete, setToast, dragHandle }) {
+function MetaobjectReferenceField({
+  field, productId, locales = [], onChange, onDelete, setToast, dragHandle, editingRefId, setEditingRefId, closeOtherEditors,
+  shopId, fieldLabels, labelDrafts, setLabelDrafts, saveFieldLabel, labelDraftKey,
+}) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const searchFetcher = useFetcher();
@@ -62,17 +73,21 @@ function MetaobjectReferenceField({ field, productId, locales = [], onChange, on
   const metaobjectFetcher = useFetcher();
   const translationFetcher = useFetcher();
   const saveTranslationFetcher = useFetcher();
+  const autoTranslateFetcher = useFetcher();
+  const [autoTranslatingKey, setAutoTranslatingKey] = useState(null); // `${refId}:${locale}`
+  const [editingFieldLabel, setEditingFieldLabel] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [showBezeichnungDropdown, setShowBezeichnungDropdown] = useState(false);
   const [showWertDropdown, setShowWertDropdown] = useState(false);
   const [newDraft, setNewDraft] = useState({ bezeichnung: "", wert: "" });
-  const [editingRefId, setEditingRefId] = useState(null);
   const [editDraft, setEditDraft] = useState({ bezeichnung: "", wert: "" });
   // { [refId]: { translatableContent: [...], translations: { locale: [...] } } }
   const [translationData, setTranslationData] = useState({});
   const [translationDrafts, setTranslationDrafts] = useState({});
   const bezeichnungRef = useRef(null);
   const wertRef = useRef(null);
+
+  const primaryLocale = locales.find((l) => l.primary)?.locale;
 
   const references = field.references?.edges?.map((e) => e.node) ?? [];
   const metaobjectType = references[0]?.type
@@ -174,6 +189,7 @@ function MetaobjectReferenceField({ field, productId, locales = [], onChange, on
   };
 
   const openEditRef = (ref) => {
+    closeOtherEditors?.();
     setEditingRefId(ref.id);
     setEditDraft({
       bezeichnung: ref.fields.find((f) => f.key === "bezeichnung")?.value ?? "",
@@ -213,6 +229,35 @@ function MetaobjectReferenceField({ field, productId, locales = [], onChange, on
     setToast?.("Übersetzung gespeichert");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saveTranslationFetcher.state, saveTranslationFetcher.data]);
+
+  useEffect(() => {
+    if (autoTranslateFetcher.state !== "idle" || autoTranslateFetcher.data?.type !== "autoTranslateMetaobject") return;
+    const d = autoTranslateFetcher.data;
+    setAutoTranslatingKey(null);
+    if (!d.ok) { setToast?.(`Fehler: ${d.error}`); return; }
+    setTranslationData((prev) => {
+      const entry = prev[d.metaobjectId];
+      if (!entry) return prev;
+      return { ...prev, [d.metaobjectId]: { ...entry, translations: { ...entry.translations, [d.locale]: d.translations } } };
+    });
+    setTranslationDrafts((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        if (k.startsWith(`${d.metaobjectId}:${d.locale}:`)) delete next[k];
+      }
+      return next;
+    });
+    setToast?.("Automatisch übersetzt");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTranslateFetcher.state, autoTranslateFetcher.data]);
+
+  const handleAutoTranslate = (ref, locale) => {
+    setAutoTranslatingKey(`${ref.id}:${locale}`);
+    autoTranslateFetcher.submit(
+      { action: "autoTranslateMetaobject", metaobjectId: ref.id, locale, sourceLocale: primaryLocale },
+      { method: "POST" }
+    );
+  };
 
   const translationDraftKey = (refId, locale, key) => `${refId}:${locale}:${key}`;
 
@@ -266,26 +311,77 @@ function MetaobjectReferenceField({ field, productId, locales = [], onChange, on
     <div style={{ padding: "3px 0", borderBottom: "1px solid var(--p-color-border-subdued)" }}>
       <BlockStack gap="150">
         <InlineStack align="space-between" blockAlign="center">
-          <InlineStack gap="300" blockAlign="center">
+          <InlineStack gap="100" blockAlign="center">
             {dragHandle}
             <Text variant="bodySm" fontWeight="semibold">{field.definition?.name || field.key}</Text>
           </InlineStack>
-          <button
-            onClick={() => onDelete(field)}
-            style={{
-              background: "transparent",
-              border: "1px solid var(--p-color-border)",
-              borderRadius: 4, cursor: "pointer",
-              width: 28, height: 28,
-              display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
-              flexShrink: 0,
-            }}
-          >
-            <Icon source={DeleteIcon} tone="critical" />
-          </button>
+          <InlineStack gap="150" blockAlign="center" wrap={false}>
+            <button
+              onClick={() => setEditingFieldLabel((v) => !v)}
+              style={{
+                background: "transparent",
+                border: "1px solid var(--p-color-border)",
+                borderRadius: 4, cursor: "pointer",
+                width: 28, height: 28,
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+                flexShrink: 0,
+              }}
+              title="Feldname bearbeiten & übersetzen"
+            >
+              <span style={{ display: "flex", transform: editingFieldLabel ? "scale(1.2)" : "none" }}>
+                <Icon source={editingFieldLabel ? XIcon : EditIcon} tone="subdued" />
+              </span>
+            </button>
+            <button
+              onClick={() => onDelete(field)}
+              style={{
+                background: "transparent",
+                border: "1px solid var(--p-color-border)",
+                borderRadius: 4, cursor: "pointer",
+                width: 28, height: 28,
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+                flexShrink: 0,
+              }}
+            >
+              <Icon source={DeleteIcon} tone="critical" />
+            </button>
+          </InlineStack>
         </InlineStack>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        {editingFieldLabel && (
+          <div style={{
+            display: "flex", flexDirection: "column", gap: 8,
+            padding: 10, borderRadius: 8,
+            border: `1px solid ${isDark ? "#4a4a4a" : "var(--p-color-border)"}`,
+            background: isDark ? "rgba(255,255,255,0.06)" : "var(--p-color-bg-surface-secondary)",
+          }}>
+            {locales.map((loc) => {
+              const dk = labelDraftKey(field.key, loc.locale);
+              const value = labelDrafts[dk] ?? fieldLabels[loc.locale]?.[field.key] ?? "";
+              return (
+                <InlineStack key={loc.locale} gap="100" blockAlign="center" wrap={false}>
+                  <span style={{ width: 20, flexShrink: 0, display: "flex", justifyContent: "flex-start" }}>
+                    <LocaleFlag locale={loc.locale} title={loc.name} size={20} round />
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <TextField
+                      label="" labelHidden autoComplete="off"
+                      placeholder={keyDerivedLabel(field.key)}
+                      value={value}
+                      onChange={(val) => setLabelDrafts((prev) => ({ ...prev, [dk]: val }))}
+                      onBlur={() => saveFieldLabel(field, loc.locale)}
+                    />
+                  </div>
+                </InlineStack>
+              );
+            })}
+            <InlineStack align="end">
+              <Button size="slim" onClick={() => setEditingFieldLabel(false)}>Fertig</Button>
+            </InlineStack>
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", paddingLeft: 16 }}>
           {references.map((ref) => {
             if (editingRefId === ref.id) {
               const translationLocales = locales.filter((l) => !l.primary);
@@ -295,48 +391,60 @@ function MetaobjectReferenceField({ field, productId, locales = [], onChange, on
                   width: "100%", padding: 10, borderRadius: 8,
                   border: `1px dashed ${isDark ? "#4a4a4a" : "var(--p-color-border)"}`,
                 }}>
-                  <BlockStack gap="150">
-                    <InlineStack gap="100" blockAlign="end">
+                  <BlockStack gap="100">
+                    <InlineStack gap="100" blockAlign="end" wrap={false}>
+                      {primaryLocale && (
+                        <div style={{ width: 24, flexShrink: 0, display: "flex", justifyContent: "flex-start", marginRight: 6, paddingBottom: 8 }}>
+                          <LocaleFlag locale={primaryLocale} size={20} round />
+                        </div>
+                      )}
                       <div style={{ width: 130 }}>
-                        <TextField
-                          label="Bezeichnung"
-                          value={editDraft.bezeichnung}
-                          onChange={(val) => setEditDraft((d) => ({ ...d, bezeichnung: val }))}
-                          autoComplete="off"
-                        />
+                        <Text variant="bodyXs" tone="subdued" as="p">Bezeichnung</Text>
+                        <div style={{ marginTop: 6 }}>
+                          <TextField
+                            label="Bezeichnung"
+                            labelHidden
+                            value={editDraft.bezeichnung}
+                            onChange={(val) => setEditDraft((d) => ({ ...d, bezeichnung: val }))}
+                            autoComplete="off"
+                          />
+                        </div>
                       </div>
                       <div style={{ width: 150 }}>
-                        <TextField
-                          label="Wert"
-                          value={editDraft.wert}
-                          onChange={(val) => setEditDraft((d) => ({ ...d, wert: val }))}
-                          autoComplete="off"
-                        />
+                        <Text variant="bodyXs" tone="subdued" as="p">Wert</Text>
+                        <div style={{ marginTop: 6 }}>
+                          <TextField
+                            label="Wert"
+                            labelHidden
+                            value={editDraft.wert}
+                            onChange={(val) => setEditDraft((d) => ({ ...d, wert: val }))}
+                            autoComplete="off"
+                          />
+                        </div>
                       </div>
-                      <Button size="slim" onClick={() => setEditingRefId(null)}>Abbrechen</Button>
-                      <Button variant="primary" size="slim" onClick={() => saveEditRef(ref)}>Speichern</Button>
                     </InlineStack>
 
                     {translationLocales.length > 0 && (
                       <BlockStack gap="100">
-                        <Text variant="bodyXs" tone="subdued">Übersetzungen</Text>
                         {!entry ? (
                           <Text variant="bodyXs" tone="subdued">Lade…</Text>
                         ) : (
-                          translationLocales.map((loc) => (
-                            <InlineStack key={loc.locale} gap="100" blockAlign="center">
-                              <span style={{ fontSize: 11, color: "#9ca3af", width: 24, flexShrink: 0, textAlign: "right" }}>
-                                {loc.locale.toUpperCase()}
+                          translationLocales.map((loc) => {
+                            const autoKey = `${ref.id}:${loc.locale}`;
+                            return (
+                            <InlineStack key={loc.locale} gap="100" blockAlign="center" wrap={false}>
+                              <span style={{ width: 24, flexShrink: 0, display: "flex", justifyContent: "flex-start", marginRight: 6 }}>
+                                <LocaleFlag locale={loc.locale} title={loc.name} size={20} round />
                               </span>
-                              {["bezeichnung", "wert"].map((k) => {
+                              {["bezeichnung", "wert"].map((k, i) => {
                                 const dk = translationDraftKey(ref.id, loc.locale, k);
                                 const existing = entry.translations?.[loc.locale]?.find((t) => t.key === k)?.value ?? "";
                                 return (
-                                  <div key={k} style={{ width: 120 }}>
+                                  <div key={k} style={{ width: i === 0 ? 130 : 150 }}>
                                     <TextField
                                       label=""
                                       labelHidden
-                                      placeholder={k === "bezeichnung" ? "Bezeichnung" : "Wert"}
+                                      placeholder={(k === "bezeichnung" ? editDraft.bezeichnung : editDraft.wert) || (k === "bezeichnung" ? "Bezeichnung" : "Wert")}
                                       value={translationDrafts[dk] ?? existing}
                                       onChange={(val) => setTranslationDrafts((prev) => ({ ...prev, [dk]: val }))}
                                       onBlur={() => saveTranslation(ref, loc.locale, k)}
@@ -345,18 +453,31 @@ function MetaobjectReferenceField({ field, productId, locales = [], onChange, on
                                   </div>
                                 );
                               })}
+                              <Button size="slim" icon={GlobeIcon} onClick={() => handleAutoTranslate(ref, loc.locale)} disabled={autoTranslatingKey === autoKey}>
+                                {autoTranslatingKey === autoKey ? "Übersetze…" : "Übersetzen"}
+                              </Button>
                             </InlineStack>
-                          ))
+                            );
+                          })
                         )}
                       </BlockStack>
                     )}
+
+                    <InlineStack align="end" gap="150">
+                      <Button size="slim" onClick={() => setEditingRefId(null)}>Abbrechen</Button>
+                      <Button variant="primary" size="slim" onClick={() => saveEditRef(ref)}>Speichern</Button>
+                    </InlineStack>
                   </BlockStack>
                 </div>
               );
             }
             const { label, value } = splitMetaobjectFields(ref.fields);
+            const hasTranslations = Object.values(translationData[ref.id]?.translations ?? {}).some(
+              (list) => list?.some((t) => t.value?.trim())
+            );
             return (
               <span key={ref.id} style={{ ...pill, cursor: "pointer" }} onClick={() => openEditRef(ref)}>
+                {hasTranslations && <LocaleFlag locale={primaryLocale} round size={14} />}
                 <Text as="span" variant="bodySm">
                   {label && <Text as="span" variant="bodySm" fontWeight="semibold">{label}: </Text>}
                   <Text as="span" variant="bodySm" tone="subdued">{value}</Text>
@@ -429,14 +550,27 @@ function MetaobjectReferenceField({ field, productId, locales = [], onChange, on
   );
 }
 
-export default function ProductDetailMetafields({ metafields, allMetafieldDefinitions = [], defaultMetafieldOrder = [], locales = [], productId, fetcher, setToast }) {
+export default function ProductDetailMetafields({ metafields, allMetafieldDefinitions = [], defaultMetafieldOrder = [], locales = [], shopId, fieldLabels: initialFieldLabels = {}, productId, fetcher, setToast }) {
 
   const orderFetcher = useFetcher();
+  const metaTranslationFetcher = useFetcher();
+  const saveMetaTranslationFetcher = useFetcher();
+  const autoTranslateMetaFetcher = useFetcher();
+  const labelFetcher = useFetcher();
+  const [fieldLabels, setFieldLabels] = useState(initialFieldLabels);
+  const [labelDrafts, setLabelDrafts] = useState({}); // `${key}:${locale}` -> value
   const [localMetafields, setLocalMetafields] = useState(metafields);
   const [orderedKeys, setOrderedKeys] = useState(() => computeInitialOrder(metafields, defaultMetafieldOrder));
   const [dragKey, setDragKey] = useState(null);
   const [editingId, setEditingId] = useState(null);
+  const [editingRefId, setEditingRefId] = useState(null); // global über alle Eigenschaften-Felder hinweg — nur eine Pill gleichzeitig offen
   const [drafts, setDrafts] = useState({});
+  const [metaTranslationData, setMetaTranslationData] = useState({}); // { [fieldId]: { digest, translations: { locale: value } } }
+  const [metaTranslationDrafts, setMetaTranslationDrafts] = useState({}); // `${fieldId}:${locale}` -> value
+  const [autoTranslatingMetaKey, setAutoTranslatingMetaKey] = useState(null); // `${fieldId}:${locale}`
+
+  const primaryLocale = locales.find((l) => l.primary)?.locale;
+  const translationLocales = locales.filter((l) => !l.primary);
   const [showNew, setShowNew] = useState(false);
   const [showAddExisting, setShowAddExisting] = useState(false);
   const [newField, setNewField] = useState(EMPTY_NEW);
@@ -488,9 +622,11 @@ export default function ProductDetailMetafields({ metafields, allMetafieldDefini
     setDragKey(null);
   };
 
-  const saveAsDefaultOrder = () => {
-    persistOrder(orderedKeys, "default");
-    setToast?.("Als Standard-Reihenfolge gespeichert");
+  const loadDefaultOrder = () => {
+    const next = computeInitialOrder(visibleMetafields, defaultMetafieldOrder);
+    setOrderedKeys(next);
+    persistOrder(next, "product");
+    setToast?.("Standardreihenfolge geladen");
   };
 
   // Vorlagen: bereits im Store existierende Definitionen, die dieses Produkt noch nicht hat
@@ -534,11 +670,99 @@ export default function ProductDetailMetafields({ metafields, allMetafieldDefini
   );
 
   const openEdit = (field) => {
+    setEditingRefId(null);
     setEditingId(field.id);
     setDrafts((prev) => ({
       ...prev,
       [field.id]: { value: field.value ?? "", name: field.definition?.name ?? "" },
     }));
+    if (TRANSLATABLE_TYPES.includes(field.type) && translationLocales.length > 0 && !metaTranslationData[field.id]) {
+      metaTranslationFetcher.submit(
+        { action: "getMetafieldTranslation", metafieldId: field.id, locales: JSON.stringify(translationLocales.map((l) => l.locale)) },
+        { method: "POST" }
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (metaTranslationFetcher.state !== "idle" || metaTranslationFetcher.data?.type !== "getMetafieldTranslation") return;
+    const d = metaTranslationFetcher.data;
+    setMetaTranslationData((prev) => ({ ...prev, [d.metafieldId]: { digest: d.digest, translations: d.translations } }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaTranslationFetcher.state, metaTranslationFetcher.data]);
+
+  useEffect(() => {
+    if (saveMetaTranslationFetcher.state !== "idle" || saveMetaTranslationFetcher.data?.type !== "saveMetafieldTranslation") return;
+    const d = saveMetaTranslationFetcher.data;
+    if (!d.ok) { setToast?.(`Fehler: ${d.error}`); return; }
+    setMetaTranslationData((prev) => {
+      const entry = prev[d.metafieldId];
+      if (!entry) return prev;
+      return { ...prev, [d.metafieldId]: { ...entry, translations: { ...entry.translations, [d.locale]: d.value } } };
+    });
+    setToast?.("Übersetzung gespeichert");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveMetaTranslationFetcher.state, saveMetaTranslationFetcher.data]);
+
+  useEffect(() => {
+    if (autoTranslateMetaFetcher.state !== "idle" || autoTranslateMetaFetcher.data?.type !== "autoTranslateMetafield") return;
+    const d = autoTranslateMetaFetcher.data;
+    setAutoTranslatingMetaKey(null);
+    if (!d.ok) { setToast?.(`Fehler: ${d.error}`); return; }
+    setMetaTranslationData((prev) => {
+      const entry = prev[d.metafieldId];
+      if (!entry) return prev;
+      return { ...prev, [d.metafieldId]: { ...entry, translations: { ...entry.translations, [d.locale]: d.value } } };
+    });
+    setMetaTranslationDrafts((prev) => {
+      const next = { ...prev };
+      delete next[`${d.metafieldId}:${d.locale}`];
+      return next;
+    });
+    setToast?.("Automatisch übersetzt");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTranslateMetaFetcher.state, autoTranslateMetaFetcher.data]);
+
+  const saveMetaTranslation = (field, locale) => {
+    const entry = metaTranslationData[field.id];
+    if (!entry?.digest) return;
+    const value = metaTranslationDrafts[`${field.id}:${locale}`] ?? entry.translations[locale] ?? "";
+    saveMetaTranslationFetcher.submit(
+      { action: "saveMetafieldTranslation", metafieldId: field.id, locale, value, digest: entry.digest },
+      { method: "POST" }
+    );
+  };
+
+  const handleAutoTranslateMeta = (field, locale) => {
+    setAutoTranslatingMetaKey(`${field.id}:${locale}`);
+    autoTranslateMetaFetcher.submit(
+      { action: "autoTranslateMetafield", metafieldId: field.id, locale, sourceLocale: primaryLocale ?? "de" },
+      { method: "POST" }
+    );
+  };
+
+  useEffect(() => {
+    if (labelFetcher.state !== "idle" || labelFetcher.data?.type !== "saveFieldLabel") return;
+    const d = labelFetcher.data;
+    if (!d.ok) { setToast?.(`Fehler: ${d.userErrors?.[0]?.message ?? "unbekannt"}`); return; }
+    setFieldLabels((prev) => {
+      const next = { ...prev, [d.locale]: { ...prev[d.locale] } };
+      if (d.label) next[d.locale][d.key] = d.label; else delete next[d.locale][d.key];
+      return next;
+    });
+    setToast?.("Shop-Label gespeichert");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labelFetcher.state, labelFetcher.data]);
+
+  const labelDraftKey = (key, locale) => `${key}:${locale}`;
+
+  const saveFieldLabel = (field, locale) => {
+    const dk = labelDraftKey(field.key, locale);
+    const value = labelDrafts[dk] ?? fieldLabels[locale]?.[field.key] ?? "";
+    labelFetcher.submit(
+      { action: "saveFieldLabel", shopId, locale, key: field.key, label: value },
+      { method: "POST" }
+    );
   };
 
   const handleSave = (field) => {
@@ -626,7 +850,7 @@ export default function ProductDetailMetafields({ metafields, allMetafieldDefini
   };
 
 return (
-  <Card>
+  <>
     <BlockStack gap="300">
       <InlineStack align="space-between" blockAlign="center">
         <Text variant="headingSm">Metafields</Text>
@@ -649,9 +873,9 @@ return (
           >
             {showNew ? "Abbrechen" : "+ Neu"}
           </Button>
-          {orderedVisibleFields.length > 1 && (
-            <Button size="micro" onClick={saveAsDefaultOrder}>
-              Reihenfolge als Standard
+          {defaultMetafieldOrder.length > 0 && (
+            <Button size="micro" onClick={loadDefaultOrder}>
+              Standardreihenfolge laden
             </Button>
           )}
         </InlineStack>
@@ -857,6 +1081,15 @@ return (
                     setToast={setToast}
                     onDelete={requestDelete}
                     dragHandle={dragHandle}
+                    editingRefId={editingRefId}
+                    setEditingRefId={setEditingRefId}
+                    closeOtherEditors={() => setEditingId(null)}
+                    shopId={shopId}
+                    fieldLabels={fieldLabels}
+                    labelDrafts={labelDrafts}
+                    setLabelDrafts={setLabelDrafts}
+                    saveFieldLabel={saveFieldLabel}
+                    labelDraftKey={labelDraftKey}
                     onChange={(nextReferences) => {
                       setLocalMetafields((prev) => prev.map((f) =>
                         f.id === field.id
@@ -880,8 +1113,8 @@ return (
                 borderBottom: isEditing ? "1px solid rgba(128,128,128,0.5)" : "1px solid var(--p-color-border-subdued)",
                 opacity: dragKey === field.key ? 0.5 : 1,
               }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <InlineStack gap="300" blockAlign="center">
+                <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                  <InlineStack gap="100" blockAlign="center" wrap={false}>
                     {dragHandle}
                     {!isEditing && (
                       <div style={{ minWidth: 100 }}>
@@ -891,39 +1124,12 @@ return (
                     {!isEditing && (
                       <Text variant="bodySm" tone="subdued">{field.value || "—"}</Text>
                     )}
-                    {isEditing && (
-                      <InlineStack gap="200" blockAlign="start">
-                        <div style={{ width: 160 }}>
-                          <TextField
-                            label="Name"
-                            value={drafts[field.id]?.name ?? ""}
-                            onChange={(val) => setDrafts((prev) => ({ ...prev, [field.id]: { ...prev[field.id], name: val } }))}
-                            autoComplete="off"
-                          />
-                        </div>
-                        <div style={{ width: 320 }}>
-                          <TextField
-                            label="Wert"
-                            value={drafts[field.id]?.value ?? ""}
-                            onChange={(val) => setDrafts((prev) => ({ ...prev, [field.id]: { ...prev[field.id], value: val } }))}
-                            multiline={isMultiline(field.type) ? 3 : undefined}
-                            autoComplete="off"
-                          />
-                        </div>
-                        <div style={{ paddingTop: 24 }}>
-                          <InlineStack gap="150">
-                            <Button size="slim" onClick={() => setEditingId(null)}>Abbrechen</Button>
-                            <Button variant="primary" size="slim" onClick={() => handleSave(field)}>Speichern</Button>
-                          </InlineStack>
-                        </div>
-                      </InlineStack>
-                    )}
                   </InlineStack>
-                  <InlineStack gap="150" blockAlign="center">
+                  <InlineStack gap="150" blockAlign="center" wrap={false}>
                     <button
                       onClick={() => isEditing ? setEditingId(null) : openEdit(field)}
                       style={{
-                        background: isEditing ? "var(--p-color-bg-surface-selected)" : "transparent",
+                        background: "transparent",
                         border: "1px solid var(--p-color-border)",
                         borderRadius: 4, cursor: "pointer",
                         width: 28, height: 28,
@@ -931,7 +1137,9 @@ return (
                         flexShrink: 0,
                       }}
                     >
-                      <Icon source={isEditing ? XIcon : EditIcon} tone="subdued" />
+                      <span style={{ display: "flex", transform: isEditing ? "scale(1.2)" : "none" }}>
+                        <Icon source={isEditing ? XIcon : EditIcon} tone="subdued" />
+                      </span>
                     </button>
                     <button
                       onClick={() => requestDelete(field)}
@@ -948,6 +1156,104 @@ return (
                     </button>
                   </InlineStack>
                 </InlineStack>
+
+                {isEditing && (
+                  <div style={{
+                    width: "100%", marginTop: 10, padding: 10, borderRadius: 8,
+                    border: "1px dashed var(--p-color-border)",
+                  }}>
+                    <BlockStack gap="100">
+                      <InlineStack gap="100" blockAlign="start" wrap={false}>
+                        {primaryLocale && (
+                          <div style={{ width: 24, flexShrink: 0, display: "flex", justifyContent: "flex-start", marginRight: 6, paddingTop: 22 }}>
+                            <LocaleFlag locale={primaryLocale} size={20} round />
+                          </div>
+                        )}
+                        <div style={{ width: 160 }}>
+                          <Text variant="bodyXs" tone="subdued" as="p">Name</Text>
+                          <div style={{ marginTop: 6 }}>
+                            <TextField
+                              label="Name"
+                              labelHidden
+                              value={drafts[field.id]?.name ?? ""}
+                              onChange={(val) => setDrafts((prev) => ({ ...prev, [field.id]: { ...prev[field.id], name: val } }))}
+                              autoComplete="off"
+                            />
+                          </div>
+                        </div>
+                        <div style={{ width: 150 }}>
+                          <Text variant="bodyXs" tone="subdued" as="p">Wert</Text>
+                          <div style={{ marginTop: 6 }}>
+                            <TextField
+                              label="Wert"
+                              labelHidden
+                              value={drafts[field.id]?.value ?? ""}
+                              onChange={(val) => setDrafts((prev) => ({ ...prev, [field.id]: { ...prev[field.id], value: val } }))}
+                              multiline={isMultiline(field.type) ? 3 : undefined}
+                              autoComplete="off"
+                            />
+                          </div>
+                        </div>
+                      </InlineStack>
+
+                      {translationLocales.length > 0 && (
+                        <BlockStack gap="100">
+                          {translationLocales.map((loc) => {
+                            const isTranslatable = TRANSLATABLE_TYPES.includes(field.type);
+                            const autoKey = `${field.id}:${loc.locale}`;
+                            const dk = `${field.id}:${loc.locale}`;
+                            const labelDk = labelDraftKey(field.key, loc.locale);
+                            const labelValue = labelDrafts[labelDk] ?? fieldLabels[loc.locale]?.[field.key] ?? "";
+                            const entry = metaTranslationData[field.id];
+                            const existing = entry?.translations?.[loc.locale] ?? "";
+                            return (
+                              <InlineStack key={loc.locale} gap="100" blockAlign="center" wrap={false}>
+                                <span style={{ width: 24, flexShrink: 0, display: "flex", justifyContent: "flex-start", marginRight: 6 }}>
+                                  <LocaleFlag locale={loc.locale} title={loc.name} size={20} round />
+                                </span>
+                                <div style={{ width: 160 }}>
+                                  <TextField
+                                    label=""
+                                    labelHidden
+                                    placeholder={(primaryLocale && fieldLabels[primaryLocale]?.[field.key]) || keyDerivedLabel(field.key)}
+                                    value={labelValue}
+                                    onChange={(val) => setLabelDrafts((prev) => ({ ...prev, [labelDk]: val }))}
+                                    onBlur={() => saveFieldLabel(field, loc.locale)}
+                                    autoComplete="off"
+                                  />
+                                </div>
+                                {isTranslatable && (
+                                  <>
+                                    <div style={{ width: 150 }}>
+                                      <TextField
+                                        label=""
+                                        labelHidden
+                                        disabled={!entry?.digest}
+                                        placeholder={!entry ? "Lade…" : entry.digest ? (drafts[field.id]?.value ?? field.value ?? "Wert") : "Erst Original speichern"}
+                                        value={metaTranslationDrafts[dk] ?? existing}
+                                        onChange={(val) => setMetaTranslationDrafts((prev) => ({ ...prev, [dk]: val }))}
+                                        onBlur={() => saveMetaTranslation(field, loc.locale)}
+                                        autoComplete="off"
+                                      />
+                                    </div>
+                                    <Button size="slim" icon={GlobeIcon} disabled={!entry?.digest || autoTranslatingMetaKey === autoKey} onClick={() => handleAutoTranslateMeta(field, loc.locale)}>
+                                      {autoTranslatingMetaKey === autoKey ? "Übersetze…" : "Übersetzen"}
+                                    </Button>
+                                  </>
+                                )}
+                              </InlineStack>
+                            );
+                          })}
+                        </BlockStack>
+                      )}
+
+                      <InlineStack align="end" gap="150">
+                        <Button size="slim" onClick={() => setEditingId(null)}>Abbrechen</Button>
+                        <Button variant="primary" size="slim" onClick={() => handleSave(field)}>Speichern</Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -968,6 +1274,6 @@ return (
         <Text>Metafield <strong>{deleteTarget?.key}</strong> wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.</Text>
       </Modal.Section>
     </Modal>
-  </Card>
+  </>
 );
 }

@@ -91,7 +91,7 @@
 }
 
 /* ── Dark: Native Inputs & Selects ── */
-[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.toolbar-inline-input):not(.otb-input),
+[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.toolbar-inline-input):not(.otb-input):not(.rexpaw-inline-input),
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
   background: #1e1e1e !important;
@@ -99,7 +99,7 @@
   color: #e5e7eb !important;
   border-radius: 8px !important;
 }
-[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.toolbar-inline-input):not(.otb-input):focus,
+[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.toolbar-inline-input):not(.otb-input):not(.rexpaw-inline-input):focus,
 [data-theme="dark"] select:focus,
 [data-theme="dark"] textarea:focus {
   border-color: var(--accent-lightseagreen) !important;
