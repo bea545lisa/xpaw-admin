@@ -1,0 +1,23 @@
+node_modules
+.env
+.env.*
+dist
+build
+.cache
+.DS_Store
+
+.idea
+.vscode
+
+.react-router
+
+/shopify.web.toml
+
+coverage
+
+# Shopify dev database
+prisma/dev.sqlite
+prisma/dev.sqlite-journal
+
+# Claude Code
+.claude/

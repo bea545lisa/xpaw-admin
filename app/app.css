@@ -1,0 +1,84 @@
+/* PRODUKTLISTE ==================================== */
+.product-grid:hover .product-card {
+  background: var(--p-color-bg-surface-hover) !important;
+}
+
+.product-list-header {
+  border-bottom: 2px solid var(--p-color-border);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+/* PLATZHALTER-TEXT ================================== */
+/* Deutlich blasser als echter Eingabewert, damit erkennbar bleibt, ob
+   ein Feld leer ist (z.B. Übersetzungsfelder ohne gespeicherten Wert). */
+input::placeholder,
+textarea::placeholder {
+  color: #a8a8a8 !important;
+  font-weight: 400 !important;
+  opacity: 1;
+}
+
+/* Echter Eingabewert deutlich dunkler/kräftiger als der Platzhalter */
+input:not(.rexpaw-inline-input),
+textarea:not(.rexpaw-inline-input),
+.Polaris-TextField__Input {
+  color: #000 !important;
+  font-weight: 600 !important;
+}
+
+/* Verhindert, dass der Browser bei Dark-Mode-OS/Browser-Einstellung eigenmächtig eine
+   dunkle "Auto-Dark"-Formularsteuerung (abgerundete graue Box) über nicht-Polaris-Inputs
+   legt, die wir per style-Attribut eigentlich transparent/eigenfarbig gemacht haben. */
+input,
+textarea,
+select {
+  color-scheme: light;
+}
+
+/* Kürzel-Inline-Input in den Options-Pills: erzwingt transparenten Hintergrund gegen
+   jede Form von Browser-"Auto Dark"-Übermalung von <input>-Elementen. */
+.rexpaw-inline-input {
+  background: transparent !important;
+  background-color: transparent !important;
+  color-scheme: light !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  filter: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+/* Chrome-Autofill malt sich sonst per Inset-Box-Shadow über jede background-Angabe
+   hinweg (unabhängig von background/background-color) — hier explizit ausgehebelt. */
+.rexpaw-inline-input:-webkit-autofill,
+.rexpaw-inline-input:-webkit-autofill:hover,
+.rexpaw-inline-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-text-fill-color: inherit !important;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Eingabefelder stärker vom Hintergrund abheben */
+.Polaris-TextField__Backdrop {
+  border-color: #8c8c8c !important;
+  background: #fff !important;
+}
+
+/* Runder Farb-Picker (Optionswert-Swatches) — Chrome/Edge zeichnen die eigentliche Farbfläche
+   in internen Pseudo-Elementen, die per Inline-Style nicht erreichbar sind. */
+.rexpaw-color-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.rexpaw-color-swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+.rexpaw-color-swatch::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
