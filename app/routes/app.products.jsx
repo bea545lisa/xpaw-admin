@@ -86,8 +86,11 @@ export default function Products() {
     collectionFilter, setCollectionFilter,
     tagFilter, setTagFilter,
     variantFilter, setVariantFilter,
+    optionValueFilter, setOptionValueFilter, allOptionValues,
     saleFilter, setSaleFilter,
     noImagesFilter, setNoImagesFilter,
+    noTranslationFilter, setNoTranslationFilter,
+    metafieldFilter, setMetafieldFilter, allMetafieldOptions,
     stockBucketFilter, setStockBucketFilter,
     priceBucketFilter, setPriceBucketFilter,
     sortBy, setSortBy,
@@ -204,6 +207,8 @@ export default function Products() {
                 lowStockFilter={stockBucketFilter === "low-stock"}
                 setLowStockFilter={(value) => setStockBucketFilter(value ? "low-stock" : "")}
                 noImagesFilter={noImagesFilter} setNoImagesFilter={setNoImagesFilter}
+                noTranslationFilter={noTranslationFilter} setNoTranslationFilter={setNoTranslationFilter}
+                metafieldFilter={metafieldFilter} setMetafieldFilter={setMetafieldFilter} allMetafieldOptions={allMetafieldOptions}
                 priceBucketFilter={priceBucketFilter} setPriceBucketFilter={setPriceBucketFilter}
                 sortBy={sortBy} setSortBy={setSortBy}
                 sortDirection={sortDirection} setSortDirection={setSortDirection}
@@ -217,6 +222,7 @@ export default function Products() {
                 setTagFilter={setTagFilter}
                 variantFilter={variantFilter}
                 setVariantFilter={setVariantFilter}
+                optionValueFilter={optionValueFilter} setOptionValueFilter={setOptionValueFilter} allOptionValues={allOptionValues}
                 shop={shop}
                 onExport={handleExport}
                 onImport={() => setImportModalOpen(true)}

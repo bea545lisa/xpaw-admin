@@ -1,3 +1,5 @@
+import { publishToOnlineStore } from "./publish.server";
+
 export async function getProducts(admin, { cursor, direction, limit }) {
 
   const isForward = direction === "after";
@@ -84,7 +86,9 @@ export async function createProduct(admin) {
   `, { variables: { title: randomTitle } });
 
   const data = await res.json();
-  return data.data.productCreate.product;
+  const product = data.data.productCreate.product;
+  if (product?.id) await publishToOnlineStore(admin, product.id);
+  return product;
 }
 
 export async function updateProduct(admin, id, title) {

@@ -6,6 +6,7 @@ const LIST_QUERY = `
         node {
           id title status handle onlineStorePreviewUrl
           createdAt updatedAt templateSuffix description tags
+          seo { title description }
           featuredImage { url altText }
           collections(first: 10) {
             edges { node { id title } }
@@ -75,7 +76,11 @@ export async function productsLoader({ request }, admin) {
     locales = (localesJson.data?.shopLocales ?? []).filter((l) => l.published && !l.primary);
   } catch (e) { /* falls Scope fehlt: leer */ }
 
+  // Für jedes Produkt & jede Sprache nicht nur "existiert Übersetzung" merken (Flaggen-Anzeige),
+  // sondern auch die übersetzten Titel/Meta-Werte selbst — damit die Suche auch fremdsprachige
+  // Titel/Meta-Titel/Meta-Beschreibungen findet, ohne pro Produkt nachzuladen.
   const translatedLocalesByProduct = {};
+  const translatedContentByProduct = {};
   try {
     for (const loc of locales) {
       let tCursor = null;
@@ -93,16 +98,28 @@ export async function productsLoader({ request }, admin) {
         const conn = tJson.data?.translatableResources;
         if (!conn) break;
         for (const node of conn.nodes) {
-          const hasAny = node.translations?.some((t) => ["title", "body_html"].includes(t.key) && t.value?.trim());
-          if (!hasAny) continue;
+          const byKey = {};
+          for (const t of node.translations ?? []) {
+            if (["title", "meta_title", "meta_description"].includes(t.key) && t.value?.trim()) byKey[t.key] = t.value;
+          }
+          if (Object.keys(byKey).length === 0) continue;
           if (!translatedLocalesByProduct[node.resourceId]) translatedLocalesByProduct[node.resourceId] = [];
           translatedLocalesByProduct[node.resourceId].push(loc.locale);
+          if (!translatedContentByProduct[node.resourceId]) translatedContentByProduct[node.resourceId] = {};
+          translatedContentByProduct[node.resourceId][loc.locale] = byKey;
         }
         tHasMore = conn.pageInfo.hasNextPage;
         tCursor = conn.pageInfo.endCursor;
       }
     }
   } catch (e) { /* falls Scope fehlt: leer */ }
+
+  // Übersetzte Titel/Meta-Werte + Sprachenliste direkt an jedes Produkt hängen, damit die
+  // Client-seitige Suche/Filterung (useProductFilters) ohne zusätzliche Props darauf zugreifen kann.
+  for (const edge of allProducts) {
+    edge.node.translatedContent = translatedContentByProduct[edge.node.id] ?? {};
+    edge.node.translatedLocaleCodes = translatedLocalesByProduct[edge.node.id] ?? [];
+  }
 
   // Metaobject-Referenz-Metafields (z.B. "Eigenschaften") liefern in .value nur ein JSON-Array
   // roher GIDs — für eine lesbare Anzeige in der Produktliste hier einmalig alle referenzierten
@@ -122,6 +139,7 @@ export async function productsLoader({ request }, admin) {
   }
 
   const metaobjectLabels = {};
+  const metaobjectBezeichnung = {};
   const idList = [...metaobjectIds];
   for (let i = 0; i < idList.length; i += 250) {
     const chunk = idList.slice(i, i + 250);
@@ -138,10 +156,13 @@ export async function productsLoader({ request }, admin) {
       const bezeichnung = node.fields?.find((f) => f.key === "bezeichnung")?.value;
       const wert = node.fields?.find((f) => f.key === "wert")?.value;
       metaobjectLabels[node.id] = bezeichnung && wert ? `${bezeichnung}: ${wert}` : (wert || bezeichnung || null);
+      if (bezeichnung) metaobjectBezeichnung[node.id] = bezeichnung;
     }
   }
 
-  // Aufgelöste Anzeige-Werte direkt an die Metafields hängen, ohne die Original-.value zu verlieren
+  // Aufgelöste Anzeige-Werte direkt an die Metafields hängen, ohne die Original-.value zu verlieren.
+  // "bezeichnungen" hält zusätzlich nur die reinen Namen (z.B. "Material", "Herkunft") ohne die
+  // Werte — Grundlage für einen sauberen Filter, ohne dass jede Wert-Kombination einzeln auftaucht.
   for (const edge of allProducts) {
     for (const mfEdge of edge.node.metafields?.edges ?? []) {
       const val = mfEdge.node.value;
@@ -150,6 +171,7 @@ export async function productsLoader({ request }, admin) {
         const parsed = JSON.parse(val);
         if (Array.isArray(parsed) && parsed.every((id) => typeof id === "string" && id.includes("gid://shopify/Metaobject/"))) {
           mfEdge.node.displayValue = parsed.map((id) => metaobjectLabels[id]).filter(Boolean).join(", ");
+          mfEdge.node.bezeichnungen = [...new Set(parsed.map((id) => metaobjectBezeichnung[id]).filter(Boolean))];
         }
       } catch { /* ignorieren */ }
     }

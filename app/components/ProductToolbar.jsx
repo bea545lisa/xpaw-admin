@@ -56,9 +56,12 @@ export default function ProductToolbar({
   collections, collectionFilter, setCollectionFilter,
   allTags, tagFilter, setTagFilter,
   variantFilter, setVariantFilter,
+  optionValueFilter, setOptionValueFilter, allOptionValues,
   saleFilter, setSaleFilter,
   lowStockFilter, setLowStockFilter,
   noImagesFilter, setNoImagesFilter,
+  noTranslationFilter, setNoTranslationFilter,
+  metafieldFilter, setMetafieldFilter, allMetafieldOptions,
   onExport,
   sortBy, setSortBy,
   sortDirection, setSortDirection,
@@ -83,6 +86,8 @@ export default function ProductToolbar({
     () => [{ label: "Ohne Tag", value: "NONE" }, ...allTags.map((t) => ({ label: t, value: t }))],
     [allTags],
   );
+  const metafieldOptions = useMemo(() => allMetafieldOptions ?? [], [allMetafieldOptions]);
+  const optionValueOptions = useMemo(() => allOptionValues ?? [], [allOptionValues]);
   const variantOptions = useMemo(
     () => [
       { label: "Ohne Optionen", value: "NO_OPTIONS" },
@@ -98,9 +103,12 @@ export default function ProductToolbar({
     setCollectionFilter({ operator: "is", values: [] });
     setTagFilter({ operator: "is", values: [] });
     setVariantFilter({ operator: "is", values: [] });
+    setOptionValueFilter?.({ operator: "is", values: [] });
     setSaleFilter(false);
     setLowStockFilter(false);
     setNoImagesFilter?.(false);
+    setNoTranslationFilter?.(false);
+    setMetafieldFilter?.({ operator: "is", values: [] });
     setActiveEditor("status");
   };
 
@@ -178,6 +186,23 @@ export default function ProductToolbar({
     ...(saleFilter ? [{ key: "sale", type: "sale", title: "Sale", operator: "ist", value: "aktiv", onRemove: () => setSaleFilter(false) }] : []),
     ...(lowStockFilter ? [{ key: "lowStock", type: "lowStock", title: "Lagerbestand", operator: "ist", value: "leer", onRemove: () => setLowStockFilter(false) }] : []),
     ...(noImagesFilter ? [{ key: "noImages", type: "noImages", title: "Bilder", operator: "ist", value: "fehlend", onRemove: () => setNoImagesFilter?.(false) }] : []),
+    ...(noTranslationFilter ? [{ key: "noTranslation", type: "translation", title: "Übersetzung", operator: "ist", value: "fehlend", onRemove: () => setNoTranslationFilter?.(false) }] : []),
+    ...metafieldFilter.values.map((value) => ({
+      key: `metafield-${value}`,
+      type: "metafield",
+      title: "Eigenschaften",
+      operator: metafieldFilter.operator === "isNot" ? "enthält nicht" : "enthält",
+      value: getOptionLabel(metafieldOptions, value),
+      onRemove: () => setMetafieldFilter((prev) => ({ ...prev, values: prev.values.filter((v) => v !== value) })),
+    })),
+    ...optionValueFilter.values.map((value) => ({
+      key: `optionValue-${value}`,
+      type: "optionValue",
+      title: "Variantenwerte",
+      operator: optionValueFilter.operator === "isNot" ? "enthält nicht" : "enthält",
+      value: getOptionLabel(optionValueOptions, value),
+      onRemove: () => setOptionValueFilter((prev) => ({ ...prev, values: prev.values.filter((v) => v !== value) })),
+    })),
   ];
 
   const hasAnyFilter =
@@ -188,7 +213,10 @@ export default function ProductToolbar({
     variantFilter.values.length > 0 ||
     saleFilter ||
     lowStockFilter ||
-    noImagesFilter;
+    noImagesFilter ||
+    noTranslationFilter ||
+    metafieldFilter.values.length > 0 ||
+    optionValueFilter.values.length > 0;
 
   const renderEditor = () => {
     if (activeEditor === "status") {
@@ -245,6 +273,39 @@ export default function ProductToolbar({
             choices={variantOptions}
             selected={variantFilter.values}
             onChange={(values) => setVariantFilter((prev) => ({ ...prev, values }))}
+          />
+          <Select
+            label="Operator"
+            options={OPERATOR_OPTIONS}
+            value={optionValueFilter.operator}
+            onChange={(value) => setOptionValueFilter((prev) => ({ ...prev, operator: value }))}
+          />
+          <ChoiceList
+            title="Optionswerte"
+            allowMultiple
+            choices={optionValueOptions}
+            selected={optionValueFilter.values}
+            onChange={(values) => setOptionValueFilter((prev) => ({ ...prev, values }))}
+          />
+        </div>
+      );
+    }
+    if (activeEditor === "metafield") {
+      return (
+        <div className="toolbar-editor-card">
+          <Select
+            label="Operator"
+            options={OPERATOR_OPTIONS}
+            value={metafieldFilter.operator}
+            onChange={(value) => setMetafieldFilter((prev) => ({ ...prev, operator: value }))}
+          />
+          <ChoiceList
+            title="Eigenschaften"
+            allowMultiple
+            titleHidden
+            choices={metafieldOptions}
+            selected={metafieldFilter.values}
+            onChange={(values) => setMetafieldFilter((prev) => ({ ...prev, values }))}
           />
         </div>
       );
@@ -373,27 +434,39 @@ export default function ProductToolbar({
               <button type="button" className={`toolbar-editor-tab ${activeEditor === "collection" ? "active" : ""}`} onClick={() => setActiveEditor("collection")}>Collections</button>
               <button type="button" className={`toolbar-editor-tab ${activeEditor === "sale" ? "active" : ""}`} onClick={() => setActiveEditor("sale")}>Sale</button>
               <button type="button" className={`toolbar-editor-tab ${activeEditor === "stock" ? "active" : ""}`} onClick={() => setActiveEditor("stock")}>Lagerbestand</button>
+              <button type="button" className={`toolbar-editor-tab ${activeEditor === "translation" ? "active" : ""}`} onClick={() => setActiveEditor("translation")}>Übersetzung</button>
+              <button type="button" className={`toolbar-editor-tab ${activeEditor === "metafield" ? "active" : ""}`} onClick={() => setActiveEditor("metafield")}>Eigenschaften</button>
             </div>
             <div className="toolbar-editor-content">
-              {activeEditor === "sale" ? (
-                <ChoiceList
-                  title="Sale"
-                  titleHidden
-                  choices={[{ label: "Nur Sale-Produkte", value: "sale" }]}
-                  selected={saleFilter ? ["sale"] : []}
-                  onChange={(values) => setSaleFilter(values.includes("sale"))}
-                />
-              ) : activeEditor === "stock" ? (
-                <ChoiceList
-                  title="Lagerbestand"
-                  titleHidden
-                  choices={[{ label: "Kein Lagerbestand", value: "none" }]}
-                  selected={lowStockFilter ? ["none"] : []}
-                  onChange={(values) => setLowStockFilter(values.includes("none"))}
-                />
-              ) : (
-                renderEditor()
-              )}
+              <div className="toolbar-editor-content-body">
+                {activeEditor === "sale" ? (
+                  <ChoiceList
+                    title="Sale"
+                    titleHidden
+                    choices={[{ label: "Nur Sale-Produkte", value: "sale" }]}
+                    selected={saleFilter ? ["sale"] : []}
+                    onChange={(values) => setSaleFilter(values.includes("sale"))}
+                  />
+                ) : activeEditor === "translation" ? (
+                  <ChoiceList
+                    title="Übersetzung"
+                    titleHidden
+                    choices={[{ label: "Nur ohne Übersetzung", value: "noTranslation" }]}
+                    selected={noTranslationFilter ? ["noTranslation"] : []}
+                    onChange={(values) => setNoTranslationFilter?.(values.includes("noTranslation"))}
+                  />
+                ) : activeEditor === "stock" ? (
+                  <ChoiceList
+                    title="Lagerbestand"
+                    titleHidden
+                    choices={[{ label: "Kein Lagerbestand", value: "none" }]}
+                    selected={lowStockFilter ? ["none"] : []}
+                    onChange={(values) => setLowStockFilter(values.includes("none"))}
+                  />
+                ) : (
+                  renderEditor()
+                )}
+              </div>
               <div className="toolbar-overlay-footer">
                 <Button variant="plain" onClick={resetAllFilters}>Alles löschen</Button>
                 <Button onClick={closeOverlay}>Fertig</Button>
@@ -439,10 +512,11 @@ export default function ProductToolbar({
         .toolbar-pill-remove:hover { background: var(--p-color-bg-fill-tertiary); }
         .toolbar-pill:hover .toolbar-pill-remove { opacity: 1; }
         .toolbar-editor-overlay { position: fixed; width: 540px; border: 1px solid var(--p-color-border-subdued); border-radius: 10px; background: var(--p-color-bg-surface); box-shadow: 0 10px 24px rgba(0,0,0,0.12); display: grid; grid-template-columns: 180px 1fr; z-index: 9999; }
-        .toolbar-editor-categories { border-right: 1px solid var(--p-color-border-subdued); padding: 8px; display: grid; gap: 4px; }
+        .toolbar-editor-categories { align-self: start; border-right: 1px solid var(--p-color-border-subdued); padding: 8px; display: grid; gap: 4px; }
         .toolbar-editor-tab { text-align: left; border: 0; background: transparent; border-radius: 6px; padding: 8px; cursor: pointer; font-size: 13px; color: var(--p-color-text-subdued); }
         .toolbar-editor-tab.active { background: var(--p-color-bg-fill-tertiary); color: var(--p-color-text); font-weight: 600; }
-        .toolbar-editor-content { padding: 10px; display: grid; gap: 10px; min-width: 320px; max-height: 360px; overflow: auto; }
+        .toolbar-editor-content { padding: 10px; display: flex; flex-direction: column; gap: 10px; min-width: 320px; }
+        .toolbar-editor-content-body { flex: 1; min-height: 200px; max-height: 80vh; overflow: auto; }
         .toolbar-editor-card { display: grid; gap: 8px; }
         .toolbar-overlay-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--p-color-border-subdued); padding-top: 8px; }
         @media (max-width: 900px) {

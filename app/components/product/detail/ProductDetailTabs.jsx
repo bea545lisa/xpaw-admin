@@ -53,10 +53,150 @@ function SkuField({ value, onChange, productId, skuFormat, selectedOptions }) {
   );
 }
 
+// ── Varianten-Metafields: eigene, per Variante gepflegte Custom-Felder (z.B. "Maße") ──────────
+function VariantMetafields({ variant, isDark, setToast, setLocalVariants }) {
+  const fetcher = useFetcher();
+  const [fields, setFields] = useState(
+    (variant.metafields?.edges ?? []).map((e) => e.node)
+  );
+  const [drafts, setDrafts] = useState({}); // metafieldId -> value
+  const [newField, setNewField] = useState({ key: "", value: "" });
+  const [adding, setAdding] = useState(false);
+
+  // Änderungen zusätzlich in localVariants (übergeordneter State) spiegeln — sonst zeigt das Panel
+  // beim erneuten Öffnen (ohne vollen Seiten-Reload) wieder den alten Stand, da diese Komponente
+  // beim Schließen/Öffnen neu gemountet wird und ihren Startwert wieder aus der variant-Prop liest.
+  const syncLocalVariants = (nextFieldNodes) => {
+    setLocalVariants?.((prev) => prev.map((lv) =>
+      lv.id === variant.id ? { ...lv, metafields: { edges: nextFieldNodes.map((node) => ({ node })) } } : lv
+    ));
+  };
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) return;
+    const d = fetcher.data;
+    if (d.type === "createVariantMetafield") {
+      if (d.ok && d.metafield) {
+        setFields((prev) => {
+          const next = [...prev, d.metafield];
+          syncLocalVariants(next);
+          return next;
+        });
+        setNewField({ key: "", value: "" });
+        setAdding(false);
+        setToast?.("Meta-Feld angelegt");
+      } else {
+        setToast?.(`Fehler: ${d.userErrors?.[0]?.message || "Feld konnte nicht angelegt werden"}`);
+      }
+    }
+    if (d.type === "updateVariantMetafield") {
+      if (d.ok) {
+        setFields((prev) => {
+          const next = prev.map((f) => f.id === d.metafieldId ? { ...f, value: d.value } : f);
+          syncLocalVariants(next);
+          return next;
+        });
+        setToast?.("Meta gespeichert");
+      } else {
+        setToast?.(`Fehler: ${d.userErrors?.[0]?.message || "Wert konnte nicht gespeichert werden"}`);
+      }
+    }
+    if (d.type === "deleteVariantMetafield" && d.ok) {
+      setFields((prev) => {
+        const next = prev.filter((f) => f.id !== d.metafieldId);
+        syncLocalVariants(next);
+        return next;
+      });
+      setToast?.("Meta-Feld entfernt");
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  const saveExisting = (field) => {
+    const value = drafts[field.id];
+    if (value === undefined) return; // nichts getippt, kein Save nötig
+    fetcher.submit(
+      { action: "updateVariantMetafield", variantId: variant.id, metafieldId: field.id, namespace: field.namespace, key: field.key, type: field.type, value },
+      { method: "POST" }
+    );
+  };
+
+  const deleteField = (field) => {
+    fetcher.submit(
+      { action: "deleteVariantMetafield", variantId: variant.id, metafieldId: field.id, namespace: field.namespace, key: field.key },
+      { method: "POST" }
+    );
+  };
+
+  const addField = () => {
+    const key = newField.key.trim();
+    if (!key || !newField.value.trim()) return;
+    fetcher.submit(
+      { action: "createVariantMetafield", variantId: variant.id, namespace: "custom", key, type: "single_line_text_field", name: key, value: newField.value },
+      { method: "POST" }
+    );
+  };
+
+  return (
+    <div style={{
+      padding: 10, borderRadius: 8,
+      border: `1px solid ${isDark ? "#4a4a4a" : "var(--p-color-border)"}`,
+      background: isDark ? "rgba(255,255,255,0.06)" : "var(--p-color-bg-surface-secondary)",
+    }}>
+      <BlockStack gap="150">
+        <Text variant="bodySm" fontWeight="semibold">Metafields (nur diese Variante)</Text>
+        {fields.map((field) => (
+          <InlineStack key={field.id} gap="100" blockAlign="center" wrap={false}>
+            <div style={{ width: 110, flexShrink: 0 }}>
+              <Text variant="bodyXs" tone="subdued">{field.definition?.name || field.key}</Text>
+            </div>
+            <div style={{ flex: 1 }}>
+              <TextField
+                label="" labelHidden autoComplete="off"
+                value={drafts[field.id] ?? field.value}
+                onChange={(val) => setDrafts((prev) => ({ ...prev, [field.id]: val }))}
+                onBlur={() => saveExisting(field)}
+              />
+            </div>
+            {drafts[field.id] !== undefined && drafts[field.id] !== field.value && (
+              <Button size="slim" onClick={() => saveExisting(field)}>✓</Button>
+            )}
+            <button
+              onClick={() => deleteField(field)}
+              style={{
+                background: "transparent", border: "1px solid var(--p-color-border)",
+                borderRadius: 4, cursor: "pointer", width: 28, height: 28,
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0,
+              }}
+              title="Feld entfernen"
+            >
+              <Icon source={XIcon} tone="subdued" />
+            </button>
+          </InlineStack>
+        ))}
+
+        {adding ? (
+          <InlineStack gap="100" blockAlign="center" wrap={false}>
+            <div style={{ width: 110, flexShrink: 0 }}>
+              <TextField label="" labelHidden autoComplete="off" placeholder="z.B. Maße" value={newField.key} onChange={(val) => setNewField((f) => ({ ...f, key: val }))} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <TextField label="" labelHidden autoComplete="off" placeholder="Wert" value={newField.value} onChange={(val) => setNewField((f) => ({ ...f, value: val }))} />
+            </div>
+            <Button size="slim" onClick={addField}>✓</Button>
+            <Button size="slim" onClick={() => { setAdding(false); setNewField({ key: "", value: "" }); }}>✕</Button>
+          </InlineStack>
+        ) : (
+          <Button size="slim" onClick={() => setAdding(true)}>+ Feld hinzufügen</Button>
+        )}
+      </BlockStack>
+    </div>
+  );
+}
+
 export default function ProductDetailTabs({
      selectedDetailTab, setSelectedDetailTab, detailTabs,
      optionDrafts, setOptionDrafts, optionsDirty, handleOptionsSave, optionsNotice,
-     hasVariants, localVariants, defaultVariant, totalVariants,
+     hasVariants, localVariants, setLocalVariants, defaultVariant, totalVariants,
      variantDraft, setVariantDraft,
      editingVariantId, setEditingVariantId,
      openVariantEdit, handleVariantSave, isSaving,
@@ -315,6 +455,7 @@ export default function ProductDetailTabs({
                                 <SkuField value={variantDraft.sku} onChange={val => setVariantDraft(d => ({ ...d, sku: val }))} productId={product?.id} skuFormat={skuFormat} selectedOptions={v.selectedOptions ?? []} />
                                 <TextField label="Barcode" value={variantDraft.barcode} onChange={val => setVariantDraft(d => ({ ...d, barcode: val }))} autoComplete="off" />
                               </div>
+                              <VariantMetafields variant={v} isDark={isDark} setToast={setToast} setLocalVariants={setLocalVariants} />
                               <InlineStack gap="200">
                                 <Button variant="primary" size="slim" onClick={() => handleVariantSave(v)} loading={isSaving}>Speichern</Button>
                                 <Button size="slim" onClick={() => setEditingVariantId(null)}>Abbrechen</Button>

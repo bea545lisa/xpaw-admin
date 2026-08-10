@@ -11,6 +11,9 @@ export function useProductFilters({ localProducts }) {
   const [variantFilter, setVariantFilter] = useState({ operator: "is", values: [] });
   const [saleFilter, setSaleFilter] = useState(false);
   const [noImagesFilter, setNoImagesFilter] = useState(false);
+  const [noTranslationFilter, setNoTranslationFilter] = useState(false);
+  const [metafieldFilter, setMetafieldFilter] = useState({ operator: "is", values: [] });
+  const [optionValueFilter, setOptionValueFilter] = useState({ operator: "is", values: [] });
   const [stockBucketFilter, setStockBucketFilter] = useState("");
   const [priceBucketFilter, setPriceBucketFilter] = useState("");
   const [sortBy, setSortBy] = useState("updatedAt");
@@ -20,6 +23,63 @@ export function useProductFilters({ localProducts }) {
     const set = new Set();
     localProducts.forEach((p) => p.node.tags?.forEach((t) => set.add(t)));
     return Array.from(set).sort();
+  }, [localProducts]);
+
+  // Metafields eines Produkts als durchsuchbare Texte — Feldname (Key) UND Wert, damit man sowohl
+  // nach dem Namen ("test", "nachhaltigkeit") als auch nach Werten (auch "Bezeichnung" bei
+  // Eigenschaften-Metaobjects, da im displayValue enthalten) suchen kann. Interne App-eigene
+  // Metafields (Sortierreihenfolge, Swatch-Konfiguration) sind ausgeschlossen.
+  const HIDDEN_METAFIELD_KEYS = ["title_tag", "description_tag", "metafields_order", "option_swatches"];
+  const productMetafieldValues = (p) =>
+    (p?.node?.metafields?.edges ?? [])
+      .filter((e) => !HIDDEN_METAFIELD_KEYS.includes(e.node.key))
+      .flatMap((e) => [e.node.key, e.node.displayValue ?? e.node.value])
+      .filter(Boolean);
+
+  // Für den Filter-Tab: pro Produkt die Menge an auswählbaren "Eigenschaften"-Optionen — bei
+  // Metaobject-Referenzen (z.B. "Eigenschaften") eine Option pro Bezeichnung (z.B. "Material"),
+  // nicht pro Wert-Kombination; bei normalen Metafields eine Option pro Feldname (z.B. "test").
+  const productMetafieldFilterKeys = (p) =>
+    (p?.node?.metafields?.edges ?? [])
+      .filter((e) => !HIDDEN_METAFIELD_KEYS.includes(e.node.key))
+      .flatMap((e) =>
+        e.node.bezeichnungen?.length
+          ? e.node.bezeichnungen.map((b) => `bez::${b}`)
+          : [`key::${e.node.key}`]
+      );
+
+  const allMetafieldOptions = useMemo(() => {
+    const map = new Map();
+    localProducts.forEach((p) => {
+      productMetafieldFilterKeys(p).forEach((value) => {
+        if (map.has(value)) return;
+        map.set(value, { value, label: value.slice(5) });
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [localProducts]);
+
+  // Options-Werte eines Produkts (z.B. "Farbe: Rot") als `${Name}::${Wert}`-Liste — für Suche
+  // und den Varianten-Werte-Filter.
+  const productOptionValues = (p) =>
+    (p?.node?.options ?? [])
+      .filter((o) => o?.name && o.name !== "Title")
+      .flatMap((o) =>
+        (o.optionValues?.map((v) => v?.name).filter(Boolean) ?? o.values ?? [])
+          .filter((v) => v && v !== "Default Title")
+          .map((v) => `${o.name}::${v}`)
+      );
+
+  const allOptionValues = useMemo(() => {
+    const map = new Map();
+    localProducts.forEach((p) => {
+      productOptionValues(p).forEach((entryKey) => {
+        if (map.has(entryKey)) return;
+        const [name, value] = entryKey.split("::");
+        map.set(entryKey, { value: entryKey, label: `${name}: ${value}` });
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [localProducts]);
 
   const allCollections = useMemo(() => {
@@ -67,7 +127,28 @@ export function useProductFilters({ localProducts }) {
         const matches = statusFilter.values.map((v) => p?.node?.status === v);
         return statusFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
       })
-      .filter((p) => p?.node?.title?.toLowerCase().includes(query.toLowerCase()))
+      .filter((p) => {
+        if (!query.trim()) return true;
+        const q = query.toLowerCase();
+        if (p?.node?.title?.toLowerCase().includes(q)) return true;
+        if (p?.node?.seo?.title?.toLowerCase().includes(q)) return true;
+        if (p?.node?.seo?.description?.toLowerCase().includes(q)) return true;
+        const translatedContent = p?.node?.translatedContent ?? {};
+        if (Object.values(translatedContent).some((c) =>
+          c.title?.toLowerCase().includes(q) ||
+          c.meta_title?.toLowerCase().includes(q) ||
+          c.meta_description?.toLowerCase().includes(q)
+        )) return true;
+        if (productMetafieldValues(p).some((value) => value?.toLowerCase().includes(q))) return true;
+        return productOptionValues(p).some((entryKey) => entryKey.toLowerCase().includes(q));
+      })
+      .filter((p) => !noTranslationFilter || (p?.node?.translatedLocaleCodes?.length ?? 0) === 0)
+      .filter((p) => {
+        if (!metafieldFilter.values.length) return true;
+        const keys = productMetafieldFilterKeys(p);
+        const matches = metafieldFilter.values.map((v) => keys.includes(v));
+        return metafieldFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
+      })
       .filter((p) => {
         if (!collectionFilter.values.length) return true;
         const ids = p?.node?.collections?.edges?.map((e) => e.node.id) ?? [];
@@ -86,6 +167,12 @@ export function useProductFilters({ localProducts }) {
         const bucket = optionCount === 0 ? "NO_OPTIONS" : optionCount === 1 ? "ONE_OPTION" : "TWO_OPTIONS";
         const matches = variantFilter.values.map((v) => bucket === v);
         return variantFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
+      })
+      .filter((p) => {
+        if (!optionValueFilter.values.length) return true;
+        const entries = productOptionValues(p);
+        const matches = optionValueFilter.values.map((v) => entries.includes(v));
+        return optionValueFilter.operator === "isNot" ? matches.every((m) => !m) : matches.some(Boolean);
       })
       .filter((p) => {
         if (!saleFilter) return true;
@@ -123,7 +210,7 @@ export function useProductFilters({ localProducts }) {
         }
         return (getTime(a?.node?.updatedAt) - getTime(b?.node?.updatedAt)) * directionFactor;
       });
-  }, [localProducts, query, statusFilter, collectionFilter, tagFilter, variantFilter, saleFilter, noImagesFilter, priceBucketFilter, stockBucketFilter, sortBy, sortDirection]);
+  }, [localProducts, query, statusFilter, collectionFilter, tagFilter, variantFilter, optionValueFilter, saleFilter, noImagesFilter, noTranslationFilter, metafieldFilter, priceBucketFilter, stockBucketFilter, sortBy, sortDirection]);
 
   return {
     query, setQuery,
@@ -131,8 +218,13 @@ export function useProductFilters({ localProducts }) {
     collectionFilter, setCollectionFilter,
     tagFilter, setTagFilter,
     variantFilter, setVariantFilter,
+    optionValueFilter, setOptionValueFilter,
+    allOptionValues,
     saleFilter, setSaleFilter,
     noImagesFilter, setNoImagesFilter,
+    noTranslationFilter, setNoTranslationFilter,
+    metafieldFilter, setMetafieldFilter,
+    allMetafieldOptions,
     stockBucketFilter, setStockBucketFilter,
     priceBucketFilter, setPriceBucketFilter,
     sortBy, setSortBy,

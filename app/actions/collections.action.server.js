@@ -1,3 +1,5 @@
+import { publishToOnlineStore } from "../services/publish.server";
+
 export async function collectionsAction({ request }, admin) {
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -17,6 +19,8 @@ export async function collectionsAction({ request }, admin) {
     const data = await res.json();
     const errors = data.data.collectionCreate.userErrors;
     if (errors.length) return { error: errors[0].message };
+    const collectionId = data.data.collectionCreate.collection?.id;
+    if (collectionId) await publishToOnlineStore(admin, collectionId);
     return { success: true, action: "created", title };
   }
 

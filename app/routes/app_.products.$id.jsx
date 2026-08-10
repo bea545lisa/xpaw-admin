@@ -14,6 +14,7 @@ import {
   reorderProductMedia,
   deleteProductMedia,
 } from "../services/product.server";
+import { publishToOnlineStore } from "../services/publish.server";
 
 import { useProductOptions } from "../hooks/useProductOptions.js";
 import { useVariantEdit } from "../hooks/useVariantEdit.js";
@@ -80,6 +81,9 @@ export const loader = async ({ request, params }) => {
               selectedOptions { name value }
               image { id url altText }
               inventoryItem { id requiresShipping tracked }
+              metafields(first: 10, namespace: "custom") {
+                edges { node { id namespace key type value definition { id name } } }
+              }
             }
           }
         }
@@ -368,7 +372,9 @@ export const action = async ({ request }) => {
       }
     `, { variables: { id: formData.get("id"), status: formData.get("status") } });
     const data = await res.json();
-    return { ok: true, type: "updateStatus", product: data.data.productUpdate.product };
+    const updatedProduct = data.data.productUpdate.product;
+    if (updatedProduct?.status === "ACTIVE") await publishToOnlineStore(admin, updatedProduct.id);
+    return { ok: true, type: "updateStatus", product: updatedProduct };
   }
 
   if (type === "updateTitle") {
@@ -1030,6 +1036,105 @@ export const action = async ({ request }) => {
     const json = await res.json();
     const metafield = json.data?.metafieldsSet?.metafields?.[0] ?? null;
     return { ok: true, type: "createMetafield", metafield };
+  }
+
+  // Varianten-Metafields — gleiche Mechanik wie Produkt-Metafields, aber ownerId = Variante und
+  // eigene Definition (ownerType PRODUCTVARIANT), da Metafield-Definitionen pro Owner-Typ getrennt sind.
+  if (type === "createVariantMetafield") {
+    const namespace = formData.get("namespace");
+    const key = formData.get("key");
+    const metafieldType = formData.get("type");
+    const name = formData.get("name") || key;
+
+    await admin.graphql(`
+      mutation($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          createdDefinition { id }
+          userErrors { field message code }
+        }
+      }
+    `, {
+      variables: {
+        definition: {
+          name,
+          namespace,
+          key,
+          type: metafieldType,
+          ownerType: "PRODUCTVARIANT",
+          access: { storefront: "PUBLIC_READ" },
+        },
+      },
+    });
+
+    const res = await admin.graphql(`
+      mutation($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id namespace key type value }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        metafields: [{
+          ownerId: formData.get("variantId"),
+          namespace,
+          key,
+          type: metafieldType,
+          value: formData.get("value"),
+        }],
+      },
+    });
+    const json = await res.json();
+    const metafield = json.data?.metafieldsSet?.metafields?.[0] ?? null;
+    const userErrors = json.data?.metafieldsSet?.userErrors ?? [];
+    return { ok: userErrors.length === 0, type: "createVariantMetafield", variantId: formData.get("variantId"), metafield, userErrors };
+  }
+
+  if (type === "updateVariantMetafield") {
+    const metafieldId = formData.get("metafieldId");
+    const value = formData.get("value");
+    const res = await admin.graphql(`
+      mutation($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id value }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        metafields: [{
+          ownerId: formData.get("variantId"),
+          namespace: formData.get("namespace"),
+          key: formData.get("key"),
+          type: formData.get("type"),
+          value,
+        }],
+      },
+    });
+    const json = await res.json();
+    const userErrors = json.data?.metafieldsSet?.userErrors ?? [];
+    return { ok: userErrors.length === 0, type: "updateVariantMetafield", variantId: formData.get("variantId"), metafieldId, value, userErrors };
+  }
+
+  if (type === "deleteVariantMetafield") {
+    const metafieldId = formData.get("metafieldId");
+    await admin.graphql(`
+      mutation($metafields: [MetafieldIdentifierInput!]!) {
+        metafieldsDelete(metafields: $metafields) {
+          deletedMetafields { key }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        metafields: [{
+          ownerId: formData.get("variantId"),
+          namespace: formData.get("namespace"),
+          key: formData.get("key"),
+        }],
+      },
+    });
+    return { ok: true, type: "deleteVariantMetafield", variantId: formData.get("variantId"), metafieldId };
   }
 
   // Metaobjects eines Typs durchsuchen (für list.metaobject_reference)
@@ -2242,6 +2347,7 @@ export default function ProductDetail() {
               hasVariants={hasVariants}
               totalVariants={totalVariants}
               localVariants={localVariants}
+              setLocalVariants={setLocalVariants}
               defaultVariant={defaultVariant}
               variantDraft={variantDraft}
               setVariantDraft={setVariantDraft}

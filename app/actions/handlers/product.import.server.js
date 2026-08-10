@@ -1,3 +1,5 @@
+import { publishToOnlineStore } from "../../services/publish.server";
+
 // ── Duplikat-Check ────────────────────────────────────────────────────────────
 
 const CHECK_BY_SKU = `
@@ -247,6 +249,10 @@ export async function handleExecuteImport(admin, formData) {
 
         // Collections zuweisen (suchen oder neu anlegen)
         const productId = result?.product?.id;
+
+        if (!isUpdate && productId && input.status === "ACTIVE") {
+          await publishToOnlineStore(admin, productId);
+        }
         const collectionNames = (product.collections ?? "")
           .split(/[|,]/).map(c => c.trim()).filter(Boolean);
 
