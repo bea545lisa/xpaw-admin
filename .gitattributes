@@ -1,0 +1,2 @@
+shopify.app.toml merge=ours
+.env merge=ours
