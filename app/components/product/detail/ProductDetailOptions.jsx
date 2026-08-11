@@ -298,6 +298,11 @@ export default function ProductDetailOptions({
                           <div style={{ width: 28, flexShrink: 0 }} />
                         </InlineStack>
                         <div style={{ height: 8 }} />
+                        {(option.values ?? []).length === 0 && (
+                          <Text variant="bodyXs" tone="subdued" as="p">
+                            Noch keine Werte — unten mit "Fertig" schließen und über den "+"-Button einen Wert hinzufügen.
+                          </Text>
+                        )}
                         <BlockStack gap="100">
                           {(option.values ?? []).map((v, vIdx) => {
                             const swatchKey = `${oi}:${v}`;
