@@ -269,7 +269,7 @@ export const action = async ({ request }) => {
   if (type === "updateVariantAll") {
     const variantId = formData.get("variantId");
     const productId = formData.get("productId");
-    await admin.graphql(`
+    const variantRes = await admin.graphql(`
       mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
         productVariantsBulkUpdate(productId: $productId, variants: $variants) {
           userErrors { field message }
@@ -287,11 +287,17 @@ export const action = async ({ request }) => {
         }],
       },
     });
+    const variantJson = await variantRes.json();
+    const variantErrors = variantJson.data?.productVariantsBulkUpdate?.userErrors ?? [];
+    if (variantErrors.length) {
+      return { ok: false, type: "updateVariantAll", variantId, error: variantErrors[0].message };
+    }
+
     const inventoryItemId = formData.get("inventoryItemId");
     const locId = formData.get("locationId");
     const quantity = parseInt(formData.get("quantity"), 10);
     if (inventoryItemId && locId && !isNaN(quantity)) {
-      await admin.graphql(`
+      const invRes = await admin.graphql(`
         mutation($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
             userErrors { field message }
@@ -305,6 +311,11 @@ export const action = async ({ request }) => {
           },
         },
       });
+      const invJson = await invRes.json();
+      const invErrors = invJson.data?.inventorySetQuantities?.userErrors ?? [];
+      if (invErrors.length) {
+        return { ok: false, type: "updateVariantAll", variantId, error: invErrors[0].message };
+      }
     }
     return { ok: true, type: "updateVariantAll", variantId };
   }

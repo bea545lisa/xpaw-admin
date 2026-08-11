@@ -217,7 +217,11 @@ export default function ProductDetailTabs({
 
   useEffect(() => {
     if (fetcher.data?.type === "updateVariantAll") {
-      setToast?.("Variante gespeichert");
+      if (fetcher.data.ok === false) {
+        setToast?.(`Fehler: ${fetcher.data.error || "Variante konnte nicht gespeichert werden"}`);
+      } else {
+        setToast?.("Variante gespeichert");
+      }
     }
   }, [fetcher.data]);
 
