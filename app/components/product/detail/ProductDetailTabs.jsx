@@ -200,7 +200,7 @@ export default function ProductDetailTabs({
      variantDraft, setVariantDraft,
      editingVariantId, setEditingVariantId,
      openVariantEdit, handleVariantSave, isSaving,
-     metafields, allMetafieldDefinitions, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, product, fetcher, setToast,
+     metafields, allMetafieldDefinitions, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, allOptionNames, product, fetcher, setToast,
      localImages, onVariantImageAssign,
      skuFormat,
    }) {
@@ -244,6 +244,7 @@ export default function ProductDetailTabs({
             productId={product.id}
             productImages={product.images?.edges?.map((e) => e.node) ?? []}
             optionSwatches={optionSwatches}
+            allOptionNames={allOptionNames}
           />
 
           <div style={{ borderTop: `1px dashed ${isDark ? "#6b6b6b" : "#c4c4c4"}` }} />

@@ -243,7 +243,7 @@ export default function ProductDetailOrganisation({ product, allCollections, all
                     onBlur={() => setTimeout(() => collections.setShowCollectionSearch(false), 150)}
                   />
                 </div>
-                <PositionedDropdown anchorRef={collections.collectionInputRef} open={collections.showCollectionSearch && collections.filteredCollectionSuggestions.length > 0}>
+                <PositionedDropdown anchorRef={collectionInputRef} open={collections.showCollectionSearch && collections.filteredCollectionSuggestions.length > 0}>
                   {collections.filteredCollectionSuggestions.map((c) => (
                     <div key={c.id} onMouseDown={(e) => { e.preventDefault(); collections.handleCollectionAdd(c); }}
                       style={dropdownItem}

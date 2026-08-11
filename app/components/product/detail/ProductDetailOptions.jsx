@@ -5,15 +5,20 @@ import { useFetcher } from "react-router";
 import { useColorScheme } from "../../../context/ColorSchemeContext.js";
 import LocaleFlag from "../../shared/LocaleFlag.jsx";
 
+const COMMON_OPTION_NAMES = ["Größe", "Farbe", "Material", "Stil"];
+
 export default function ProductDetailOptions({
   optionDrafts, setOptionDrafts, optionsDirty, handleOptionsSave, locales = [],
   productId, productImages = [], optionSwatches: initialOptionSwatches = {},
+  allOptionNames = [],
 }) {
   const { colorScheme } = useColorScheme();
+  const optionNameSuggestions = [...new Set([...COMMON_OPTION_NAMES, ...allOptionNames])].sort();
   const isDark = colorScheme === "dark";
   const [newOptionValues, setNewOptionValues] = useState({});
   const [openNewValue, setOpenNewValue] = useState({});
   const [editingOptionName, setEditingOptionName] = useState({});
+  const [nameSuggestOpenFor, setNameSuggestOpenFor] = useState(null); // oi | null
   const optionNameRefs = useRef({});
   const newValueRefs = useRef({});
 
@@ -268,17 +273,49 @@ export default function ProductDetailOptions({
                             <LocaleFlag locale={primaryLocale} size={20} round />
                           </span>
                         )}
-                        <div style={{ width: 100 }}>
+                        <div style={{ width: 100, position: "relative" }}>
                           <TextField
                             label="" labelHidden autoComplete="off"
                             placeholder="z.B. Größe"
                             value={option.name}
+                            onFocus={() => setNameSuggestOpenFor(oi)}
+                            onBlur={() => setTimeout(() => setNameSuggestOpenFor((cur) => cur === oi ? null : cur), 150)}
                             onChange={(val) => {
                               const updated = [...optionDrafts];
                               updated[oi] = { ...option, name: val };
                               setOptionDrafts(updated);
                             }}
                           />
+                          {nameSuggestOpenFor === oi && (() => {
+                            const q = (option.name || "").toLowerCase();
+                            const matches = optionNameSuggestions.filter((n) => n.toLowerCase().includes(q) && n !== option.name);
+                            if (matches.length === 0) return null;
+                            return (
+                              <div style={{
+                                position: "absolute", top: "100%", left: 0, zIndex: 1000, width: 180,
+                                marginTop: 2, borderRadius: 8, overflow: "hidden",
+                                border: `1px solid ${isDark ? "#4a4a4a" : "var(--p-color-border)"}`,
+                                background: isDark ? "#2c2c2c" : "#fff",
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                              }}>
+                                {matches.map((n) => (
+                                  <div
+                                    key={n}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      const updated = [...optionDrafts];
+                                      updated[oi] = { ...option, name: n };
+                                      setOptionDrafts(updated);
+                                      setNameSuggestOpenFor(null);
+                                    }}
+                                    style={{ padding: "6px 10px", fontSize: 13, cursor: "pointer" }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "#3a3a3a" : "#f0f0f0"}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                                  >{n}</div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                         <Text variant="bodyXs" tone="subdued" as="p">
                           Das Kürzel-Feld rechts neben jedem Wert wird für die automatische SKU-Generierung verwendet (z.&nbsp;B. Blau → <code>bl</code>).
