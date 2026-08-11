@@ -19,18 +19,25 @@ async function getOnlineStorePublicationId(admin) {
   return cachedOnlineStorePublicationId;
 }
 
+// Darf niemals werfen — wird nach dem eigentlichen Erstellen/Aktivieren aufgerufen und soll bei
+// einem Fehler (z.B. fehlender Scope, Online-Store-Kanal nicht installiert) nicht die gesamte
+// Aktion zum Absturz bringen. Die Hauptressource ist zu diesem Zeitpunkt bereits gespeichert.
 export async function publishToOnlineStore(admin, resourceId) {
-  const publicationId = await getOnlineStorePublicationId(admin);
-  if (!publicationId) return { ok: false, error: "Online-Store-Kanal nicht gefunden" };
+  try {
+    const publicationId = await getOnlineStorePublicationId(admin);
+    if (!publicationId) return { ok: false, error: "Online-Store-Kanal nicht gefunden" };
 
-  const res = await admin.graphql(`
-    mutation($id: ID!, $input: [PublicationInput!]!) {
-      publishablePublish(id: $id, input: $input) {
-        userErrors { field message }
+    const res = await admin.graphql(`
+      mutation($id: ID!, $input: [PublicationInput!]!) {
+        publishablePublish(id: $id, input: $input) {
+          userErrors { field message }
+        }
       }
-    }
-  `, { variables: { id: resourceId, input: [{ publicationId }] } });
-  const json = await res.json();
-  const errors = json.data?.publishablePublish?.userErrors ?? [];
-  return { ok: errors.length === 0, errors };
+    `, { variables: { id: resourceId, input: [{ publicationId }] } });
+    const json = await res.json();
+    const errors = json.data?.publishablePublish?.userErrors ?? [];
+    return { ok: errors.length === 0, errors };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 }
