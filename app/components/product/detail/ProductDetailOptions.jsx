@@ -273,7 +273,7 @@ export default function ProductDetailOptions({
                             <LocaleFlag locale={primaryLocale} size={20} round />
                           </span>
                         )}
-                        <div style={{ width: 100, position: "relative" }}>
+                        <div style={{ width: 220, position: "relative" }}>
                           <TextField
                             label="" labelHidden autoComplete="off"
                             placeholder="z.B. Größe"
