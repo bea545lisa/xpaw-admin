@@ -23,11 +23,14 @@ export function useProductOptions({ product, fetcher, setLocalVariants, setToast
 
   // Nach Speichern: localVariants + optionDrafts aktualisieren
   useEffect(() => {
-    if (fetcher.data?.type === "updateOptions" && fetcher.data?.product) {
+    if (fetcher.data?.type !== "updateOptions") return;
+    if (fetcher.data?.product) {
       const next = fetcher.data.product;
       const nextVariants = next.variants?.edges?.map((e) => e.node) ?? [];
       setLocalVariants(nextVariants);
       setOptionDrafts(normalizeOptions(next.options ?? [], combinedAbbreviations));
+    } else if (fetcher.data?.ok === false) {
+      setToast?.(`Fehler: ${fetcher.data.error || "Optionen konnten nicht gespeichert werden"}`);
     }
   }, [fetcher.data]);
 
