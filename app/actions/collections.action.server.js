@@ -20,8 +20,9 @@ export async function collectionsAction({ request }, admin) {
     const errors = data.data.collectionCreate.userErrors;
     if (errors.length) return { error: errors[0].message };
     const collectionId = data.data.collectionCreate.collection?.id;
-    if (collectionId) await publishToOnlineStore(admin, collectionId);
-    return { success: true, action: "created", title };
+    let publishResult = null;
+    if (collectionId) publishResult = await publishToOnlineStore(admin, collectionId);
+    return { success: true, action: "created", title, publishResult };
   }
 
   if (intent === "rename") {

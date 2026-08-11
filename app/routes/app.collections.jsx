@@ -270,7 +270,8 @@ export default function CollectionsPage() {
         open={!!deleteTarget}
         title={deleteTarget?.title}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={submitDelete}
+        onDelete={submitDelete}
+        isDeleting={isBusy}
       />
 
       {/* Toast */}
