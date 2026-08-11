@@ -68,11 +68,13 @@ export const action = async ({ request, params }) => {
     const seoDescription = formData.get("seoDesc");
     const sortOrder = formData.get("sortOrder") || undefined;
     const imageUrl = formData.get("imageUrl") || null;
+    const removeImage = formData.get("removeImage") === "1";
 
     const input = { id: gid, title, descriptionHtml, seo: { title: seoTitle, description: seoDescription } };
     if (handle) input.handle = handle;
     if (sortOrder) input.sortOrder = sortOrder;
     if (imageUrl) input.image = { src: imageUrl, altText: "" };
+    else if (removeImage) input.image = null;
 
     const res = await admin.graphql(
       `#graphql
@@ -633,12 +635,22 @@ export default function CollectionDetail() {
 
   const backUrl  = location.state?.from ?? "/app/collections";
   const handleSave = () => saveFetcher.submit({ intent: "update", title, descriptionHtml, handle, seoTitle, seoDesc, sortOrder }, { method: "post" });
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleRemoveImage = () => {
+    setImageUrl(null);
+    saveFetcher.submit({ intent: "update", title, descriptionHtml, handle, seoTitle, seoDesc, sortOrder, removeImage: "1" }, { method: "post" });
+    setToast("Bild entfernt");
+  };
+  const startUpload = (file) => {
+    if (!file || !file.type?.startsWith("image/")) return;
     pendingFile.current = file; setUploadProgress(0);
     stageFetcher.submit({ intent: "uploadImage", filename: file.name, mimeType: file.type }, { method: "post" });
   };
+  const handleFileChange = (e) => startUpload(e.target.files?.[0]);
+  const handleImageDrop = (e) => {
+    e.preventDefault();
+    startUpload(e.dataTransfer.files?.[0]);
+  };
+  const handleImageDragOver = (e) => e.preventDefault();
 
   const toggleSelect = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const toggleAll = () => setSelectedIds(selectedIds.length === products.length ? [] : products.map(p => p.id));
@@ -680,16 +692,34 @@ export default function CollectionDetail() {
           <div style={{ ...cardStyle(isDark), flex: 1, display: "flex", flexDirection: "column" }}>
             <label style={labelStyle(isDark)}>Bild</label>
             {imageUrl ? (
-              <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 10, flex: 1, minHeight: 120, maxHeight: 400 }}>
+              <div
+                onDrop={handleImageDrop}
+                onDragOver={handleImageDragOver}
+                style={{ position: "relative", borderRadius: 8, overflow: "hidden", marginBottom: 10, flex: 1, minHeight: 120, maxHeight: 400 }}
+              >
                 <img src={imageUrl} alt="" style={{ width: "100%", height: "100%", display: "block", borderRadius: 8, objectFit: "cover" }} />
                 {uploadProgress !== null && (
                   <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <div style={{ color: "#fff", fontWeight: 600 }}>{uploadProgress}%</div>
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleRemoveImage(); }}
+                  title="Bild entfernen"
+                  style={{
+                    position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: "50%",
+                    border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1,
+                  }}
+                >✕</button>
               </div>
             ) : (
-              <div onClick={() => fileInputRef.current?.click()} style={{
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDrop={handleImageDrop}
+                onDragOver={handleImageDragOver}
+                style={{
                 flex: 1, minHeight: 120, borderRadius: 8, border: `2px dashed ${isDark ? "#4a4a4a" : "#d1d5db"}`,
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 cursor: "pointer", color: isDark ? "#b0b7c3" : "#9ca3af", gap: 8, marginBottom: 10,
