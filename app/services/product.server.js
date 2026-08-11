@@ -254,6 +254,9 @@ export async function updateProductOptions(admin, productId, options) {
 
     }
     else {
+      // Neue Option ohne Namen/Werte kann Shopify nicht anlegen (Schema verlangt beides) —
+      // würde sonst einen ungefangenen GraphQL-Fehler werfen und die ganze Aktion crashen lassen.
+      if (!option.name?.trim() || !option.values?.length) continue;
 
       // Neue Option erstellen
       await admin.graphql(`

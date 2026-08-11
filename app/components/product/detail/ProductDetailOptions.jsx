@@ -457,7 +457,9 @@ export default function ProductDetailOptions({
                       </div>
 
                       {translationLocales.length > 0 && (
-                        !optionTranslationData[option.id] ? (
+                        !option.id ? (
+                          <Text variant="bodyXs" tone="subdued">Erst speichern, um Übersetzungen zu bearbeiten</Text>
+                        ) : !optionTranslationData[option.id] ? (
                           <Text variant="bodyXs" tone="subdued">Lade…</Text>
                         ) : (
                           translationLocales.map((loc) => {
