@@ -119,6 +119,7 @@ export const loader = async ({ request, params }) => {
 
   let allVendors = [];
   let allProductTypes = [];
+  let allOptionNames = [];
   try {
     const metaRes = await admin.graphql(`
       query {
@@ -126,6 +127,7 @@ export const loader = async ({ request, params }) => {
           nodes {
             vendor
             productType
+            options { name }
           }
         }
       }
@@ -134,6 +136,7 @@ export const loader = async ({ request, params }) => {
     const nodes = metaJson.data?.products?.nodes ?? [];
     allVendors = [...new Set(nodes.map((node) => node.vendor).filter(Boolean))].sort();
     allProductTypes = [...new Set(nodes.map((node) => node.productType).filter(Boolean))].sort();
+    allOptionNames = [...new Set(nodes.flatMap((node) => node.options?.map((o) => o.name) ?? []).filter((n) => n && n !== "Title"))].sort();
   } catch (e) { /* falls API nicht verfügbar: leer */ }
 
   let allCollections = [];
@@ -200,7 +203,7 @@ export const loader = async ({ request, params }) => {
   let optionSwatches = {};
   try { optionSwatches = JSON.parse(data.data.product?.optionSwatchesMetafield?.value ?? "{}"); } catch { /* leer */ }
 
-  return { product: data.data.product, allTags, allVendors, allProductTypes, allCollections, allMetafieldDefinitions, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, locationId, shop, skuFormat, skuAbbreviations };
+  return { product: data.data.product, allTags, allVendors, allProductTypes, allOptionNames, allCollections, allMetafieldDefinitions, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, locationId, shop, skuFormat, skuAbbreviations };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
@@ -1649,7 +1652,7 @@ export default function ProductDetail() {
 
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { product, allTags = [], allVendors = [], allProductTypes = [], allCollections = [], allMetafieldDefinitions = [], defaultMetafieldOrder = [], locales = [], shopId, fieldLabels = {}, optionSwatches = {}, locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
+  const { product, allTags = [], allVendors = [], allProductTypes = [], allOptionNames = [], allCollections = [], allMetafieldDefinitions = [], defaultMetafieldOrder = [], locales = [], shopId, fieldLabels = {}, optionSwatches = {}, locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
 
   // Kürzel-Map aus Metafeld (rexpaw.option_abbreviations)
   const abbreviationsMap = (() => {
@@ -2363,6 +2366,7 @@ export default function ProductDetail() {
               shopId={shopId}
               fieldLabels={fieldLabels}
               optionSwatches={optionSwatches}
+              allOptionNames={allOptionNames}
               product={product}
               fetcher={fetcher}
               setToast={setToast}
