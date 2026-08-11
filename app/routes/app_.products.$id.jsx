@@ -396,7 +396,7 @@ export const action = async ({ request }) => {
   // Beides sind eigene übersetzbare Shopify-Ressourcen (PRODUCT_OPTION / PRODUCT_OPTION_VALUE),
   // unabhängig vom Produkt-Titel — daher pro ID einzeln abgefragt.
   if (type === "getOptionTranslations") {
-    const ids = JSON.parse(formData.get("ids") || "[]");
+    const ids = JSON.parse(formData.get("ids") || "[]").filter(Boolean);
     const locales = JSON.parse(formData.get("locales") || "[]");
 
     const result = {};
