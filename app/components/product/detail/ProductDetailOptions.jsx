@@ -113,7 +113,7 @@ export default function ProductDetailOptions({
   const valueIdFor = (option, valueName) => option.optionValues?.find((v) => v.name === valueName)?.id;
 
   const toggleOptionTranslationFetch = (option) => {
-    const ids = [option.id, ...(option.values ?? []).map((v) => valueIdFor(option, v)).filter(Boolean)];
+    const ids = [option.id, ...(option.values ?? []).map((v) => valueIdFor(option, v))].filter(Boolean);
     const missing = ids.filter((id) => !optionTranslationData[id]);
     if (missing.length === 0 || translationLocales.length === 0) return;
     optionTranslationFetcher.submit(
