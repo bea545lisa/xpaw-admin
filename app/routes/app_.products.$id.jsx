@@ -269,7 +269,7 @@ export const action = async ({ request }) => {
   if (type === "updateVariantAll") {
     const variantId = formData.get("variantId");
     const productId = formData.get("productId");
-    await admin.graphql(`
+    const variantRes = await admin.graphql(`
       mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
         productVariantsBulkUpdate(productId: $productId, variants: $variants) {
           userErrors { field message }
@@ -287,11 +287,17 @@ export const action = async ({ request }) => {
         }],
       },
     });
+    const variantJson = await variantRes.json();
+    const variantErrors = variantJson.data?.productVariantsBulkUpdate?.userErrors ?? [];
+    if (variantErrors.length) {
+      return { ok: false, type: "updateVariantAll", variantId, error: variantErrors[0].message };
+    }
+
     const inventoryItemId = formData.get("inventoryItemId");
     const locId = formData.get("locationId");
     const quantity = parseInt(formData.get("quantity"), 10);
     if (inventoryItemId && locId && !isNaN(quantity)) {
-      await admin.graphql(`
+      const invRes = await admin.graphql(`
         mutation($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
             userErrors { field message }
@@ -305,6 +311,11 @@ export const action = async ({ request }) => {
           },
         },
       });
+      const invJson = await invRes.json();
+      const invErrors = invJson.data?.inventorySetQuantities?.userErrors ?? [];
+      if (invErrors.length) {
+        return { ok: false, type: "updateVariantAll", variantId, error: invErrors[0].message };
+      }
     }
     return { ok: true, type: "updateVariantAll", variantId };
   }
@@ -845,7 +856,10 @@ export const action = async ({ request }) => {
       }))
       .filter((option) => option.name && option.values.length > 0);
 
-    await updateProductOptions(admin, formData.get("id"), validOptions);
+    const optionsResult = await updateProductOptions(admin, formData.get("id"), validOptions);
+    if (optionsResult?.errors?.length) {
+      return { ok: false, type: "updateOptions", error: optionsResult.errors[0].message };
+    }
 
     // Kürzel-Metafeld speichern (falls mitgeschickt)
     const abbreviationsRaw = formData.get("abbreviations");
@@ -1979,6 +1993,16 @@ export default function ProductDetail() {
 
   const hasVariants = localVariants.length > 1 || localVariants[0]?.title !== "Default Title";
   const totalVariants = localVariants.length > 1 ? `${localVariants.length}` : "";
+
+  // Bei Produkten ohne echte Varianten ("Standard") gibt es keinen Bearbeiten-Klick, der
+  // variantDraft normalerweise befüllt (openVariantEdit) — die Preis/Lager-Felder sind hier
+  // immer direkt editierbar. Ohne diese Initialisierung blieben sie beim Laden leer.
+  useEffect(() => {
+    if (defaultVariant && Object.keys(variantDraft).length === 0) {
+      openVariantEdit(defaultVariant);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultVariant]);
   const totalStock = localVariants.reduce((sum, v) => sum + (v.inventoryQuantity ?? 0), 0);
   const hasZeroStock = localVariants.some(v => (v.inventoryQuantity ?? 0) === 0);
 

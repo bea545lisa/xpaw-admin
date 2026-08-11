@@ -191,6 +191,8 @@ export async function setVariantInventory(admin, inventoryItemId, locationId, qu
 }
 
 export async function updateProductOptions(admin, productId, options) {
+  const allErrors = [];
+
   const currentRes = await admin.graphql(`
     query($id: ID!) {
       product(id: $id) {
@@ -222,7 +224,7 @@ export async function updateProductOptions(admin, productId, options) {
         .slice(nextValues.length)
         .map((value) => value.id);
 
-      await admin.graphql(`
+      const res = await admin.graphql(`
         mutation updateOption(
           $productId: ID!,
           $option: OptionUpdateInput!,
@@ -251,6 +253,9 @@ export async function updateProductOptions(admin, productId, options) {
         optionValuesToDelete: valuesToDelete,
         variantStrategy: (valuesToAdd.length > 0 || valuesToDelete.length > 0) ? "MANAGE" : "LEAVE_AS_IS",
       }});
+      const json = await res.json();
+      const errors = json.data?.productOptionUpdate?.userErrors ?? [];
+      if (errors.length) allErrors.push(...errors);
 
     }
     else {
@@ -259,7 +264,7 @@ export async function updateProductOptions(admin, productId, options) {
       if (!option.name?.trim() || !option.values?.length) continue;
 
       // Neue Option erstellen
-      await admin.graphql(`
+      const res = await admin.graphql(`
         mutation createOption($productId: ID!, $options: [OptionCreateInput!]!, $variantStrategy: ProductOptionCreateVariantStrategy) {
           productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {
             product { id options { id name values } }
@@ -271,6 +276,9 @@ export async function updateProductOptions(admin, productId, options) {
         options: [{ name: option.name, values: option.values.map(v => ({ name: v })) }],
         variantStrategy: "CREATE",
       }});
+      const json = await res.json();
+      const errors = json.data?.productOptionsCreate?.userErrors ?? [];
+      if (errors.length) allErrors.push(...errors);
     }
   }
 
@@ -281,7 +289,7 @@ export async function updateProductOptions(admin, productId, options) {
     .map((o) => o.id);
 
   if (optionsToDelete.length > 0) {
-    await admin.graphql(`
+    const res = await admin.graphql(`
   mutation($productId: ID!, $options: [ID!]!, $strategy: ProductOptionDeleteStrategy) {
     productOptionsDelete(
       productId: $productId,
@@ -299,7 +307,12 @@ export async function updateProductOptions(admin, productId, options) {
         strategy: "POSITION",
       },
     });
+    const json = await res.json();
+    const errors = json.data?.productOptionsDelete?.userErrors ?? [];
+    if (errors.length) allErrors.push(...errors);
   }
+
+  return { errors: allErrors };
 }
 
 // ================== BILDER UPLOAD ========================
