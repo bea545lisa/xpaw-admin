@@ -1230,6 +1230,10 @@ export const action = async ({ request }) => {
       },
     });
     const json = await res.json();
+    const errors = json.data?.metaobjectCreate?.userErrors ?? [];
+    if (errors.length) {
+      return { ok: false, type: "createMetaobject", error: errors[0].message };
+    }
     const metaobject = json.data?.metaobjectCreate?.metaobject ?? null;
     return { ok: true, type: "createMetaobject", metaobject };
   }
