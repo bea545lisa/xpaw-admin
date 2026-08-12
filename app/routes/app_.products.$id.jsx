@@ -43,7 +43,7 @@ export const loader = async ({ request, params }) => {
   const res = await admin.graphql(`
     query getProduct($id: ID!) {
       product(id: $id) {
-        id title handle status description vendor productType createdAt updatedAt tags
+        id title handle status description descriptionHtml vendor productType createdAt updatedAt tags
         onlineStorePreviewUrl
         seo { title description }
         featuredImage { url altText }
@@ -533,6 +533,14 @@ export const action = async ({ request }) => {
 
   // Beschreibung
   if (type === "updateDescription") {
+    // Zeilenumbrüche aus dem Textfeld sind reines "\n" — HTML ignoriert das, daher in <br>
+    // umwandeln. Vorher HTML-Sonderzeichen escapen, falls im Text literal < > & getippt wurde.
+    const rawText = formData.get("description") ?? "";
+    const descriptionHtml = rawText
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .split(/\n/).join("<br>");
     await admin.graphql(`
       mutation($id: ID!, $descriptionHtml: String!) {
         productUpdate(input: { id: $id, descriptionHtml: $descriptionHtml }) {
@@ -540,7 +548,7 @@ export const action = async ({ request }) => {
           userErrors { field message }
         }
       }
-    `, { variables: { id: formData.get("id"), descriptionHtml: formData.get("description") } });
+    `, { variables: { id: formData.get("id"), descriptionHtml } });
     return { ok: true, type: "updateDescription" };
   }
 
