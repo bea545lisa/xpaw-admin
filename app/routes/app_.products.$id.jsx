@@ -1080,6 +1080,49 @@ export const action = async ({ request }) => {
 
   // Varianten-Metafields — gleiche Mechanik wie Produkt-Metafields, aber ownerId = Variante und
   // eigene Definition (ownerType PRODUCTVARIANT), da Metafield-Definitionen pro Owner-Typ getrennt sind.
+  // Ein Meta-Feld gleichzeitig auf mehrere Varianten setzen (z.B. "Umfang" für alle Größe-S-Varianten,
+  // egal welche Farbe) — spart das manuelle Wiederholen pro Farbvariante bei gleichem Optionswert.
+  if (type === "bulkSetVariantMetafield") {
+    const variantIds = JSON.parse(formData.get("variantIds") || "[]");
+    const namespace = formData.get("namespace");
+    const key = formData.get("key");
+    const metafieldType = formData.get("type");
+    const name = formData.get("name") || key;
+    const value = formData.get("value");
+
+    await admin.graphql(`
+      mutation($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          createdDefinition { id }
+          userErrors { field message code }
+        }
+      }
+    `, {
+      variables: {
+        definition: { name, namespace, key, type: metafieldType, ownerType: "PRODUCTVARIANT" },
+      },
+    }).catch(() => {}); // existiert bereits -> ignorieren
+
+    const res = await admin.graphql(`
+      mutation($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id namespace key type value ownerId }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        metafields: variantIds.map((variantId) => ({
+          ownerId: variantId, namespace, key, type: metafieldType, value,
+        })),
+      },
+    });
+    const json = await res.json();
+    const userErrors = json.data?.metafieldsSet?.userErrors ?? [];
+    const metafieldsResult = json.data?.metafieldsSet?.metafields ?? [];
+    return { ok: userErrors.length === 0, type: "bulkSetVariantMetafield", metafields: metafieldsResult, userErrors };
+  }
+
   if (type === "createVariantMetafield") {
     const namespace = formData.get("namespace");
     const key = formData.get("key");
