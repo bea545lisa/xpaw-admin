@@ -183,8 +183,11 @@ export default function ProductItem({
     (e) => e.node.compareAtPrice && parseFloat(e.node.compareAtPrice) > parseFloat(e.node.price)
   );
   const templateBadge = formatTemplateSuffix(product.node.templateSuffix);
+  // Interne/technische Felder (SEO, App-eigene Verwaltungsdaten, JSON-Rohdaten) nie in der
+  // Listenvorschau anzeigen — die sind für Endnutzer nicht lesbar (z.B. rohes JSON).
+  const HIDDEN_LIST_PREVIEW_KEYS = ["title_tag", "description_tag", "metafields_order", "option_abbreviations", "option_swatches"];
   const metaFields = product.node.metafields?.edges
-    ?.filter((e) => e.node.key !== "title_tag" && e.node.key !== "description_tag")
+    ?.filter((e) => !HIDDEN_LIST_PREVIEW_KEYS.includes(e.node.key) && e.node.type !== "json" && e.node.type !== "list.metaobject_reference")
     ?.slice(0, 3)
     .map((e) => e.node) ?? [];
   const showMetaRow = metaFields.length > 0;
