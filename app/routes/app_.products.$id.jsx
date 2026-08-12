@@ -1112,7 +1112,7 @@ export const action = async ({ request }) => {
         }
       `, {
         variables: {
-          definition: { name, namespace, key, type: metafieldType, ownerType: "PRODUCTVARIANT" },
+          definition: { name, namespace, key, type: metafieldType, ownerType: "PRODUCTVARIANT", access: { storefront: "PUBLIC_READ" } },
         },
       }).catch(() => {}); // existiert bereits -> ignorieren
 
