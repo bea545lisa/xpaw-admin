@@ -54,14 +54,17 @@ function SkuField({ value, onChange, productId, skuFormat, selectedOptions }) {
 }
 
 // ── Varianten-Metafields: eigene, per Variante gepflegte Custom-Felder (z.B. "Maße") ──────────
-function VariantMetafields({ variant, isDark, setToast, setLocalVariants }) {
+function VariantMetafields({ variant, allVariants = [], isDark, setToast, setLocalVariants }) {
   const fetcher = useFetcher();
+  const bulkFetcher = useFetcher();
   const [fields, setFields] = useState(
     (variant.metafields?.edges ?? []).map((e) => e.node)
   );
   const [drafts, setDrafts] = useState({}); // metafieldId -> value
   const [newField, setNewField] = useState({ key: "", value: "" });
   const [adding, setAdding] = useState(false);
+  const optionNames = (variant.selectedOptions ?? []).map((o) => o.name);
+  const [applyToOption, setApplyToOption] = useState(null); // Optionsname oder null ("nur diese Variante")
 
   // Änderungen zusätzlich in localVariants (übergeordneter State) spiegeln — sonst zeigt das Panel
   // beim erneuten Öffnen (ohne vollen Seiten-Reload) wieder den alten Stand, da diese Komponente
@@ -111,6 +114,33 @@ function VariantMetafields({ variant, isDark, setToast, setLocalVariants }) {
     }
   }, [fetcher.state, fetcher.data]);
 
+  useEffect(() => {
+    if (bulkFetcher.state !== "idle" || bulkFetcher.data?.type !== "bulkSetVariantMetafield") return;
+    const d = bulkFetcher.data;
+    if (d.ok) {
+      const mine = d.metafields.find((m) => m.ownerId === variant.id);
+      if (mine) {
+        setFields((prev) => {
+          const next = [...prev.filter((f) => f.key !== mine.key), mine];
+          syncLocalVariants(next);
+          return next;
+        });
+      }
+      setLocalVariants?.((prev) => prev.map((lv) => {
+        const match = d.metafields.find((m) => m.ownerId === lv.id);
+        if (!match) return lv;
+        const existingEdges = (lv.metafields?.edges ?? []).filter((e) => e.node.key !== match.key);
+        return { ...lv, metafields: { edges: [...existingEdges, { node: match }] } };
+      }));
+      setNewField({ key: "", value: "" });
+      setAdding(false);
+      setApplyToOption(null);
+      setToast?.(`Meta-Feld für ${d.metafields.length} Varianten gespeichert`);
+    } else {
+      setToast?.(`Fehler: ${d.userErrors?.[0]?.message || "Felder konnten nicht gespeichert werden"}`);
+    }
+  }, [bulkFetcher.state, bulkFetcher.data]);
+
   const saveExisting = (field) => {
     const value = drafts[field.id];
     if (value === undefined) return; // nichts getippt, kein Save nötig
@@ -130,6 +160,19 @@ function VariantMetafields({ variant, isDark, setToast, setLocalVariants }) {
   const addField = () => {
     const key = newField.key.trim();
     if (!key || !newField.value.trim()) return;
+
+    if (applyToOption) {
+      const targetValue = variant.selectedOptions.find((o) => o.name === applyToOption)?.value;
+      const targetVariantIds = allVariants
+        .filter((v) => v.selectedOptions?.some((o) => o.name === applyToOption && o.value === targetValue))
+        .map((v) => v.id);
+      bulkFetcher.submit(
+        { action: "bulkSetVariantMetafield", variantIds: JSON.stringify(targetVariantIds), namespace: "custom", key, type: "single_line_text_field", name: key, value: newField.value },
+        { method: "POST" }
+      );
+      return;
+    }
+
     fetcher.submit(
       { action: "createVariantMetafield", variantId: variant.id, namespace: "custom", key, type: "single_line_text_field", name: key, value: newField.value },
       { method: "POST" }
@@ -175,16 +218,42 @@ function VariantMetafields({ variant, isDark, setToast, setLocalVariants }) {
         ))}
 
         {adding ? (
-          <InlineStack gap="100" blockAlign="center" wrap={false}>
-            <div style={{ width: 110, flexShrink: 0 }}>
-              <TextField label="" labelHidden autoComplete="off" placeholder="z.B. Maße" value={newField.key} onChange={(val) => setNewField((f) => ({ ...f, key: val }))} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <TextField label="" labelHidden autoComplete="off" placeholder="Wert" value={newField.value} onChange={(val) => setNewField((f) => ({ ...f, value: val }))} />
-            </div>
-            <Button size="slim" onClick={addField}>✓</Button>
-            <Button size="slim" onClick={() => { setAdding(false); setNewField({ key: "", value: "" }); }}>✕</Button>
-          </InlineStack>
+          <BlockStack gap="150">
+            <InlineStack gap="100" blockAlign="center" wrap={false}>
+              <div style={{ width: 110, flexShrink: 0 }}>
+                <TextField label="" labelHidden autoComplete="off" placeholder="z.B. Umfang" value={newField.key} onChange={(val) => setNewField((f) => ({ ...f, key: val }))} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <TextField label="" labelHidden autoComplete="off" placeholder="Wert" value={newField.value} onChange={(val) => setNewField((f) => ({ ...f, value: val }))} />
+              </div>
+              <Button size="slim" onClick={addField} loading={bulkFetcher.state !== "idle"}>✓</Button>
+              <Button size="slim" onClick={() => { setAdding(false); setNewField({ key: "", value: "" }); setApplyToOption(null); }}>✕</Button>
+            </InlineStack>
+            {optionNames.length > 0 && (
+              <InlineStack gap="150" blockAlign="center">
+                <Text variant="bodyXs" tone="subdued">Übernehmen für:</Text>
+                <button
+                  onClick={() => setApplyToOption(null)}
+                  style={{
+                    fontSize: 11, padding: "2px 8px", borderRadius: 12, cursor: "pointer",
+                    border: `1px solid ${applyToOption === null ? "var(--p-color-border-emphasis)" : "var(--p-color-border)"}`,
+                    background: applyToOption === null ? "var(--p-color-bg-surface-emphasis)" : "transparent",
+                  }}
+                >nur diese Variante</button>
+                {optionNames.map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => setApplyToOption(name)}
+                    style={{
+                      fontSize: 11, padding: "2px 8px", borderRadius: 12, cursor: "pointer",
+                      border: `1px solid ${applyToOption === name ? "var(--p-color-border-emphasis)" : "var(--p-color-border)"}`,
+                      background: applyToOption === name ? "var(--p-color-bg-surface-emphasis)" : "transparent",
+                    }}
+                  >alle mit {name}: {variant.selectedOptions.find((o) => o.name === name)?.value}</button>
+                ))}
+              </InlineStack>
+            )}
+          </BlockStack>
         ) : (
           <Button size="slim" onClick={() => setAdding(true)}>+ Feld hinzufügen</Button>
         )}
@@ -460,7 +529,7 @@ export default function ProductDetailTabs({
                                 <SkuField value={variantDraft.sku} onChange={val => setVariantDraft(d => ({ ...d, sku: val }))} productId={product?.id} skuFormat={skuFormat} selectedOptions={v.selectedOptions ?? []} />
                                 <TextField label="Barcode" value={variantDraft.barcode} onChange={val => setVariantDraft(d => ({ ...d, barcode: val }))} autoComplete="off" />
                               </div>
-                              <VariantMetafields variant={v} isDark={isDark} setToast={setToast} setLocalVariants={setLocalVariants} />
+                              <VariantMetafields variant={v} allVariants={localVariants} isDark={isDark} setToast={setToast} setLocalVariants={setLocalVariants} />
                               <InlineStack gap="200">
                                 <Button variant="primary" size="slim" onClick={() => handleVariantSave(v)} loading={isSaving}>Speichern</Button>
                                 <Button size="slim" onClick={() => setEditingVariantId(null)}>Abbrechen</Button>
