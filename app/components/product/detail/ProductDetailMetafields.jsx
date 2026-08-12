@@ -64,7 +64,7 @@ function computeInitialOrder(fields, defaultOrder = []) {
 // Metaobjects als Bezeichnung/Wert-Paare, erlaubt Hinzufügen/Entfernen
 function MetaobjectReferenceField({
   field, productId, locales = [], onChange, onDelete, setToast, dragHandle, editingRefId, setEditingRefId, closeOtherEditors,
-  shopId, fieldLabels, labelDrafts, setLabelDrafts, saveFieldLabel, labelDraftKey,
+  shopId, metaobjectTypeByFieldKey = {}, fieldLabels, labelDrafts, setLabelDrafts, saveFieldLabel, labelDraftKey,
 }) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -91,6 +91,7 @@ function MetaobjectReferenceField({
 
   const references = field.references?.edges?.map((e) => e.node) ?? [];
   const metaobjectType = references[0]?.type
+    ?? metaobjectTypeByFieldKey?.[field.key]
     ?? (field.key === "eigenschaften" ? EIGENSCHAFTEN_METAOBJECT_TYPE : null);
 
   useEffect(() => {
@@ -550,7 +551,7 @@ function MetaobjectReferenceField({
   );
 }
 
-export default function ProductDetailMetafields({ metafields, allMetafieldDefinitions = [], defaultMetafieldOrder = [], locales = [], shopId, fieldLabels: initialFieldLabels = {}, productId, fetcher, setToast }) {
+export default function ProductDetailMetafields({ metafields, allMetafieldDefinitions = [], metaobjectTypeByFieldKey = {}, defaultMetafieldOrder = [], locales = [], shopId, fieldLabels: initialFieldLabels = {}, productId, fetcher, setToast }) {
 
   const orderFetcher = useFetcher();
   const metaTranslationFetcher = useFetcher();
@@ -1085,6 +1086,7 @@ return (
                     setEditingRefId={setEditingRefId}
                     closeOtherEditors={() => setEditingId(null)}
                     shopId={shopId}
+                    metaobjectTypeByFieldKey={metaobjectTypeByFieldKey}
                     fieldLabels={fieldLabels}
                     labelDrafts={labelDrafts}
                     setLabelDrafts={setLabelDrafts}

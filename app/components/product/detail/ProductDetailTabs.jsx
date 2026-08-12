@@ -200,7 +200,7 @@ export default function ProductDetailTabs({
      variantDraft, setVariantDraft,
      editingVariantId, setEditingVariantId,
      openVariantEdit, handleVariantSave, isSaving,
-     metafields, allMetafieldDefinitions, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, allOptionNames, product, fetcher, setToast,
+     metafields, allMetafieldDefinitions, metaobjectTypeByFieldKey, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, allOptionNames, product, fetcher, setToast,
      localImages, onVariantImageAssign,
      skuFormat,
    }) {
@@ -481,6 +481,7 @@ export default function ProductDetailTabs({
           <ProductDetailMetafields
             metafields={metafields}
             allMetafieldDefinitions={allMetafieldDefinitions}
+            metaobjectTypeByFieldKey={metaobjectTypeByFieldKey}
             defaultMetafieldOrder={defaultMetafieldOrder}
             locales={locales}
             shopId={shopId}
