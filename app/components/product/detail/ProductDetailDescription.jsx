@@ -2,9 +2,17 @@ import { Card, BlockStack, Text, Button, InlineStack, Divider, TextField } from 
 import { useState } from "react";
 import LocaleFlag from "../../shared/LocaleFlag.jsx";
 
+// Wandelt gespeichertes HTML (nur <br>-Umbrüche, kein Rich-Text) zurück in reinen Text mit "\n"
+// fürs einfache Textfeld.
+function htmlToPlainText(html) {
+  return (html ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+
 export default function ProductDetailDescription({ product, fetcher, productId, setToast, renderTranslationRows, primaryLocale, translatedLocales = [] }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(product.description ?? "");
+  const [draft, setDraft] = useState(htmlToPlainText(product.descriptionHtml) || product.description || "");
 
   const handleSave = () => {
     fetcher.submit(
@@ -30,7 +38,7 @@ export default function ProductDetailDescription({ product, fetcher, productId, 
           {!editing && (
             <Button
               size="micro"
-              onClick={() => { setDraft(product.description ?? ""); setEditing(true); }}
+              onClick={() => { setDraft(htmlToPlainText(product.descriptionHtml) || product.description || ""); setEditing(true); }}
             >
               Bearbeiten
             </Button>
@@ -68,10 +76,12 @@ export default function ProductDetailDescription({ product, fetcher, productId, 
               </Button>
             </InlineStack>
           </BlockStack>
+        ) : product.description ? (
+          <div style={{ whiteSpace: "pre-wrap" }}>
+            <Text tone="subdued">{htmlToPlainText(product.descriptionHtml) || product.description}</Text>
+          </div>
         ) : (
-          <Text tone="subdued">
-            {product.description || <em>Keine Beschreibung</em>}
-          </Text>
+          <Text tone="subdued"><em>Keine Beschreibung</em></Text>
         )}
       </BlockStack>
     </Card>
