@@ -148,6 +148,10 @@ function MetaobjectReferenceField({
 
   useEffect(() => {
     if (metaobjectFetcher.state !== "idle" || metaobjectFetcher.data?.type !== "createMetaobject") return;
+    if (metaobjectFetcher.data.ok === false) {
+      setToast?.(`Fehler: ${metaobjectFetcher.data.error || "Eintrag konnte nicht angelegt werden"}`);
+      return;
+    }
     const created = metaobjectFetcher.data.metaobject;
     if (created) {
       saveReferences([...references, created]);
