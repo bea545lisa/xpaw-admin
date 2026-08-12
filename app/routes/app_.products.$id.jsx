@@ -169,12 +169,35 @@ export const loader = async ({ request, params }) => {
     const defsRes = await admin.graphql(`
       query {
         metafieldDefinitions(ownerType: PRODUCT, first: 100) {
-          edges { node { id name namespace key type { name } } }
+          edges { node { id name namespace key type { name } validations { name value } } }
         }
       }
     `);
     const defsJson = await defsRes.json();
     allMetafieldDefinitions = defsJson.data?.metafieldDefinitions?.edges?.map(e => e.node) ?? [];
+  } catch (e) { /* falls API nicht verfügbar: leer */ }
+
+  // Für list.metaobject_reference-Metafields: Metaobject-Definitionen laden, um aus der
+  // "metaobject_definition_id"-Validation den passenden type-Handle (für metaobjects(type:))
+  // pro Feld-Key aufzulösen. Ersetzt shop-spezifisches Hardcoding.
+  let metaobjectTypeByFieldKey = {};
+  try {
+    const metaobjectDefsRes = await admin.graphql(`
+      query {
+        metaobjectDefinitions(first: 100) {
+          edges { node { id type } }
+        }
+      }
+    `);
+    const metaobjectDefsJson = await metaobjectDefsRes.json();
+    const metaobjectDefs = metaobjectDefsJson.data?.metaobjectDefinitions?.edges?.map(e => e.node) ?? [];
+    const typeById = Object.fromEntries(metaobjectDefs.map(d => [d.id, d.type]));
+    for (const def of allMetafieldDefinitions) {
+      if (def.type?.name !== "list.metaobject_reference" && def.type?.name !== "metaobject_reference") continue;
+      const validation = def.validations?.find(v => v.name === "metaobject_definition_id");
+      const resolvedType = validation ? typeById[validation.value] : null;
+      if (resolvedType) metaobjectTypeByFieldKey[def.key] = resolvedType;
+    }
   } catch (e) { /* falls API nicht verfügbar: leer */ }
 
   // Aktive Shop-Sprachen (für Metaobject-Übersetzungen bei Eigenschaften)
@@ -203,7 +226,7 @@ export const loader = async ({ request, params }) => {
   let optionSwatches = {};
   try { optionSwatches = JSON.parse(data.data.product?.optionSwatchesMetafield?.value ?? "{}"); } catch { /* leer */ }
 
-  return { product: data.data.product, allTags, allVendors, allProductTypes, allOptionNames, allCollections, allMetafieldDefinitions, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, locationId, shop, skuFormat, skuAbbreviations };
+  return { product: data.data.product, allTags, allVendors, allProductTypes, allOptionNames, allCollections, allMetafieldDefinitions, metaobjectTypeByFieldKey, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, locationId, shop, skuFormat, skuAbbreviations };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
@@ -1666,7 +1689,7 @@ export default function ProductDetail() {
 
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { product, allTags = [], allVendors = [], allProductTypes = [], allOptionNames = [], allCollections = [], allMetafieldDefinitions = [], defaultMetafieldOrder = [], locales = [], shopId, fieldLabels = {}, optionSwatches = {}, locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
+  const { product, allTags = [], allVendors = [], allProductTypes = [], allOptionNames = [], allCollections = [], allMetafieldDefinitions = [], metaobjectTypeByFieldKey = {}, defaultMetafieldOrder = [], locales = [], shopId, fieldLabels = {}, optionSwatches = {}, locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
 
   // Kürzel-Map aus Metafeld (rexpaw.option_abbreviations)
   const abbreviationsMap = (() => {
@@ -2385,6 +2408,7 @@ export default function ProductDetail() {
               isSaving={isSaving}
               metafields={metafields}
               allMetafieldDefinitions={allMetafieldDefinitions}
+              metaobjectTypeByFieldKey={metaobjectTypeByFieldKey}
               defaultMetafieldOrder={defaultMetafieldOrder}
               locales={locales}
               shopId={shopId}
