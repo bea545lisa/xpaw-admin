@@ -1119,7 +1119,7 @@ export const action = async ({ request }) => {
       const res = await admin.graphql(`
         mutation($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
-            metafields { id namespace key type value ownerId }
+            metafields { id namespace key type value }
             userErrors { field message }
           }
         }
@@ -1132,7 +1132,11 @@ export const action = async ({ request }) => {
       });
       const json = await res.json();
       const userErrors = json.data?.metafieldsSet?.userErrors ?? [];
-      const metafieldsResult = json.data?.metafieldsSet?.metafields ?? [];
+      // metafieldsSet gibt die Ergebnisse in derselben Reihenfolge wie die Eingabe zurück —
+      // da "ownerId" auf Metafield nicht abfragbar ist, ordnen wir per Index den variantIds zu.
+      const metafieldsResult = (json.data?.metafieldsSet?.metafields ?? []).map((m, i) => ({
+        ...m, ownerId: variantIds[i],
+      }));
       return { ok: userErrors.length === 0, type: "bulkSetVariantMetafield", metafields: metafieldsResult, userErrors };
     } catch (e) {
       return { ok: false, type: "bulkSetVariantMetafield", userErrors: [{ message: e.message || String(e) }] };
