@@ -158,8 +158,12 @@ function VariantMetafields({ variant, allVariants = [], isDark, setToast, setLoc
   };
 
   const addField = () => {
-    const key = newField.key.trim();
-    if (!key || !newField.value.trim()) return;
+    const label = newField.key.trim();
+    if (!label || !newField.value.trim()) return;
+    // Shopify-Keys sind case-sensitive; Theme-Blöcke erwarten meist Kleinschreibung.
+    // Deshalb den getippten Namen als "name"/Label behalten, aber als Key normalisieren.
+    const key = label.toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+    if (!key) return;
 
     if (applyToOption) {
       const targetValue = variant.selectedOptions.find((o) => o.name === applyToOption)?.value;
@@ -167,14 +171,14 @@ function VariantMetafields({ variant, allVariants = [], isDark, setToast, setLoc
         .filter((v) => v.selectedOptions?.some((o) => o.name === applyToOption && o.value === targetValue))
         .map((v) => v.id);
       bulkFetcher.submit(
-        { action: "bulkSetVariantMetafield", variantIds: JSON.stringify(targetVariantIds), namespace: "custom", key, type: "single_line_text_field", name: key, value: newField.value },
+        { action: "bulkSetVariantMetafield", variantIds: JSON.stringify(targetVariantIds), namespace: "custom", key, type: "single_line_text_field", name: label, value: newField.value },
         { method: "POST" }
       );
       return;
     }
 
     fetcher.submit(
-      { action: "createVariantMetafield", variantId: variant.id, namespace: "custom", key, type: "single_line_text_field", name: key, value: newField.value },
+      { action: "createVariantMetafield", variantId: variant.id, namespace: "custom", key, type: "single_line_text_field", name: label, value: newField.value },
       { method: "POST" }
     );
   };
