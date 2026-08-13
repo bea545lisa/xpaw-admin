@@ -2145,8 +2145,6 @@ export default function ProductDetail() {
   const [darkImages, setDarkImages] = useState(() =>
     imageUpload.localImages.map((_, i) => initialDarkModeImages[i] ?? null)
   );
-  const [darkPickerFor, setDarkPickerFor] = useState(null); // Index oder null
-
   // Array synchron zur Bilderliste halten, wenn neue Bilder hochgeladen/gelöscht werden.
   useEffect(() => {
     setDarkImages((prev) => imageUpload.localImages.map((_, i) => prev[i] ?? null));
@@ -2174,7 +2172,20 @@ export default function ProductDetail() {
       persistDarkImages(next);
       return next;
     });
-    setDarkPickerFor(null);
+  };
+
+  // Ein bereits zugewiesenes Dark-Bild per Drag&Drop einem anderen Light-Bild zuordnen
+  // (ersetzt dort automatisch den vorherigen Partner, die alte Position wird leer).
+  const moveDarkToLight = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    setDarkImages((prev) => {
+      const next = [...prev];
+      const moved = next[fromIndex];
+      next[fromIndex] = null;
+      next[toIndex] = moved;
+      persistDarkImages(next);
+      return next;
+    });
   };
 
   // Dark-Bilder folgen mit, wenn die Light-Bilder per Drag&Drop umsortiert werden - sonst
@@ -2577,6 +2588,7 @@ export default function ProductDetail() {
                 assignDarkImage={assignDarkImage}
                 uploadDarkImage={uploadDarkImage}
                 moveDarkImage={moveDarkImage}
+                moveDarkToLight={moveDarkToLight}
               />
             </Card>
 

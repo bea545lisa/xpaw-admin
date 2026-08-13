@@ -2,14 +2,45 @@ import { Text, BlockStack, Spinner, Banner, Icon } from "@shopify/polaris";
 import { ImageAddIcon } from "@shopify/polaris-icons";
 import { useColorScheme } from "../../context/ColorSchemeContext";
 
+// Drag&Drop-Payload für beide Kachel-Typen (Light-Bild vs. zugewiesenes Dark-Bild) im selben
+// Feld kodieren, damit ein einziger onDrop-Handler pro Light-Kachel beides unterscheiden kann.
+function setDragPayload(e, type, index) {
+  e.dataTransfer.setData("text/plain", JSON.stringify({ type, index }));
+}
+function getDragPayload(e) {
+  try { return JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return null; }
+}
+
 export default function ImagesSection({
   localImages, setLocalImages,
   uploadingImage, uploadProgress, uploadError, setUploadError,
   fileInputRef, handleImagesUpload, reorderImages, deleteImage,
-  darkImages, darkPickerFor, setDarkPickerFor, assignDarkImage, uploadDarkImage, moveDarkImage,
+  darkImages, assignDarkImage, uploadDarkImage, moveDarkImage, moveDarkToLight,
 }) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
+
+  const handleLightDrop = (e, targetIndex) => {
+    e.preventDefault();
+    const payload = getDragPayload(e);
+    if (!payload) return;
+    if (payload.type === "light") {
+      if (payload.index === targetIndex) return;
+      setLocalImages(prev => {
+        const updated = [...prev];
+        const [moved] = updated.splice(payload.index, 1);
+        updated.splice(targetIndex, 0, moved);
+        reorderImages(updated);
+        return updated;
+      });
+      moveDarkImage?.(payload.index, targetIndex);
+    } else if (payload.type === "dark") {
+      // Ein Dark-Bild wurde auf ein (anderes) Light-Bild gezogen → dort neu zuordnen,
+      // ersetzt automatisch das Light-Bild links davon als neuen Partner.
+      moveDarkToLight?.(payload.index, targetIndex);
+    }
+  };
+
   return (
     <BlockStack gap="100">
       <div style={{ marginBottom: 0 }}>
@@ -17,155 +48,104 @@ export default function ImagesSection({
       </div>
 
       {localImages.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
           {localImages.map((img, index) => (
-            <div
-              key={img.id}
-              draggable
-              onDragStart={(e) => e.dataTransfer.setData("index", index)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const from = parseInt(e.dataTransfer.getData("index"));
-                if (from === index) return;
-                setLocalImages(prev => {
-                  const updated = [...prev];
-                  const [moved] = updated.splice(from, 1);
-                  updated.splice(index, 0, moved);
-                  reorderImages(updated);
-                  return updated;
-                });
-                moveDarkImage?.(from, index);
-              }}
-              style={{
-                position: "relative",
-                width: 80, height: 80,
-                borderRadius: 8, overflow: "visible",
-                cursor: "grab",
-              }}
-            >
-              <div style={{ width: "100%", height: "100%", borderRadius: 8, overflow: "hidden", border: "1px solid var(--p-color-border)" }}>
-                <img
-                  src={img.url}
-                  alt={img.altText ?? ""}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              </div>
-              <button
-                onClick={() => deleteImage(img, index)}
+            <div key={img.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {/* Light-Bild */}
+              <div
+                draggable
+                onDragStart={(e) => setDragPayload(e, "light", index)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleLightDrop(e, index)}
                 style={{
-                  position: "absolute", top: 2, right: 2,
-                  background: "rgba(0,0,0,0.6)", color: "white",
-                  border: "none", borderRadius: "50%",
-                  width: 20, height: 20, fontSize: 11,
-                  cursor: "pointer", lineHeight: "20px", textAlign: "center", padding: 0,
+                  position: "relative",
+                  width: 80, height: 80,
+                  borderRadius: 8, overflow: "visible",
+                  cursor: "grab",
                 }}
-              >✕</button>
-              {index === 0 && (
-                <div style={{
-                  position: "absolute", bottom: 0, left: 0, right: 0,
-                  background: "rgba(0,0,0,0.5)", color: "white",
-                  fontSize: 9, textAlign: "center", padding: "2px 0",
-                }}>Cover</div>
-              )}
-
-              {/* Dauerhafte Mini-Vorschau des zugewiesenen Dark-Bilds, damit die Zuordnung
-                  auf einen Blick sichtbar ist, ohne den Picker öffnen zu müssen. */}
-              {darkImages?.[index] && (
+              >
+                <div style={{ width: "100%", height: "100%", borderRadius: 8, overflow: "hidden", border: "1px solid var(--p-color-border)" }}>
+                  <img
+                    src={img.url}
+                    alt={img.altText ?? ""}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </div>
                 <button
-                  type="button"
-                  title="Zugewiesenes Dark-Mode-Bild"
-                  onClick={(e) => { e.stopPropagation(); setDarkPickerFor(darkPickerFor === index ? null : index); }}
+                  onClick={() => deleteImage(img, index)}
                   style={{
-                    position: "absolute", top: -6, left: -6,
-                    width: 26, height: 26, borderRadius: 6, padding: 0, cursor: "pointer",
-                    border: `2px solid ${isDark ? "#1e1e1e" : "#fff"}`,
-                    outline: "1px solid #8b5cf6",
-                    background: `url(${darkImages[index].url}) center/cover`,
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+                    position: "absolute", top: 2, right: 2,
+                    background: "rgba(0,0,0,0.6)", color: "white",
+                    border: "none", borderRadius: "50%",
+                    width: 20, height: 20, fontSize: 11,
+                    cursor: "pointer", lineHeight: "20px", textAlign: "center", padding: 0,
                   }}
-                />
-              )}
+                >✕</button>
+                {index === 0 && (
+                  <div style={{
+                    position: "absolute", bottom: 0, left: 0, right: 0,
+                    background: "rgba(0,0,0,0.5)", color: "white",
+                    fontSize: 9, textAlign: "center", padding: "2px 0",
+                  }}>Cover</div>
+                )}
+              </div>
 
+              {/* Dark-Bild (direkt rechts vom zugehörigen Light-Bild) oder leerer Platzhalter-Slot.
+                  Umsortieren per Drag&Drop: ein Dark-Bild auf ein anderes Light-Bild ziehen
+                  ordnet es dort automatisch neu zu. */}
               {assignDarkImage && (
-                <>
-                  <button
-                    type="button"
-                    title={darkImages?.[index] ? "Dark-Mode-Bild ändern" : "Dark-Mode-Bild zuweisen (aktuell nur Light-Version)"}
-                    onClick={(e) => { e.stopPropagation(); setDarkPickerFor(darkPickerFor === index ? null : index); }}
-                    style={{
-                      position: "absolute", bottom: 2, left: 2,
-                      background: darkImages?.[index] ? "#8b5cf6" : "rgba(0,0,0,0.6)",
-                      color: "white", border: "none", borderRadius: "50%",
-                      width: 20, height: 20, fontSize: 11,
-                      cursor: "pointer", lineHeight: "20px", textAlign: "center", padding: 0,
-                    }}
-                  >{darkImages?.[index] ? "🌙" : "☀️"}</button>
-
-                  {darkPickerFor === index && (
-                    <div
-                      onDragStart={(e) => e.stopPropagation()}
+                darkImages?.[index] ? (
+                  <div
+                    draggable
+                    onDragStart={(e) => setDragPayload(e, "dark", index)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleLightDrop(e, index)}
+                    title="Dark-Mode-Bild — auf ein anderes Bild ziehen, um neu zuzuordnen"
+                    style={{ position: "relative", width: 44, height: 44, cursor: "grab" }}
+                  >
+                    <div style={{
+                      width: "100%", height: "100%", borderRadius: 6, overflow: "hidden",
+                      border: "2px solid #8b5cf6",
+                      background: `url(${darkImages[index].url}) center/cover`,
+                    }} />
+                    <span style={{
+                      position: "absolute", top: -6, left: -6,
+                      fontSize: 12, background: "#8b5cf6", borderRadius: "50%",
+                      width: 16, height: 16, textAlign: "center", lineHeight: "16px",
+                    }}>🌙</span>
+                    <button
+                      onClick={() => assignDarkImage(index, null)}
+                      title="Dark-Bild entfernen"
                       style={{
-                        position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 1000,
-                        width: 200, padding: 8, borderRadius: 8,
-                        border: "1px solid var(--p-color-border)",
-                        background: isDark ? "#2c2c2c" : "#fff",
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+                        position: "absolute", bottom: -6, right: -6,
+                        background: "rgba(0,0,0,0.7)", color: "white", border: "none",
+                        borderRadius: "50%", width: 16, height: 16, fontSize: 10, cursor: "pointer", padding: 0,
                       }}
-                    >
-                      <Text variant="bodyXs" tone="subdued" as="p">Dark-Mode-Bild für dieses Bild</Text>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-                        {darkImages?.[index] && (
-                          <div style={{ position: "relative", width: 32, height: 32 }}>
-                            <img src={darkImages[index].url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 4 }} />
-                            <button
-                              onClick={() => assignDarkImage(index, null)}
-                              title="Entfernen"
-                              style={{
-                                position: "absolute", top: -4, right: -4,
-                                background: "rgba(0,0,0,0.7)", color: "white", border: "none",
-                                borderRadius: "50%", width: 14, height: 14, fontSize: 9, cursor: "pointer", padding: 0,
-                              }}
-                            >✕</button>
-                          </div>
-                        )}
-                        {localImages.filter((_, i) => i !== index).map((li) => (
-                          <button
-                            key={li.id}
-                            type="button"
-                            onClick={() => assignDarkImage(index, { id: li.mediaId ?? li.id, url: li.url })}
-                            title="Als Dark-Bild verwenden"
-                            style={{
-                              width: 32, height: 32, borderRadius: 4, padding: 0, cursor: "pointer",
-                              border: "1px solid var(--p-color-border)",
-                              background: `url(${li.url}) center/cover`,
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <label
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6,
-                          padding: "4px 8px", borderRadius: 6, cursor: "pointer",
-                          border: "1px solid var(--p-color-border)",
-                          background: isDark ? "#3a3a3a" : "#f0f0f0",
-                          fontSize: 11,
-                        }}
-                      >
-                        <Icon source={ImageAddIcon} tone="base" />
-                        Hochladen
-                        <input
-                          type="file" accept="image/*" style={{ display: "none" }}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) uploadDarkImage(file, index);
-                            e.target.value = "";
-                          }}
-                        />
-                      </label>
-                    </div>
-                  )}
-                </>
+                    >✕</button>
+                  </div>
+                ) : (
+                  <label
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleLightDrop(e, index)}
+                    title="Dark-Mode-Bild hinzufügen (Datei wählen oder ein Dark-Bild hierher ziehen)"
+                    style={{
+                      width: 44, height: 44, borderRadius: 6, flexShrink: 0,
+                      border: `2px dashed ${isDark ? "#5a5a5a" : "#c4c4c4"}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", fontSize: 16, opacity: 0.6,
+                    }}
+                  >
+                    ☀️
+                    <input
+                      type="file" accept="image/*" style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadDarkImage(file, index);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                )
               )}
             </div>
           ))}
