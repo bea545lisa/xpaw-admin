@@ -179,8 +179,8 @@ export default function Sidebar() {
         </Link>
       </nav>
 
-      {/* Dark-Mode-Toggle ganz unten */}
-      <div style={{ marginTop: "auto", paddingTop: 16, borderTop: `1px solid ${isDark ? "#2e2e2e" : "#e5e7eb"}`, marginLeft: -4, marginRight: -4 }}>
+      {/* Dark-Mode-Toggle direkt unter der Menüleiste, nicht ganz unten am Bildschirmrand */}
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${isDark ? "#2e2e2e" : "#e5e7eb"}`, marginLeft: -4, marginRight: -4 }}>
         <button
           onClick={toggle}
           style={{
