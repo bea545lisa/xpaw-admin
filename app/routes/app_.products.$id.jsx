@@ -1456,25 +1456,42 @@ export const action = async ({ request }) => {
     }
   }
 
-  // Ganze geordnete Dark-Mode-Bilderliste speichern (custom.dark_mode_images, list.file_reference).
-  // Position i entspricht dem i-ten normalen Produktbild - fehlende Zuordnungen werden clientseitig
-  // bereits mit dem Original-Bild aufgefüllt, damit die Reihenfolge nie verrutscht.
+  // Dark-Mode-Bilderliste speichern: zwei parallele Metafields - die Dark-Bilder selbst
+  // (custom.dark_mode_images) und die zugehörigen Light-Bild-IDs an derselben Index-Position
+  // (custom.dark_mode_images_light_ids). Das Theme matcht darüber per Bild-ID statt per
+  // fragiler Positionszählung (Shopifys Galerie zählt "Featured Media" der Variante separat,
+  // was Positionen verschieben kann).
   if (type === "saveDarkModeImages") {
     const id = formData.get("id");
     const fileIds = JSON.parse(formData.get("fileIds") || "[]");
+    const lightIds = JSON.parse(formData.get("lightIds") || "[]");
 
-    await admin.graphql(`
-      mutation($definition: MetafieldDefinitionInput!) {
-        metafieldDefinitionCreate(definition: $definition) {
-          createdDefinition { id }
-          userErrors { field message code }
+    await Promise.all([
+      admin.graphql(`
+        mutation($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
         }
-      }
-    `, {
-      variables: {
-        definition: { name: "Dark Mode Images", namespace: "custom", key: "dark_mode_images", type: "list.file_reference", ownerType: "PRODUCT" },
-      },
-    }).catch(() => {}); // existiert bereits -> ignorieren
+      `, {
+        variables: {
+          definition: { name: "Dark Mode Images", namespace: "custom", key: "dark_mode_images", type: "list.file_reference", ownerType: "PRODUCT" },
+        },
+      }).catch(() => {}),
+      admin.graphql(`
+        mutation($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+      `, {
+        variables: {
+          definition: { name: "Dark Mode Images Light IDs", namespace: "custom", key: "dark_mode_images_light_ids", type: "list.single_line_text_field", ownerType: "PRODUCT" },
+        },
+      }).catch(() => {}),
+    ]);
 
     const res = await admin.graphql(`
       mutation($metafields: [MetafieldsSetInput!]!) {
@@ -1485,13 +1502,22 @@ export const action = async ({ request }) => {
       }
     `, {
       variables: {
-        metafields: [{
-          ownerId: id,
-          namespace: "custom",
-          key: "dark_mode_images",
-          type: "list.file_reference",
-          value: JSON.stringify(fileIds),
-        }],
+        metafields: [
+          {
+            ownerId: id,
+            namespace: "custom",
+            key: "dark_mode_images",
+            type: "list.file_reference",
+            value: JSON.stringify(fileIds),
+          },
+          {
+            ownerId: id,
+            namespace: "custom",
+            key: "dark_mode_images_light_ids",
+            type: "list.single_line_text_field",
+            value: JSON.stringify(lightIds),
+          },
+        ],
       },
     });
     const json = await res.json();
@@ -2159,10 +2185,23 @@ export default function ProductDetail() {
   const pendingDarkFile = useRef(null);
   const pendingDarkIndex = useRef(null);
 
+  // Zuordnung erfolgt über die Bild-ID, nicht über die Position in der Liste - Shopifys
+  // Theme-Galerie zählt Positionen wegen des separat behandelten "Featured Media" der
+  // Variante teils anders/verschoben, was bei reiner Positions-Zuordnung zu falschen oder
+  // fehlenden Dark-Bildern im Shop führte. Nur Paare mit tatsächlich zugewiesenem Dark-Bild
+  // werden gespeichert (kein Platzhalter-Auffüllen mehr nötig).
   const persistDarkImages = (next) => {
-    const fileIds = next.map((d, i) => d?.id ?? imageUpload.localImages[i]?.mediaId ?? imageUpload.localImages[i]?.id).filter(Boolean);
+    const fileIds = [];
+    const lightIds = [];
+    next.forEach((d, i) => {
+      if (!d) return;
+      const lightMediaId = imageUpload.localImages[i]?.mediaId ?? imageUpload.localImages[i]?.id;
+      if (!lightMediaId) return;
+      fileIds.push(d.id);
+      lightIds.push(String(lightMediaId).split("/").pop());
+    });
     saveDarkFetcher.submit(
-      { action: "saveDarkModeImages", id: product.id, fileIds: JSON.stringify(fileIds) },
+      { action: "saveDarkModeImages", id: product.id, fileIds: JSON.stringify(fileIds), lightIds: JSON.stringify(lightIds) },
       { method: "POST" }
     );
   };
