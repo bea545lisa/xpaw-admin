@@ -84,7 +84,8 @@ export default function ProductDetailOptions({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkSwatchFetcher.state, linkSwatchFetcher.data]);
 
-  // swatch: { imageId, imageUrl } für ein Bild, { color } für eine Farbe, oder null zum Entfernen
+  // swatch: { imageId, imageUrl } für ein Bild, { color } für eine Farbe,
+  // { colors: [...] } für einen Mehrfarben-Split (z.B. "türkis/beige"), oder null zum Entfernen
   const setSwatch = (optionName, valueName, swatch) => {
     setOptionSwatches((prev) => {
       const next = { ...prev, [optionName]: { ...(prev[optionName] ?? {}) } };
@@ -102,11 +103,27 @@ export default function ProductDetailOptions({
         imageId: swatch?.imageId ?? "",
         imageUrl: swatch?.imageUrl ?? "",
         color: swatch?.color ?? "",
+        colors: swatch?.colors ? JSON.stringify(swatch.colors) : "",
       },
       { method: "POST" }
     );
     setSwatchPickerFor(null);
   };
+
+  // Trennt Werte wie "türkis/beige" oder "schwarz/weiss/pink" in einzelne Farbnamen für den
+  // Mehrfarben-Picker. Nur bei "/" als Trenner - andere Werte bleiben einfarbig.
+  const splitColorParts = (valueName) => valueName.split("/").map((p) => p.trim()).filter(Boolean);
+
+  function swatchBackground(swatch, fallback) {
+    if (swatch?.colors?.length > 1) {
+      const n = swatch.colors.length;
+      const stops = swatch.colors.map((c, i) => `${c} ${(i / n) * 100}% ${((i + 1) / n) * 100}%`).join(", ");
+      return `conic-gradient(${stops})`;
+    }
+    if (swatch?.color) return swatch.color;
+    if (swatch?.imageUrl) return `url(${swatch.imageUrl}) center/cover`;
+    return fallback;
+  }
 
   // ── Übersetzung von Optionsname + Optionswerten ──
   const primaryLocale = locales.find((l) => l.primary)?.locale;
@@ -391,7 +408,7 @@ export default function ProductDetailOptions({
                                   style={{
                                     width: 26, height: 26, borderRadius: "50%", padding: 0, cursor: "pointer",
                                     border: `1px solid ${isDark ? "#6b6b6b" : "#8c8c8c"}`,
-                                    background: swatch?.color ? swatch.color : swatch?.imageUrl ? `url(${swatch.imageUrl}) center/cover` : (isDark ? "#3a3a3a" : "#e3e3e3"),
+                                    background: swatchBackground(swatch, isDark ? "#3a3a3a" : "#e3e3e3"),
                                     overflow: "hidden",
                                     boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
                                   }}
@@ -405,30 +422,75 @@ export default function ProductDetailOptions({
                                     background: isDark ? "#2c2c2c" : "#fff",
                                     boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
                                   }}>
-                                    <div>
-                                      <Text variant="bodyXs" tone="subdued" as="p">Farbe</Text>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                                        <input
-                                          type="color"
-                                          className="rexpaw-color-swatch"
-                                          value={(colorDraft?.key === swatchKey ? colorDraft.color : swatch?.color) ?? "#cccccc"}
-                                          onChange={(e) => setColorDraft({ key: swatchKey, color: e.target.value })}
-                                          style={{
-                                            width: 28, height: 28, padding: 0, border: "none", cursor: "pointer",
-                                            background: "transparent", borderRadius: "50%", overflow: "hidden",
-                                            WebkitAppearance: "none", appearance: "none",
-                                          }}
-                                        />
-                                        {colorDraft?.key === swatchKey && (
-                                        <Button
-                                          size="micro"
-                                          onClick={() => { setSwatch(option.name, v, { color: colorDraft.color }); setColorDraft(null); }}
-                                        >
-                                          Übernehmen
-                                        </Button>
-                                        )}
-                                      </div>
-                                    </div>
+                                    {(() => {
+                                      const parts = splitColorParts(v);
+                                      if (parts.length > 1) {
+                                        // Mehrfarben-Wert (z.B. "türkis/beige") - ein Farbfeld pro Teil.
+                                        const draftColors = colorDraft?.key === swatchKey
+                                          ? colorDraft.colors
+                                          : (swatch?.colors ?? parts.map(() => "#cccccc"));
+                                        return (
+                                          <div>
+                                            <Text variant="bodyXs" tone="subdued" as="p">Farben ({parts.join(" / ")})</Text>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                                              {parts.map((part, pi) => (
+                                                <div key={pi} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                                  <input
+                                                    type="color"
+                                                    className="rexpaw-color-swatch"
+                                                    title={part}
+                                                    value={draftColors[pi] ?? "#cccccc"}
+                                                    onChange={(e) => {
+                                                      const nextColors = [...draftColors];
+                                                      nextColors[pi] = e.target.value;
+                                                      setColorDraft({ key: swatchKey, colors: nextColors });
+                                                    }}
+                                                    style={{
+                                                      width: 24, height: 24, padding: 0, border: "none", cursor: "pointer",
+                                                      background: "transparent", borderRadius: "50%", overflow: "hidden",
+                                                      WebkitAppearance: "none", appearance: "none",
+                                                    }}
+                                                  />
+                                                  <Text variant="bodyXs" tone="subdued" as="p">{part}</Text>
+                                                </div>
+                                              ))}
+                                              <Button
+                                                size="micro"
+                                                onClick={() => { setSwatch(option.name, v, { colors: draftColors }); setColorDraft(null); }}
+                                              >
+                                                Übernehmen
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div>
+                                          <Text variant="bodyXs" tone="subdued" as="p">Farbe</Text>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                                            <input
+                                              type="color"
+                                              className="rexpaw-color-swatch"
+                                              value={(colorDraft?.key === swatchKey ? colorDraft.color : swatch?.color) ?? "#cccccc"}
+                                              onChange={(e) => setColorDraft({ key: swatchKey, color: e.target.value })}
+                                              style={{
+                                                width: 28, height: 28, padding: 0, border: "none", cursor: "pointer",
+                                                background: "transparent", borderRadius: "50%", overflow: "hidden",
+                                                WebkitAppearance: "none", appearance: "none",
+                                              }}
+                                            />
+                                            {colorDraft?.key === swatchKey && (
+                                            <Button
+                                              size="micro"
+                                              onClick={() => { setSwatch(option.name, v, { color: colorDraft.color }); setColorDraft(null); }}
+                                            >
+                                              Übernehmen
+                                            </Button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
 
                                     <div>
                                       <Text variant="bodyXs" tone="subdued" as="p">Bild</Text>
@@ -595,7 +657,7 @@ export default function ProductDetailOptions({
                             <span style={{
                               width: 18, height: 18, borderRadius: "50%", flexShrink: 0, marginLeft: 4,
                               border: `1px solid ${isDark ? "#4a4a4a" : "var(--p-color-border)"}`,
-                              background: pillSwatch.color ? pillSwatch.color : `url(${pillSwatch.imageUrl}) center/cover`,
+                              background: swatchBackground(pillSwatch, "transparent"),
                             }} />
                           )}
                           {/* Wert-Label */}

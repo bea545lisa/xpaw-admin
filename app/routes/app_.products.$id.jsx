@@ -1354,6 +1354,9 @@ export const action = async ({ request }) => {
     const imageId = formData.get("imageId") || null;
     const imageUrl = formData.get("imageUrl") || null;
     const color = formData.get("color") || null;
+    // Mehrfarben-Swatch (z.B. "türkis/beige") - JSON-Array von Hex-Farben statt einer einzelnen.
+    let colors = null;
+    try { colors = JSON.parse(formData.get("colors") || "null"); } catch { colors = null; }
 
     const currentRes = await admin.graphql(`
       query($id: ID!) {
@@ -1365,6 +1368,7 @@ export const action = async ({ request }) => {
     try { swatches = JSON.parse(currentJson.data?.product?.metafield?.value ?? "{}"); } catch { /* leer */ }
     if (!swatches[optionName]) swatches[optionName] = {};
     if (imageId && imageUrl) swatches[optionName][valueName] = { imageId, imageUrl };
+    else if (Array.isArray(colors) && colors.length > 0) swatches[optionName][valueName] = { colors };
     else if (color) swatches[optionName][valueName] = { color };
     else delete swatches[optionName][valueName];
     if (Object.keys(swatches[optionName]).length === 0) delete swatches[optionName];
