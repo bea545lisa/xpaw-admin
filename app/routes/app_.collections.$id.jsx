@@ -6,6 +6,7 @@ import AppLayout from "../components/layout/AppLayout";
 import { useColorScheme } from "../context/ColorSchemeContext";
 import { translateText } from "../services/deepl.server";
 import LocaleFlag from "../components/shared/LocaleFlag";
+import { resizeImageFile } from "../utils/imageResize.js";
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
@@ -640,10 +641,12 @@ export default function CollectionDetail() {
     saveFetcher.submit({ intent: "update", title, descriptionHtml, handle, seoTitle, seoDesc, sortOrder, removeImage: "1" }, { method: "post" });
     setToast("Bild entfernt");
   };
-  const startUpload = (file) => {
+  const startUpload = async (file) => {
     if (!file || !file.type?.startsWith("image/")) return;
-    pendingFile.current = file; setUploadProgress(0);
-    stageFetcher.submit({ intent: "uploadImage", filename: file.name, mimeType: file.type }, { method: "post" });
+    setUploadProgress(0);
+    const resized = await resizeImageFile(file);
+    pendingFile.current = resized;
+    stageFetcher.submit({ intent: "uploadImage", filename: resized.name, mimeType: resized.type }, { method: "post" });
   };
   const handleFileChange = (e) => startUpload(e.target.files?.[0]);
   const handleImageDrop = (e) => {
