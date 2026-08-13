@@ -402,16 +402,26 @@ export default function ProductItem({
                       }}
                     >
                       <SectionHeading icon={VariantIcon} label="Varianten" />
-                      <div style={{ display: "flex", flexDirection: "column", fontSize: "11px", lineHeight: 1.45, color: "var(--p-color-text-secondary)" }}>
+                      <div style={{ display: "flex", flexDirection: "column", fontSize: "11px", lineHeight: 1.45, color: "var(--p-color-text-secondary)", gap: 4 }}>
                         {optionGroups.map(({ name, values }) => (
-                          <span key={name} style={{ display: "inline-flex", marginRight: 8, marginBottom: 4 }}>
-                            <strong style={{ marginRight: 4 }}>{name}:</strong>
+                          <div key={name} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+                            <strong style={{ marginRight: 2 }}>{name}:</strong>
                             {values.map((v, vi) => (
-                              <span key={`${name}-${v}-${vi}`} style={{ color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)" }}>
-                              {vi > 0 && ", "}{v}
+                              <span
+                                key={`${name}-${v}-${vi}`}
+                                style={{
+                                  display: "inline-block",
+                                  padding: "1px 6px",
+                                  borderRadius: 999,
+                                  border: `1px solid ${zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-border-subdued)"}`,
+                                  color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {v}
                               </span>
                             ))}
-                          </span>
+                          </div>
                         ))}
                         {variantCountLabel && (
                           <div style={{ color: isDark ? "#b0b7c3" : "#9ca3af", marginTop: 2 }}>{variantCountLabel}</div>
