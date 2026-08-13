@@ -2583,8 +2583,6 @@ export default function ProductDetail() {
                 reorderImages={imageUpload.reorderImages}
                 deleteImage={imageUpload.deleteImage}
                 darkImages={darkImages}
-                darkPickerFor={darkPickerFor}
-                setDarkPickerFor={setDarkPickerFor}
                 assignDarkImage={assignDarkImage}
                 uploadDarkImage={uploadDarkImage}
                 moveDarkImage={moveDarkImage}
