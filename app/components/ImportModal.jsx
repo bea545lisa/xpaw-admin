@@ -13,7 +13,16 @@ function parseCsv(text) {
   const sep = lines[0].includes(";") ? ";" : ",";
   const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
 
-  const get = (cols, i) => i >= 0 ? (cols[i]?.replace(/^"|"$/g, "").trim() ?? "") : "";
+  // Entfernt Anführungszeichen und die Excel-Textformel-Hülle ="..." (wird beim Export für
+  // lange Zahlen wie die Produkt-ID verwendet, damit Excel sie nicht in wissenschaftliche
+  // Notation umwandelt).
+  const get = (cols, i) => {
+    if (i < 0) return "";
+    let v = cols[i]?.trim() ?? "";
+    const excelTextMatch = v.match(/^="(.*)"$/);
+    if (excelTextMatch) v = excelTextMatch[1];
+    return v.replace(/^"|"$/g, "").trim();
+  };
 
   const idx = {
     id:             headers.indexOf("produkt id"),
