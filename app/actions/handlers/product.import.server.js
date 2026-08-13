@@ -200,6 +200,11 @@ export async function handleExecuteImport(admin, formData) {
   const errors = [];
   const collectionCache = new Map(); // verhindert doppelte API-Calls für gleiche Kollektion
 
+  // Lager-Location für Lagerbestand-Zuweisung (erste Location des Shops)
+  const locRes = await admin.graphql(`query { locations(first: 1) { edges { node { id } } } }`);
+  const locJson = await locRes.json();
+  const locationId = locJson.data?.locations?.edges?.[0]?.node?.id ?? null;
+
   for (const product of products) {
     if (product.status === "duplicate" && skipDuplicates) {
       skipped++;
@@ -217,6 +222,13 @@ export async function handleExecuteImport(admin, formData) {
       if (v.price)            variant.price = parsePrice(v.price);
       if (v.compareAtPrice)   variant.compareAtPrice = parsePrice(v.compareAtPrice);
       if (v.sku)              variant.sku = v.sku;
+      if (locationId && v.inventory !== undefined && v.inventory !== "") {
+        const qty = parseInt(v.inventory, 10);
+        if (!isNaN(qty)) {
+          variant.inventoryItem = { tracked: true };
+          variant.inventoryQuantities = [{ availableQuantity: qty, locationId }];
+        }
+      }
       return variant;
     }).filter(v => Object.keys(v).length > 0);
 
