@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useFetcher } from "react-router";
 import { useState, useRef, useCallback, useEffect } from "react";
+import { resizeImageFile } from "../utils/imageResize.js";
 
 export function useImageUpload({ productId, initialImages, setLocalProducts, setToast, onImageDelete }) {
 
@@ -41,7 +42,7 @@ export function useImageUpload({ productId, initialImages, setLocalProducts, set
     );
   }, [productId]);
 
-  const handleImagesUpload = useCallback((files) => {
+  const handleImagesUpload = useCallback(async (files) => {
 
     const valid = files.filter(file => {
       if (!file.type.startsWith("image/")) {
@@ -57,13 +58,16 @@ export function useImageUpload({ productId, initialImages, setLocalProducts, set
 
     if (valid.length === 0) return;
 
+    setUploadingImage(true);
+    // Vor dem Hochladen client-seitig verkleinern, um Ladezeiten im Shop zu verbessern.
+    const resized = await Promise.all(valid.map(f => resizeImageFile(f)));
+
     // ALLE auf einmal in Queue
-    valid.forEach(f => uploadQueue.current.push(f));
+    resized.forEach(f => uploadQueue.current.push(f));
     totalFiles.current = uploadQueue.current.length + (isProcessing.current ? 1 : 0);
 
     if (!isProcessing.current) {
       isProcessing.current = true;
-      setUploadingImage(true);
       setUploadError(null);
       processNextInQueue();
     }
