@@ -167,6 +167,17 @@ const PRODUCT_UPDATE = `
   }
 `;
 
+// "variants" ist kein Feld von ProductInput mehr (neuere Shopify-API-Version) - Varianten
+// müssen nach dem Anlegen separat per productVariantsBulkCreate erzeugt werden.
+const PRODUCT_VARIANTS_BULK_CREATE = `
+  mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!, $strategy: ProductVariantsBulkCreateStrategy) {
+    productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) {
+      productVariants { id }
+      userErrors { field message }
+    }
+  }
+`;
+
 function parsePrice(raw) {
   if (!raw) return undefined;
   return String(raw).replace(/[€$\s]/g, "").replace(",", ".") || undefined;
@@ -230,7 +241,6 @@ export async function handleExecuteImport(admin, formData) {
         return [...new Set([...existing, ...csvTags])];
       })(),
       ...(optionNames.length > 0 ? { productOptions: optionNames.map(name => ({ name })) } : {}),
-      ...(variants.length > 0 ? { variants } : {}),
     };
 
     if (isUpdate) input.id = product.existingId;
@@ -247,9 +257,26 @@ export async function handleExecuteImport(admin, formData) {
       } else {
         isUpdate ? updated++ : created++;
 
-        // Collections zuweisen (suchen oder neu anlegen)
         const productId = result?.product?.id;
 
+        // Varianten separat anlegen (nicht mehr Teil von ProductInput). Bei Neuanlage
+        // erzeugt Shopify automatisch eine Standard-Variante, die per Strategy entfernt wird.
+        if (productId && variants.length > 0) {
+          const variantsRes = await admin.graphql(PRODUCT_VARIANTS_BULK_CREATE, {
+            variables: {
+              productId,
+              variants,
+              strategy: isUpdate ? "DEFAULT" : "REMOVE_STANDALONE_VARIANT",
+            },
+          });
+          const variantsJson = await variantsRes.json();
+          const variantErrors = variantsJson?.data?.productVariantsBulkCreate?.userErrors ?? [];
+          if (variantErrors.length > 0) {
+            errors.push({ title: product.title, errors: variantErrors.map(e => e.message) });
+          }
+        }
+
+        // Collections zuweisen (suchen oder neu anlegen)
         if (!isUpdate && productId && input.status === "ACTIVE") {
           await publishToOnlineStore(admin, productId);
         }
