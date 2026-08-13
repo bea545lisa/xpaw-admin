@@ -66,6 +66,7 @@ export const loader = async ({ request, params }) => {
             }
           }
         }
+        darkModeLightIdsMetafield: metafield(namespace: "custom", key: "dark_mode_images_light_ids") { value }
         metafields(first: 20) {
           edges {
             node {
@@ -237,12 +238,18 @@ export const loader = async ({ request, params }) => {
   let optionSwatches = {};
   try { optionSwatches = JSON.parse(data.data.product?.optionSwatchesMetafield?.value ?? "{}"); } catch { /* leer */ }
 
-  // Dark-Mode-Bilder: geordnete Liste parallel zu den normalen Produktbildern (Position i
-  // in dieser Liste ist das Dark-Pendant zu Produktbild i).
-  const darkModeImages = (data.data.product?.darkModeImagesMetafield?.references?.edges ?? [])
+  // Dark-Mode-Bilder: per Light-Bild-ID zugeordnet (nicht per Position), damit die kompakte,
+  // gefilterte Liste (nur tatsächlich zugewiesene Paare) beim Wiederladen nicht verrutscht.
+  const darkModeImagesRaw = (data.data.product?.darkModeImagesMetafield?.references?.edges ?? [])
     .map(e => ({ id: e.node.id, url: e.node.image?.url ?? e.node.url }));
+  let darkModeLightIds = [];
+  try { darkModeLightIds = JSON.parse(data.data.product?.darkModeLightIdsMetafield?.value ?? "[]"); } catch { /* leer */ }
+  const darkModeByLightId = {};
+  darkModeLightIds.forEach((lightId, i) => {
+    if (darkModeImagesRaw[i]) darkModeByLightId[lightId] = darkModeImagesRaw[i];
+  });
 
-  return { product: data.data.product, allTags, allVendors, allProductTypes, allOptionNames, allCollections, allMetafieldDefinitions, metaobjectTypeByFieldKey, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, darkModeImages, locationId, shop, skuFormat, skuAbbreviations };
+  return { product: data.data.product, allTags, allVendors, allProductTypes, allOptionNames, allCollections, allMetafieldDefinitions, metaobjectTypeByFieldKey, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, darkModeByLightId, locationId, shop, skuFormat, skuAbbreviations };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
@@ -1867,7 +1874,7 @@ export default function ProductDetail() {
 
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { product, allTags = [], allVendors = [], allProductTypes = [], allOptionNames = [], allCollections = [], allMetafieldDefinitions = [], metaobjectTypeByFieldKey = {}, defaultMetafieldOrder = [], locales = [], shopId, fieldLabels = {}, optionSwatches = {}, darkModeImages: initialDarkModeImages = [], locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
+  const { product, allTags = [], allVendors = [], allProductTypes = [], allOptionNames = [], allCollections = [], allMetafieldDefinitions = [], metaobjectTypeByFieldKey = {}, defaultMetafieldOrder = [], locales = [], shopId, fieldLabels = {}, optionSwatches = {}, darkModeByLightId = {}, locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
 
   // Kürzel-Map aus Metafeld (rexpaw.option_abbreviations)
   const abbreviationsMap = (() => {
@@ -2166,12 +2173,15 @@ export default function ProductDetail() {
     },
   });
 
-  // ── Dark-Mode-Bilder (custom.dark_mode_images) ──────────────────────────────
-  // Ein Eintrag pro Produktbild, an derselben Position - null bedeutet "kein Dark-Pendant,
-  // Original verwenden". Beim Speichern wird die volle geordnete Liste mit Fallback auf das
-  // Original-Bild an jeder leeren Position geschrieben, damit die Zuordnung nie verrutscht.
+  // ── Dark-Mode-Bilder (custom.dark_mode_images / dark_mode_images_light_ids) ────────────
+  // Ein Eintrag pro Produktbild, an derselben Array-Position wie localImages - null bedeutet
+  // "kein Dark-Pendant". Zuordnung beim Laden erfolgt über die Light-Bild-ID (nicht Position),
+  // damit die App-Anzeige mit der ID-basierten Theme-Zuordnung konsistent bleibt.
   const [darkImages, setDarkImages] = useState(() =>
-    imageUpload.localImages.map((_, i) => initialDarkModeImages[i] ?? null)
+    imageUpload.localImages.map((li) => {
+      const lightId = String(li.mediaId ?? li.id ?? "").split("/").pop();
+      return darkModeByLightId[lightId] ?? null;
+    })
   );
   // Array synchron zur Bilderliste halten, wenn neue Bilder hochgeladen/gelöscht werden.
   useEffect(() => {
