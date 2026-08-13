@@ -72,7 +72,7 @@ export default function ImagesSection({
                 <>
                   <button
                     type="button"
-                    title="Dark-Mode-Bild zuweisen"
+                    title={darkImages?.[index] ? "Dark-Mode-Bild ändern" : "Dark-Mode-Bild zuweisen (aktuell nur Light-Version)"}
                     onClick={(e) => { e.stopPropagation(); setDarkPickerFor(darkPickerFor === index ? null : index); }}
                     style={{
                       position: "absolute", bottom: 2, left: 2,
@@ -81,7 +81,7 @@ export default function ImagesSection({
                       width: 20, height: 20, fontSize: 11,
                       cursor: "pointer", lineHeight: "20px", textAlign: "center", padding: 0,
                     }}
-                  >🌙</button>
+                  >{darkImages?.[index] ? "🌙" : "☀️"}</button>
 
                   {darkPickerFor === index && (
                     <div
