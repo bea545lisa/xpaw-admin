@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { useColorScheme } from "../../../context/ColorSchemeContext.js";
 import LocaleFlag from "../../shared/LocaleFlag.jsx";
+import { resizeImageFile } from "../../../utils/imageResize.js";
 
 const COMMON_OPTION_NAMES = ["Größe", "Farbe", "Material", "Stil"];
 
@@ -37,13 +38,15 @@ export default function ProductDetailOptions({
   const pendingSwatchTarget = useRef(null); // { optionName, valueName }
   const swatchFileInputRef = useRef(null);
 
-  const uploadSwatchPattern = (file, optionName, valueName) => {
+  const uploadSwatchPattern = async (file, optionName, valueName) => {
     if (!file) return;
-    pendingSwatchFile.current = file;
-    pendingSwatchTarget.current = { optionName, valueName };
     setUploadingSwatchFor(`${optionName}:${valueName}`);
+    // Swatches werden nur als Mini-Icon angezeigt - deutlich kleiner als normale Produktbilder.
+    const resized = await resizeImageFile(file, { maxDimension: 400 });
+    pendingSwatchFile.current = resized;
+    pendingSwatchTarget.current = { optionName, valueName };
     stageSwatchFetcher.submit(
-      { action: "uploadSwatchFile", step: "stage", filename: file.name, mimeType: file.type },
+      { action: "uploadSwatchFile", step: "stage", filename: resized.name, mimeType: resized.type },
       { method: "POST" }
     );
   };
