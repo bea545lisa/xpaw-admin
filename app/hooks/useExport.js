@@ -1,3 +1,10 @@
+// Excel wandelt lange Zahlen (wie die Produkt-ID) beim Öffnen einer CSV automatisch in
+// wissenschaftliche Notation um (z.B. 9,41387E+12) und verliert dabei Stellen. Als
+// ="..."-Formel bleibt der Wert garantiert als Text erhalten.
+function asExcelText(value) {
+  return `="${value}"`;
+}
+
 export function useExport({ filteredProducts, setToast }) {
   const handleExport = () => {
     // Maximale Anzahl Optionen über alle Produkte ermitteln (meist 1–3)
@@ -30,7 +37,7 @@ export function useExport({ filteredProducts, setToast }) {
       if (variants.length === 0) {
         const optCols = Array(maxOptions * 2).fill("");
         rows.push([
-          node.id.split("/").pop(), `"${node.title}"`, node.status,
+          asExcelText(node.id.split("/").pop()), `"${node.title}"`, node.status,
           `"${tags}"`, `"${collections}"`,
           ...optCols,
           "", "", "", "",
@@ -51,7 +58,7 @@ export function useExport({ filteredProducts, setToast }) {
         }
 
         rows.push([
-          node.id.split("/").pop(),
+          asExcelText(node.id.split("/").pop()),
           `"${node.title}"`,
           node.status,
           `"${tags}"`,
