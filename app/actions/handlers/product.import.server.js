@@ -220,11 +220,16 @@ export async function handleExecuteImport(admin, formData) {
       return variant;
     }).filter(v => Object.keys(v).length > 0);
 
-    // Options-Definitionen aus den Varianten ableiten
+    // Options-Definitionen samt Werten aus den Varianten ableiten - productCreate braucht
+    // die konkreten Werte (nicht nur den Namen), sonst schlägt productVariantsBulkCreate mit
+    // "Option values must be present" fehl.
     const optionNames = [];
+    const optionValuesByName = new Map();
     (product.variants ?? []).forEach(v => {
       (v.selectedOptions ?? []).forEach(o => {
         if (!optionNames.includes(o.name)) optionNames.push(o.name);
+        if (!optionValuesByName.has(o.name)) optionValuesByName.set(o.name, new Set());
+        optionValuesByName.get(o.name).add(o.value);
       });
     });
 
@@ -240,7 +245,12 @@ export async function handleExecuteImport(admin, formData) {
         const existing = json?.data?.product?.tags ?? [];
         return [...new Set([...existing, ...csvTags])];
       })(),
-      ...(optionNames.length > 0 ? { productOptions: optionNames.map(name => ({ name })) } : {}),
+      ...(optionNames.length > 0 ? {
+        productOptions: optionNames.map(name => ({
+          name,
+          values: [...optionValuesByName.get(name)].map(value => ({ name: value })),
+        })),
+      } : {}),
     };
 
     if (isUpdate) input.id = product.existingId;
