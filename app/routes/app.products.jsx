@@ -22,6 +22,7 @@ import { useProductContext } from "../hooks/useProductContext.js";
 import { useProductFilters } from "../hooks/useProductFilters.js";
 
 import { authenticate } from "../shopify.server";
+import { readOnlyDenial } from "../utils/access.server";
 import { useColorScheme } from "../context/ColorSchemeContext";
 import { productsLoader } from "../loaders/products.loader.server";
 import { productsAction } from "../actions/products.action.server.js";
@@ -33,7 +34,8 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const _denial = readOnlyDenial(session); if (_denial) return _denial;
   return productsAction({ request }, admin);
 };
 

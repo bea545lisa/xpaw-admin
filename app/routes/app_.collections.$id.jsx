@@ -1,5 +1,6 @@
 import { useLoaderData, useNavigation, useNavigate, useLocation, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
+import { readOnlyDenial } from "../utils/access.server";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { CollectionIcon, ArrowLeftIcon, ImageIcon, DeleteIcon } from "@shopify/polaris-icons";
 import AppLayout from "../components/layout/AppLayout";
@@ -56,7 +57,8 @@ export const loader = async ({ request, params }) => {
 // ── Action ────────────────────────────────────────────────────────────────────
 
 export const action = async ({ request, params }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const _denial = readOnlyDenial(session); if (_denial) return _denial;
   const gid = `gid://shopify/Collection/${params.id}`;
   const formData = await request.formData();
   const intent = formData.get("intent");

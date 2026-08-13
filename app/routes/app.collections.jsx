@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useFetcher, useLoaderData, useSearchParams, useNavigate, useLocation } from "react-router";
 import { authenticate } from "../shopify.server";
+import { readOnlyDenial } from "../utils/access.server";
 import { useColorScheme } from "../context/ColorSchemeContext";
 import { collectionsLoader } from "../loaders/collections.loader.server";
 import { collectionsAction } from "../actions/collections.action.server";
@@ -14,7 +15,8 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const _denial = readOnlyDenial(session); if (_denial) return _denial;
   return collectionsAction({ request }, admin);
 };
 

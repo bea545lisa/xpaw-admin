@@ -27,6 +27,7 @@ const shopify = shopifyApp({
   },
   distribution: AppDistribution.AppStore,
   isEmbeddedApp: true, // 🔥 DAS IST DER FIX
+  useOnlineTokens: true, // nötig, um den eingeloggten Mitarbeiter (E-Mail) für den Nur-Lese-Modus zu erkennen
 /*  future: {
     expiringOfflineAccessTokens: true,
   },*/

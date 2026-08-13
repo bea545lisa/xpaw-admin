@@ -1,5 +1,6 @@
 import { useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
+import { readOnlyDenial } from "../utils/access.server";
 import { getSkuFormat, getSkuAbbreviations, setSetting } from "../services/settings.server";
 import { DEFAULT_SKU_FORMAT } from "../utils/skuFormat.js";
 import {
@@ -66,6 +67,7 @@ export const loader = async ({ request }) => {
 
 export const action = async ({ request }) => {
   const { session } = await authenticate.admin(request);
+  const _denial = readOnlyDenial(session); if (_denial) return _denial;
   const formData = await request.formData();
   const type = formData.get("action");
 

@@ -1,4 +1,5 @@
 import { authenticate } from "../shopify.server";
+import { readOnlyDenial } from "../utils/access.server";
 
 // Loader hinzufügen damit die Route valide ist
 export const loader = async ({ request }) => {
@@ -7,7 +8,8 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const _denial = readOnlyDenial(session); if (_denial) return _denial;
   const { createStagedUpload, addProductMedia } = await import("../services/product.server");
 
   const formData = await request.formData();

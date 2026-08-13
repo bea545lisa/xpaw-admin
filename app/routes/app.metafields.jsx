@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
+import { readOnlyDenial } from "../utils/access.server";
 import { useColorScheme } from "../context/ColorSchemeContext";
 import { getMetafieldOrder, setMetafieldOrder } from "../services/settings.server";
 import { SettingsIcon, EditIcon, DeleteIcon, XIcon } from "@shopify/polaris-icons";
@@ -38,6 +39,7 @@ export const loader = async ({ request }) => {
 
 export const action = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
+  const _denial = readOnlyDenial(session); if (_denial) return _denial;
   const formData = await request.formData();
   const type = formData.get("action");
 

@@ -2,6 +2,7 @@ import { useLoaderData, useNavigate, useLocation, useFetcher } from "react-route
 import AppLayout from "../components/layout/AppLayout";
 import { useColorScheme } from "../context/ColorSchemeContext";
 import { authenticate } from "../shopify.server";
+import { readOnlyDenial } from "../utils/access.server";
 import { SkeletonBodyText, SkeletonDisplayText, Layout, Card, BlockStack, InlineStack, Text, Badge, Modal, Toast, Icon, Button, TextField,} from "@shopify/polaris";
 import { ArrowLeftIcon, GlobeIcon, EditIcon } from "@shopify/polaris-icons";
 import { useEffect, useRef, useState } from "react";
@@ -249,6 +250,7 @@ export const loader = async ({ request, params }) => {
 export const action = async ({ request }) => {
 
   const { admin, session } = await authenticate.admin(request);
+  const _denial = readOnlyDenial(session); if (_denial) return _denial;
   const formData = await request.formData();
   const type = formData.get("action");
 
