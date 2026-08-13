@@ -2177,6 +2177,18 @@ export default function ProductDetail() {
     setDarkPickerFor(null);
   };
 
+  // Dark-Bilder folgen mit, wenn die Light-Bilder per Drag&Drop umsortiert werden - sonst
+  // würde die Positions-Zuordnung nach dem Umsortieren nicht mehr stimmen.
+  const moveDarkImage = (from, to) => {
+    setDarkImages((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      persistDarkImages(next);
+      return next;
+    });
+  };
+
   const uploadDarkImage = (file, index) => {
     pendingDarkFile.current = file;
     pendingDarkIndex.current = index;
@@ -2564,6 +2576,7 @@ export default function ProductDetail() {
                 setDarkPickerFor={setDarkPickerFor}
                 assignDarkImage={assignDarkImage}
                 uploadDarkImage={uploadDarkImage}
+                moveDarkImage={moveDarkImage}
               />
             </Card>
 

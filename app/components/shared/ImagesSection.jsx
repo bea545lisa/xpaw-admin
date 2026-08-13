@@ -6,7 +6,7 @@ export default function ImagesSection({
   localImages, setLocalImages,
   uploadingImage, uploadProgress, uploadError, setUploadError,
   fileInputRef, handleImagesUpload, reorderImages, deleteImage,
-  darkImages, darkPickerFor, setDarkPickerFor, assignDarkImage, uploadDarkImage,
+  darkImages, darkPickerFor, setDarkPickerFor, assignDarkImage, uploadDarkImage, moveDarkImage,
 }) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -35,6 +35,7 @@ export default function ImagesSection({
                   reorderImages(updated);
                   return updated;
                 });
+                moveDarkImage?.(from, index);
               }}
               style={{
                 position: "relative",
@@ -66,6 +67,24 @@ export default function ImagesSection({
                   background: "rgba(0,0,0,0.5)", color: "white",
                   fontSize: 9, textAlign: "center", padding: "2px 0",
                 }}>Cover</div>
+              )}
+
+              {/* Dauerhafte Mini-Vorschau des zugewiesenen Dark-Bilds, damit die Zuordnung
+                  auf einen Blick sichtbar ist, ohne den Picker öffnen zu müssen. */}
+              {darkImages?.[index] && (
+                <button
+                  type="button"
+                  title="Zugewiesenes Dark-Mode-Bild"
+                  onClick={(e) => { e.stopPropagation(); setDarkPickerFor(darkPickerFor === index ? null : index); }}
+                  style={{
+                    position: "absolute", top: -6, left: -6,
+                    width: 26, height: 26, borderRadius: 6, padding: 0, cursor: "pointer",
+                    border: `2px solid ${isDark ? "#1e1e1e" : "#fff"}`,
+                    outline: "1px solid #8b5cf6",
+                    background: `url(${darkImages[index].url}) center/cover`,
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+                  }}
+                />
               )}
 
               {assignDarkImage && (
