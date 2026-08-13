@@ -4,7 +4,7 @@ import { useColorScheme } from "../context/ColorSchemeContext";
 import { authenticate } from "../shopify.server";
 import { SkeletonBodyText, SkeletonDisplayText, Layout, Card, BlockStack, InlineStack, Text, Badge, Modal, Toast, Icon, Button, TextField,} from "@shopify/polaris";
 import { ArrowLeftIcon, GlobeIcon, EditIcon } from "@shopify/polaris-icons";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   updateProductOptions,
@@ -55,6 +55,16 @@ export const loader = async ({ request, params }) => {
         }
         options { id name values optionValues { id name } }
         optionSwatchesMetafield: metafield(namespace: "custom", key: "option_swatches") { value }
+        darkModeImagesMetafield: metafield(namespace: "custom", key: "dark_mode_images") {
+          references(first: 20) {
+            edges {
+              node {
+                ... on MediaImage { id image { url } }
+                ... on GenericFile { id url }
+              }
+            }
+          }
+        }
         metafields(first: 20) {
           edges {
             node {
@@ -226,7 +236,12 @@ export const loader = async ({ request, params }) => {
   let optionSwatches = {};
   try { optionSwatches = JSON.parse(data.data.product?.optionSwatchesMetafield?.value ?? "{}"); } catch { /* leer */ }
 
-  return { product: data.data.product, allTags, allVendors, allProductTypes, allOptionNames, allCollections, allMetafieldDefinitions, metaobjectTypeByFieldKey, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, locationId, shop, skuFormat, skuAbbreviations };
+  // Dark-Mode-Bilder: geordnete Liste parallel zu den normalen Produktbildern (Position i
+  // in dieser Liste ist das Dark-Pendant zu Produktbild i).
+  const darkModeImages = (data.data.product?.darkModeImagesMetafield?.references?.edges ?? [])
+    .map(e => ({ id: e.node.id, url: e.node.image?.url ?? e.node.url }));
+
+  return { product: data.data.product, allTags, allVendors, allProductTypes, allOptionNames, allCollections, allMetafieldDefinitions, metaobjectTypeByFieldKey, defaultMetafieldOrder, locales, shopId, fieldLabels, optionSwatches, darkModeImages, locationId, shop, skuFormat, skuAbbreviations };
 };
 
 // ─── Action ────────────────────────────────────────────────────────────────────
@@ -1418,6 +1433,70 @@ export const action = async ({ request }) => {
     }
   }
 
+  // Dark-Mode-Bild hochladen — wie Swatch-Uploads eigenständig über die Files-API, landet
+  // NICHT in der normalen Produkt-Bildergalerie.
+  if (type === "uploadDarkModeImageFile") {
+    const step = formData.get("step");
+
+    if (step === "stage") {
+      const stagedTarget = await createStagedUpload(admin, formData.get("filename"), formData.get("mimeType"));
+      return { ok: true, type: "uploadDarkModeImageFile", step: "stage", stagedTarget };
+    }
+
+    if (step === "link") {
+      const result = await createStandaloneFile(admin, formData.get("resourceUrl"));
+      if (result.error) return { ok: false, type: "uploadDarkModeImageFile", step: "link", error: result.error };
+      return {
+        ok: true, type: "uploadDarkModeImageFile", step: "link",
+        fileId: result.file?.id ?? null,
+        fileUrl: result.file?.image?.url ?? null,
+      };
+    }
+  }
+
+  // Ganze geordnete Dark-Mode-Bilderliste speichern (custom.dark_mode_images, list.file_reference).
+  // Position i entspricht dem i-ten normalen Produktbild - fehlende Zuordnungen werden clientseitig
+  // bereits mit dem Original-Bild aufgefüllt, damit die Reihenfolge nie verrutscht.
+  if (type === "saveDarkModeImages") {
+    const id = formData.get("id");
+    const fileIds = JSON.parse(formData.get("fileIds") || "[]");
+
+    await admin.graphql(`
+      mutation($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          createdDefinition { id }
+          userErrors { field message code }
+        }
+      }
+    `, {
+      variables: {
+        definition: { name: "Dark Mode Images", namespace: "custom", key: "dark_mode_images", type: "list.file_reference", ownerType: "PRODUCT" },
+      },
+    }).catch(() => {}); // existiert bereits -> ignorieren
+
+    const res = await admin.graphql(`
+      mutation($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id value }
+          userErrors { field message }
+        }
+      }
+    `, {
+      variables: {
+        metafields: [{
+          ownerId: id,
+          namespace: "custom",
+          key: "dark_mode_images",
+          type: "list.file_reference",
+          value: JSON.stringify(fileIds),
+        }],
+      },
+    });
+    const json = await res.json();
+    const userErrors = json.data?.metafieldsSet?.userErrors ?? [];
+    return { ok: userErrors.length === 0, type: "saveDarkModeImages", userErrors };
+  }
+
   // Übersetzbare Inhalte (Bezeichnung/Wert) + Digest + bestehende Übersetzungen eines Metaobjects laden
   if (type === "getMetaobjectTranslations") {
     const metaobjectId = formData.get("metaobjectId");
@@ -1760,7 +1839,7 @@ export default function ProductDetail() {
 
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { product, allTags = [], allVendors = [], allProductTypes = [], allOptionNames = [], allCollections = [], allMetafieldDefinitions = [], metaobjectTypeByFieldKey = {}, defaultMetafieldOrder = [], locales = [], shopId, fieldLabels = {}, optionSwatches = {}, locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
+  const { product, allTags = [], allVendors = [], allProductTypes = [], allOptionNames = [], allCollections = [], allMetafieldDefinitions = [], metaobjectTypeByFieldKey = {}, defaultMetafieldOrder = [], locales = [], shopId, fieldLabels = {}, optionSwatches = {}, darkModeImages: initialDarkModeImages = [], locationId, shop, skuFormat, skuAbbreviations } = useLoaderData();
 
   // Kürzel-Map aus Metafeld (rexpaw.option_abbreviations)
   const abbreviationsMap = (() => {
@@ -2058,6 +2137,86 @@ export default function ProductDetail() {
       ));
     },
   });
+
+  // ── Dark-Mode-Bilder (custom.dark_mode_images) ──────────────────────────────
+  // Ein Eintrag pro Produktbild, an derselben Position - null bedeutet "kein Dark-Pendant,
+  // Original verwenden". Beim Speichern wird die volle geordnete Liste mit Fallback auf das
+  // Original-Bild an jeder leeren Position geschrieben, damit die Zuordnung nie verrutscht.
+  const [darkImages, setDarkImages] = useState(() =>
+    imageUpload.localImages.map((_, i) => initialDarkModeImages[i] ?? null)
+  );
+  const [darkPickerFor, setDarkPickerFor] = useState(null); // Index oder null
+
+  // Array synchron zur Bilderliste halten, wenn neue Bilder hochgeladen/gelöscht werden.
+  useEffect(() => {
+    setDarkImages((prev) => imageUpload.localImages.map((_, i) => prev[i] ?? null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUpload.localImages.length]);
+
+  const stageDarkFetcher = useFetcher();
+  const linkDarkFetcher = useFetcher();
+  const saveDarkFetcher = useFetcher();
+  const pendingDarkFile = useRef(null);
+  const pendingDarkIndex = useRef(null);
+
+  const persistDarkImages = (next) => {
+    const fileIds = next.map((d, i) => d?.id ?? imageUpload.localImages[i]?.mediaId ?? imageUpload.localImages[i]?.id).filter(Boolean);
+    saveDarkFetcher.submit(
+      { action: "saveDarkModeImages", id: product.id, fileIds: JSON.stringify(fileIds) },
+      { method: "POST" }
+    );
+  };
+
+  const assignDarkImage = (index, entry) => {
+    setDarkImages((prev) => {
+      const next = [...prev];
+      next[index] = entry;
+      persistDarkImages(next);
+      return next;
+    });
+    setDarkPickerFor(null);
+  };
+
+  const uploadDarkImage = (file, index) => {
+    pendingDarkFile.current = file;
+    pendingDarkIndex.current = index;
+    stageDarkFetcher.submit(
+      { action: "uploadDarkModeImageFile", step: "stage", filename: file.name, mimeType: file.type },
+      { method: "POST" }
+    );
+  };
+
+  useEffect(() => {
+    if (stageDarkFetcher.state !== "idle" || !stageDarkFetcher.data?.stagedTarget) return;
+    const { url, parameters, resourceUrl } = stageDarkFetcher.data.stagedTarget;
+    const file = pendingDarkFile.current;
+    if (!file) return;
+    const fd = new FormData();
+    parameters.forEach(({ name, value }) => fd.append(name, value));
+    fd.append("file", file);
+    fetch(url, { method: "POST", body: fd })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Upload fehlgeschlagen: ${res.status}`);
+        linkDarkFetcher.submit(
+          { action: "uploadDarkModeImageFile", step: "link", resourceUrl },
+          { method: "POST" }
+        );
+      })
+      .catch(() => setToast?.("Dark-Bild-Upload fehlgeschlagen ❌"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageDarkFetcher.state, stageDarkFetcher.data]);
+
+  useEffect(() => {
+    if (linkDarkFetcher.state !== "idle" || !linkDarkFetcher.data) return;
+    if (linkDarkFetcher.data.ok && linkDarkFetcher.data.fileId) {
+      assignDarkImage(pendingDarkIndex.current, { id: linkDarkFetcher.data.fileId, url: linkDarkFetcher.data.fileUrl });
+    } else {
+      setToast?.("Dark-Bild-Upload fehlgeschlagen ❌");
+    }
+    pendingDarkFile.current = null;
+    pendingDarkIndex.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkDarkFetcher.state, linkDarkFetcher.data]);
 
   const metafields = product.metafields?.edges?.map(e => e.node) ?? [];
   // interne/versteckte Felder (z.B. Reihenfolge-Speicher) zählen nicht als sichtbares Metafield
@@ -2400,6 +2559,11 @@ export default function ProductDetail() {
                 handleImagesUpload={imageUpload.handleImagesUpload}
                 reorderImages={imageUpload.reorderImages}
                 deleteImage={imageUpload.deleteImage}
+                darkImages={darkImages}
+                darkPickerFor={darkPickerFor}
+                setDarkPickerFor={setDarkPickerFor}
+                assignDarkImage={assignDarkImage}
+                uploadDarkImage={uploadDarkImage}
               />
             </Card>
 
