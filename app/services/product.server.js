@@ -87,8 +87,9 @@ export async function createProduct(admin) {
 
   const data = await res.json();
   const product = data.data.productCreate.product;
-  if (product?.id) await publishToOnlineStore(admin, product.id);
-  return product;
+  let publishResult = null;
+  if (product?.id) publishResult = await publishToOnlineStore(admin, product.id);
+  return { ...product, publishResult };
 }
 
 export async function updateProduct(admin, id, title) {

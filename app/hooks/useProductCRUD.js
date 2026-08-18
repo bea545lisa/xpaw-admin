@@ -85,7 +85,12 @@ export function useProductCRUD({
           createdAt: data.product?.createdAt ?? new Date().toISOString(),
           updatedAt: data.product?.updatedAt ?? new Date().toISOString(),
         };
-        setToast(`Produkt ${product.title} erstellt 🎉`);
+        const publishResult = product.publishResult;
+        if (publishResult && !publishResult.ok) {
+          setToast(`Produkt erstellt, aber NICHT im Onlineshop-Kanal: ${publishResult.error || publishResult.errors?.[0]?.message || "unbekannter Fehler"}`);
+        } else {
+          setToast(`Produkt ${product.title} erstellt 🎉`);
+        }
         setLocalProducts(prev => [{ node: product }, ...prev]);
       }
       if (data.type === "duplicate") {
