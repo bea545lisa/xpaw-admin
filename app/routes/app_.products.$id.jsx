@@ -21,6 +21,7 @@ import { useVariantEdit } from "../hooks/useVariantEdit.js";
 import { useImageUpload } from "../hooks/useImageUpload.jsx";
 
 import { normalizeOptions } from "../utils/productOptions.js";
+import { resizeImageFile } from "../utils/imageResize.js";
 import { formatDate } from "../utils/dateFunctions.js";
 import { getSkuFormat, getSkuAbbreviations, getMetafieldOrder, setMetafieldOrder } from "../services/settings.server";
 
@@ -2249,11 +2250,12 @@ export default function ProductDetail() {
     });
   };
 
-  const uploadDarkImage = (file, index) => {
-    pendingDarkFile.current = file;
+  const uploadDarkImage = async (file, index) => {
+    const resized = await resizeImageFile(file);
+    pendingDarkFile.current = resized;
     pendingDarkIndex.current = index;
     stageDarkFetcher.submit(
-      { action: "uploadDarkModeImageFile", step: "stage", filename: file.name, mimeType: file.type },
+      { action: "uploadDarkModeImageFile", step: "stage", filename: resized.name, mimeType: resized.type },
       { method: "POST" }
     );
   };
