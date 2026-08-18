@@ -3,13 +3,20 @@ import { Card, BlockStack, Text, Button, InlineStack, Divider, TextField } from 
 import LocaleFlag from "../../shared/LocaleFlag.jsx";
 import { useColorScheme } from "../../../context/ColorSchemeContext";
 
-function slugifyHandle(value) {
+// Während des Tippens NICHT den Bindestrich am Ende abschneiden - sonst verschwindet er sofort
+// wieder, sobald man ihn tippt (onChange feuert nach jedem Zeichen). Nur ungültige Zeichen
+// werden live normalisiert, das finale Trimmen passiert erst beim Speichern.
+function normalizeHandleInput(value) {
   return String(value ?? "")
-    .trim()
     .toLowerCase()
     .replace(/['"]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/-+/g, "-")
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+function slugifyHandle(value) {
+  return normalizeHandleInput(value)
+    .trim()
     .replace(/^-|-$/g, "");
 }
 
@@ -40,7 +47,7 @@ export default function ProductDetailSeo({ product, fetcher, shop, setToast, ren
       {
         action: "updateSeo",
         id: product.id,
-        handle: seoDraft.handle,
+        handle: slugifyHandle(seoDraft.handle),
         seoTitle: seoDraft.seoTitle,
         seoDescription: seoDraft.seoDescription,
       },
@@ -117,7 +124,7 @@ export default function ProductDetailSeo({ product, fetcher, shop, setToast, ren
                     <TextField
                       label="" labelHidden
                       value={seoDraft.handle}
-                      onChange={(value) => { setSeoDraft((prev) => ({ ...prev, handle: slugifyHandle(value) })); setSeoDirty(true); }}
+                      onChange={(value) => { setSeoDraft((prev) => ({ ...prev, handle: normalizeHandleInput(value) })); setSeoDirty(true); }}
                       autoComplete="off"
                     />
                   </div>
