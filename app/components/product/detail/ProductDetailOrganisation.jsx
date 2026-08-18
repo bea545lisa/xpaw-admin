@@ -301,9 +301,9 @@ export default function ProductDetailOrganisation({ product, allCollections, all
                     </div>
                   </div>
                   <Button size="micro" onClick={() => {
-                    tags.setShowTagSearch(true);
-                    tags.setShowTagSuggestions(true);
-                    tags.setTagSuggestions(allTags.filter(t => !tags.localTags.includes(t)));  // ← sofort alle laden
+                    tags.handleTagAdd();
+                    tags.setShowTagSuggestions(false);
+                    tags.setShowTagSearch(false);
                   }}>+</Button>
                 </div>
                 <PositionedDropdown anchorRef={tags.tagInputRef}open={tags.showTagSuggestions && tags.tagSuggestions.length > 0}>
