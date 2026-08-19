@@ -185,9 +185,9 @@ export default function ProductItem({
   const templateBadge = formatTemplateSuffix(product.node.templateSuffix);
   // Interne/technische Felder (SEO, App-eigene Verwaltungsdaten, JSON-Rohdaten) nie in der
   // Listenvorschau anzeigen — die sind für Endnutzer nicht lesbar (z.B. rohes JSON).
-  const HIDDEN_LIST_PREVIEW_KEYS = ["title_tag", "description_tag", "metafields_order", "option_abbreviations", "option_swatches"];
+  const HIDDEN_LIST_PREVIEW_KEYS = ["title_tag", "description_tag", "metafields_order", "option_abbreviations", "option_swatches", "dark_mode_images", "dark_mode_images_light_ids"];
   const metaFields = product.node.metafields?.edges
-    ?.filter((e) => !HIDDEN_LIST_PREVIEW_KEYS.includes(e.node.key) && e.node.type !== "json" && e.node.type !== "list.metaobject_reference")
+    ?.filter((e) => !HIDDEN_LIST_PREVIEW_KEYS.includes(e.node.key) && e.node.type !== "json" && e.node.type !== "list.metaobject_reference" && e.node.type !== "list.file_reference")
     ?.slice(0, 3)
     .map((e) => e.node) ?? [];
   const showMetaRow = metaFields.length > 0;
