@@ -161,7 +161,7 @@ export default function ImagesSection({
                       fontSize: 16, opacity: uploadingDarkIndex != null ? 0.3 : 0.6,
                     }}
                   >
-                    ☀️
+                    🌙
                     <input
                       type="file" accept="image/*" style={{ display: "none" }}
                       disabled={uploadingDarkIndex != null}
