@@ -22,6 +22,12 @@ export default function ImagesSection({
 
   const handleLightDrop = (e, targetIndex) => {
     e.preventDefault();
+    // Datei vom Desktop auf den Dark-Slot gezogen (statt eines internen Dark-Bild-Tiles) → als
+    // neues Dark-Bild hochladen.
+    if (e.dataTransfer.files?.length > 0) {
+      uploadDarkImage?.(e.dataTransfer.files[0], targetIndex);
+      return;
+    }
     const payload = getDragPayload(e);
     if (!payload) return;
     if (payload.type === "light") {
@@ -100,7 +106,7 @@ export default function ImagesSection({
                     onDragStart={(e) => setDragPayload(e, "dark", index)}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => handleLightDrop(e, index)}
-                    title="Dark-Mode-Bild — auf ein anderes Bild ziehen, um neu zuzuordnen"
+                    title="Dark-Mode-Bild — auf ein anderes Bild ziehen, um es dort zu übernehmen (Kopie)"
                     style={{ position: "relative", width: 44, height: 44, cursor: "grab" }}
                   >
                     <div style={{
