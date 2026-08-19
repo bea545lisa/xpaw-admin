@@ -2224,15 +2224,14 @@ export default function ProductDetail() {
     });
   };
 
-  // Ein bereits zugewiesenes Dark-Bild per Drag&Drop einem anderen Light-Bild zuordnen
-  // (ersetzt dort automatisch den vorherigen Partner, die alte Position wird leer).
+  // Ein bereits zugewiesenes Dark-Bild per Drag&Drop einem anderen Light-Bild zuordnen -
+  // kopiert (Original-Zuordnung bleibt erhalten, dieselbe Dark-Datei wird einfach wiederverwendet,
+  // kein erneuter Upload nötig).
   const moveDarkToLight = (fromIndex, toIndex) => {
     if (fromIndex === toIndex) return;
     setDarkImages((prev) => {
       const next = [...prev];
-      const moved = next[fromIndex];
-      next[fromIndex] = null;
-      next[toIndex] = moved;
+      next[toIndex] = next[fromIndex];
       persistDarkImages(next);
       return next;
     });
