@@ -15,7 +15,7 @@ export default function ImagesSection({
   localImages, setLocalImages,
   uploadingImage, uploadProgress, uploadError, setUploadError,
   fileInputRef, handleImagesUpload, reorderImages, deleteImage,
-  darkImages, assignDarkImage, uploadDarkImage, moveDarkImage, moveDarkToLight,
+  darkImages, assignDarkImage, uploadDarkImage, moveDarkImage, moveDarkToLight, uploadingDarkIndex,
 }) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -100,7 +100,18 @@ export default function ImagesSection({
                   Umsortieren per Drag&Drop: ein Dark-Bild auf ein anderes Light-Bild ziehen
                   ordnet es dort automatisch neu zu. */}
               {assignDarkImage && (
-                darkImages?.[index] ? (
+                uploadingDarkIndex === index ? (
+                  <div
+                    title="Dark-Bild wird hochgeladen…"
+                    style={{
+                      width: 44, height: 44, borderRadius: 6, flexShrink: 0,
+                      border: `2px dashed ${isDark ? "#5a5a5a" : "#c4c4c4"}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    <Spinner size="small" />
+                  </div>
+                ) : darkImages?.[index] ? (
                   <div
                     draggable
                     onDragStart={(e) => setDragPayload(e, "dark", index)}

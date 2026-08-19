@@ -2193,6 +2193,7 @@ export default function ProductDetail() {
   const saveDarkFetcher = useFetcher();
   const pendingDarkFile = useRef(null);
   const pendingDarkIndex = useRef(null);
+  const [uploadingDarkIndex, setUploadingDarkIndex] = useState(null);
 
   // Zuordnung erfolgt über die Bild-ID, nicht über die Position in der Liste - Shopifys
   // Theme-Galerie zählt Positionen wegen des separat behandelten "Featured Media" der
@@ -2250,6 +2251,7 @@ export default function ProductDetail() {
   };
 
   const uploadDarkImage = async (file, index) => {
+    setUploadingDarkIndex(index);
     const resized = await resizeImageFile(file);
     pendingDarkFile.current = resized;
     pendingDarkIndex.current = index;
@@ -2275,7 +2277,7 @@ export default function ProductDetail() {
           { method: "POST" }
         );
       })
-      .catch(() => setToast?.("Dark-Bild-Upload fehlgeschlagen ❌"));
+      .catch(() => { setToast?.("Dark-Bild-Upload fehlgeschlagen ❌"); setUploadingDarkIndex(null); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageDarkFetcher.state, stageDarkFetcher.data]);
 
@@ -2288,6 +2290,7 @@ export default function ProductDetail() {
     }
     pendingDarkFile.current = null;
     pendingDarkIndex.current = null;
+    setUploadingDarkIndex(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkDarkFetcher.state, linkDarkFetcher.data]);
 
@@ -2635,6 +2638,7 @@ export default function ProductDetail() {
                 darkImages={darkImages}
                 assignDarkImage={assignDarkImage}
                 uploadDarkImage={uploadDarkImage}
+                uploadingDarkIndex={uploadingDarkIndex}
                 moveDarkImage={moveDarkImage}
                 moveDarkToLight={moveDarkToLight}
               />
