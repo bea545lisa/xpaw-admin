@@ -113,12 +113,16 @@ export default function ImagesSection({
                   </div>
                 ) : darkImages?.[index] ? (
                   <div
-                    draggable
+                    draggable={uploadingDarkIndex == null}
                     onDragStart={(e) => setDragPayload(e, "dark", index)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleLightDrop(e, index)}
-                    title="Dark-Mode-Bild — auf ein anderes Bild ziehen, um es dort zu übernehmen (Kopie)"
-                    style={{ position: "relative", width: 44, height: 44, cursor: "grab" }}
+                    onDragOver={(e) => { if (uploadingDarkIndex == null) e.preventDefault(); }}
+                    onDrop={(e) => { if (uploadingDarkIndex == null) handleLightDrop(e, index); }}
+                    title={
+                      uploadingDarkIndex != null
+                        ? "Gesperrt, während ein Dark-Bild hochgeladen wird"
+                        : "Dark-Mode-Bild — auf ein anderes Bild ziehen, um es dort zu übernehmen (Kopie)"
+                    }
+                    style={{ position: "relative", width: 44, height: 44, cursor: uploadingDarkIndex != null ? "not-allowed" : "grab" }}
                   >
                     <div style={{
                       width: "100%", height: "100%", borderRadius: 6, overflow: "hidden",
@@ -142,19 +146,25 @@ export default function ImagesSection({
                   </div>
                 ) : (
                   <label
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleLightDrop(e, index)}
-                    title="Dark-Mode-Bild hinzufügen (Datei wählen oder ein Dark-Bild hierher ziehen)"
+                    onDragOver={(e) => { if (uploadingDarkIndex == null) e.preventDefault(); }}
+                    onDrop={(e) => { if (uploadingDarkIndex == null) handleLightDrop(e, index); }}
+                    title={
+                      uploadingDarkIndex != null
+                        ? "Gesperrt, während ein anderes Dark-Bild hochgeladen wird"
+                        : "Dark-Mode-Bild hinzufügen (Datei wählen oder ein Dark-Bild hierher ziehen)"
+                    }
                     style={{
                       width: 44, height: 44, borderRadius: 6, flexShrink: 0,
                       border: `2px dashed ${isDark ? "#5a5a5a" : "#c4c4c4"}`,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", fontSize: 16, opacity: 0.6,
+                      cursor: uploadingDarkIndex != null ? "not-allowed" : "pointer",
+                      fontSize: 16, opacity: uploadingDarkIndex != null ? 0.3 : 0.6,
                     }}
                   >
                     ☀️
                     <input
                       type="file" accept="image/*" style={{ display: "none" }}
+                      disabled={uploadingDarkIndex != null}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) uploadDarkImage(file, index);
