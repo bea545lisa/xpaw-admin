@@ -8,7 +8,7 @@ const titles = [
 
 export default function Topbar() {
   const location = useLocation();
-  const pageTitle = titles.find((entry) => entry.match.test(location.pathname))?.title ?? `${import.meta.env.VITE_APP_DISPLAY_NAME || "RexPaw"} Admin`;
+  const pageTitle = titles.find((entry) => entry.match.test(location.pathname))?.title ?? "XPaw Admin";
 
   return (
     <header
