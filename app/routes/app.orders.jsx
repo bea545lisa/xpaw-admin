@@ -61,7 +61,7 @@ function formatPrice(amount, currency = "EUR") {
 export default function OrdersPage() {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { orders, accessDenied, error } = useLoaderData();
+  const { orders, accessDenied, accessDeniedMessage, error } = useLoaderData();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -113,8 +113,7 @@ export default function OrdersPage() {
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">Kein Zugriff auf Bestellungen</Text>
               <Text as="p" tone="subdued">
-                Die App benötigt den Scope <code>read_orders</code>. Starte den Dev-Server mit{" "}
-                <code>shopify app dev --reset</code> um die Berechtigung neu anzufordern.
+                {accessDeniedMessage || "Die App hat keinen Zugriff auf Bestellungen (genaue Ursache unbekannt)."}
               </Text>
             </BlockStack>
           </Box>

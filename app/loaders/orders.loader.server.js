@@ -42,8 +42,9 @@ export async function ordersLoader({ request }, admin) {
       variables: { cursor: null, query },
     });
     const json = await response.json();
-    if (json?.errors?.some(e => e?.message?.toLowerCase().includes("access"))) {
-      return { orders: [], accessDenied: true };
+    const accessErr = json?.errors?.find(e => e?.message?.toLowerCase().includes("access"));
+    if (accessErr) {
+      return { orders: [], accessDenied: true, accessDeniedMessage: accessErr.message };
     }
     edges = json?.data?.orders?.edges ?? [];
   } catch (err) {
@@ -58,7 +59,7 @@ export async function ordersLoader({ request }, admin) {
       ].join(" ").toLowerCase();
 
       if (allMessages.includes("access") || allMessages.includes("denied") || allMessages.includes("unauthorized")) {
-        return { orders: [], accessDenied: true };
+        return { orders: [], accessDenied: true, accessDeniedMessage: graphQLErrors[0]?.message ?? String(err?.message ?? "") };
       }
 
       const firstGqlMsg = graphQLErrors[0]?.message;
