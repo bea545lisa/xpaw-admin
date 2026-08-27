@@ -43,12 +43,15 @@ export async function ordersLoader({ request }, admin) {
       variables: { cursor: null, query },
     });
     const json = await response.json();
-    edges = json?.data?.orders?.edges ?? [];
-  } catch (err) {
-    if (err?.message?.includes("Access denied")) {
+    if (json?.errors?.some(e => e?.message?.toLowerCase().includes("access"))) {
       return { orders: [], accessDenied: true };
     }
-    throw err;
+    edges = json?.data?.orders?.edges ?? [];
+  } catch (err) {
+    if (err?.message?.toLowerCase().includes("access") || err?.message?.toLowerCase().includes("denied")) {
+      return { orders: [], accessDenied: true };
+    }
+    return { orders: [], error: err?.message ?? "Unbekannter Fehler" };
   }
 
   const orders = edges.map(({ node }) => ({

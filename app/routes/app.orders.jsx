@@ -61,7 +61,7 @@ function formatPrice(amount, currency = "EUR") {
 export default function OrdersPage() {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { orders, accessDenied } = useLoaderData();
+  const { orders, accessDenied, error } = useLoaderData();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -96,6 +96,14 @@ export default function OrdersPage() {
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.totalPrice, 0);
   const currency = orders[0]?.currency ?? "EUR";
+
+  if (error) {
+    return (
+      <div style={{ padding: "20px 32px" }}>
+        <Card><Box padding="600"><Text as="p" tone="critical">{error}</Text></Box></Card>
+      </div>
+    );
+  }
 
   if (accessDenied) {
     return (
