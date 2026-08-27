@@ -1,4 +1,4 @@
-# RexPaw Admin
+# XPaw Admin
 
 Shopify Embedded Admin App — entwickelt als Portfolio-Projekt zur Erweiterung meiner Kenntnisse in der Shopify App-Entwicklung. Die App ersetzt und erweitert das Standard-Shopify-Backend für Produktverwaltung, Bestellungen und Analyse.
 
