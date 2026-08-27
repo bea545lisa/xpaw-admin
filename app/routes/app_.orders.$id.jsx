@@ -36,9 +36,12 @@ const ORDER_DETAIL_QUERY = `
           node {
             id
             title
+            variantTitle
             quantity
             sku
-            variant { price compareAtPrice image { url altText } }
+            image { url altText }
+            customAttributes { key value }
+            variant { price compareAtPrice image { url altText } selectedOptions { name value } }
             originalTotalSet { shopMoney { amount } }
           }
         }
@@ -189,7 +192,10 @@ export default function OrderDetail() {
               <SectionCard title={`Artikel (${lineItems.length})`}>
                 <BlockStack gap="300">
                   {lineItems.map((item) => {
-                    const img = item.variant?.image?.url;
+                    const img = item.variant?.image?.url ?? item.image?.url;
+                    const options = item.variant?.selectedOptions?.filter(o => o.value && o.name !== "Title")
+                      ?? item.customAttributes?.filter(a => a.value && !a.key.startsWith("_"))
+                      ?? [];
                     const price = Number.parseFloat(item.variant?.price ?? 0);
                     const total = Number.parseFloat(item.originalTotalSet?.shopMoney?.amount ?? 0);
                     return (
@@ -197,7 +203,7 @@ export default function OrderDetail() {
                         {img ? (
                           <img
                             src={img}
-                            alt={item.variant?.image?.altText ?? item.title}
+                            alt={item.variant?.image?.altText ?? item.image?.altText ?? item.title}
                             style={{ width: 48, height: 48, borderRadius: 6, objectFit: "cover", border: "1px solid #e5e7eb", flexShrink: 0 }}
                           />
                         ) : (
@@ -207,6 +213,11 @@ export default function OrderDetail() {
                         )}
                         <div style={{ flex: 1 }}>
                           <Text as="p" variant="bodySm" fontWeight="semibold">{item.title}</Text>
+                          {options.length > 0 && (
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {options.map(o => `${o.name ?? o.key}: ${o.value}`).join(" · ")}
+                            </Text>
+                          )}
                           {item.sku && <Text as="p" variant="bodySm" tone="subdued">SKU: {item.sku}</Text>}
                         </div>
                         <Text as="p" variant="bodySm" tone="subdued">{item.quantity} × {formatPrice(price, currency)}</Text>

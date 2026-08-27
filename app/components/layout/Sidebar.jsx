@@ -96,7 +96,7 @@ export default function Sidebar() {
       flexDirection: "column",
     }}>
       <div style={{ padding: "0 10px", marginBottom: 24 }}>
-        <div style={{ fontSize: 24, fontWeight: 700, color: isDark ? "#f9fafb" : "#111827", letterSpacing: "-0.5px" }}>RexPaw</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: isDark ? "#f9fafb" : "#111827", letterSpacing: "-0.5px" }}>{import.meta.env.VITE_APP_DISPLAY_NAME || "RexPaw"}</div>
         <div style={{ fontSize: 12, color: isDark ? "#6b7280" : "#9ca3af", marginTop: 2 }}>Shopify Admin</div>
       </div>
 
