@@ -47,22 +47,25 @@ export async function ordersLoader({ request }, admin) {
     }
     edges = json?.data?.orders?.edges ?? [];
   } catch (err) {
-    const graphQLErrors = err?.response?.errors ?? err?.errors?.graphQLErrors ?? err?.graphQLErrors ?? [];
-    console.error("Orders loader Fehler:", err?.message);
-    console.error("GraphQL Errors:", JSON.stringify(graphQLErrors, null, 2));
+    try {
+      const graphQLErrors = err?.response?.errors ?? err?.errors?.graphQLErrors ?? err?.graphQLErrors ?? [];
+      console.error("Orders loader Fehler:", String(err?.message ?? err));
+      try { console.error("GraphQL Errors:", JSON.stringify(graphQLErrors)); } catch (_) {}
 
-    const allMessages = [
-      err?.message ?? "",
-      ...graphQLErrors.map(e => e?.message ?? ""),
-    ].join(" ").toLowerCase();
+      const allMessages = [
+        String(err?.message ?? ""),
+        ...graphQLErrors.map(e => String(e?.message ?? "")),
+      ].join(" ").toLowerCase();
 
-    if (allMessages.includes("access") || allMessages.includes("denied") || allMessages.includes("unauthorized")) {
-      return { orders: [], accessDenied: true };
+      if (allMessages.includes("access") || allMessages.includes("denied") || allMessages.includes("unauthorized")) {
+        return { orders: [], accessDenied: true };
+      }
+
+      const firstGqlMsg = graphQLErrors[0]?.message;
+      return { orders: [], error: String(firstGqlMsg ?? err?.message ?? "Unbekannter Fehler") };
+    } catch (_) {
+      return { orders: [], error: "Fehler beim Laden der Bestellungen" };
     }
-
-    const firstGqlMsg = graphQLErrors[0]?.message;
-    const errorMsg = firstGqlMsg ?? err?.message ?? "Unbekannter Fehler";
-    return { orders: [], error: String(errorMsg) };
   }
 
   const orders = edges.map(({ node }) => ({
