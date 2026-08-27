@@ -8,10 +8,10 @@ Shopify Embedded Admin App — entwickelt als Portfolio-Projekt zur Erweiterung 
 
 | Light | Dark |
 |-------|------|
-| ![Dashboard Light](docs/screenshots/dashboard-light.png) | ![Dashboard Dark](docs/screenshots/dashboard-dark.png) |
-| ![Produkte Light](docs/screenshots/products-light.png) | ![Produkte Dark](docs/screenshots/products-dark.png) |
-| ![Produkt Detail Light](docs/screenshots/product-detail-light.png) | ![Produkt Detail Dark](docs/screenshots/product-detail-dark.png) |
-| ![Bestellungen Light](docs/screenshots/orders-light.png) | ![Bestellungen Dark](docs/screenshots/orders-dark.png) |
+| ![Dashboard Light](docs/screenshots/xpaw-dashboard-light.png) | ![Dashboard Dark](docs/screenshots/xpaw-dashboard-dark.png) |
+| ![Produkte Light](docs/screenshots/xpaw-produkte-light.png) | ![Produkte Dark](docs/screenshots/xpaw-produkte-dark.png) |
+| ![Produkt Detail Light](docs/screenshots/xpaw-detail-light.png) | ![Produkt Detail Dark](docs/screenshots/xpaw-detail-dark.png) |
+| ![Bestellungen Light](docs/screenshots/xpaw-bestellungen-light.png) | ![Bestellungen Dark](docs/screenshots/xpaw-bestellungen-dark.png) |
 
 ---
 
