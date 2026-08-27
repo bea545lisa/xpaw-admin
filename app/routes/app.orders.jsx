@@ -174,14 +174,23 @@ export default function OrdersPage() {
                 </thead>
                 <tbody>
                   {orders.map((order, idx) => {
-                    const customerName = order.customer
-                      ? `${order.customer.firstName ?? ""} ${order.customer.lastName ?? ""}`.trim() || order.customer.email
-                      : "Gast";
-                    const itemCount = order.lineItems?.edges?.length ?? 0;
-                    const firstItem = order.lineItems?.edges?.[0]?.node;
-                    const itemLabel = itemCount === 1
-                      ? firstItem?.title ?? "1 Artikel"
-                      : `${firstItem?.title ?? "Artikel"} +${itemCount - 1}`;
+                    const customerFullName = order.customer
+                      ? `${order.customer.firstName ?? ""} ${order.customer.lastName ?? ""}`.trim()
+                      : "";
+                    const shippingName = order.shippingAddress
+                      ? `${order.shippingAddress.firstName ?? ""} ${order.shippingAddress.lastName ?? ""}`.trim()
+                      : "";
+                    const customerName = customerFullName
+                      || (shippingName ? `${shippingName} (Gast)` : "")
+                      || order.customer?.email
+                      || "Gast";
+                    const items = order.lineItems?.edges?.map(e => e.node) ?? [];
+                    const itemCount = items.length;
+                    const itemLines = items.map(it =>
+                      it.variantTitle && it.variantTitle !== "Default Title"
+                        ? `${it.title} (${it.variantTitle})`
+                        : it.title
+                    );
 
                     return (
                       <tr
@@ -212,10 +221,18 @@ export default function OrdersPage() {
                             )}
                           </BlockStack>
                         </td>
-                        <td style={{ padding: "12px 16px", maxWidth: 220 }}>
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {itemLabel}
-                          </Text>
+                        <td style={{ padding: "12px 16px", maxWidth: 260 }}>
+                          {itemCount <= 5 ? (
+                            <BlockStack gap="050">
+                              {itemLines.map((line, i) => (
+                                <Text key={i} as="span" variant="bodySm" tone="subdued">{line}</Text>
+                              ))}
+                            </BlockStack>
+                          ) : (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {itemLines[0]} +{itemCount - 1}
+                            </Text>
+                          )}
                         </td>
                         <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                           <Text as="span" variant="bodySm" fontWeight="semibold">

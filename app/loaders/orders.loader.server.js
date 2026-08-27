@@ -12,9 +12,10 @@ const ORDERS_QUERY = `
           currencyCode
           totalPriceSet { shopMoney { amount currencyCode } }
           lineItems(first: 10) {
-            edges { node { title quantity } }
+            edges { node { title variantTitle quantity } }
           }
-          shippingAddress { city country }
+          customer { firstName lastName }
+          shippingAddress { firstName lastName city country }
           tags
         }
       }
