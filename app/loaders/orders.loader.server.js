@@ -14,7 +14,6 @@ const ORDERS_QUERY = `
           lineItems(first: 10) {
             edges { node { title quantity } }
           }
-          customer { id firstName lastName email }
           shippingAddress { city country }
           tags
         }
@@ -48,10 +47,22 @@ export async function ordersLoader({ request }, admin) {
     }
     edges = json?.data?.orders?.edges ?? [];
   } catch (err) {
-    if (err?.message?.toLowerCase().includes("access") || err?.message?.toLowerCase().includes("denied")) {
+    const graphQLErrors = err?.response?.errors ?? err?.errors?.graphQLErrors ?? err?.graphQLErrors ?? [];
+    console.error("Orders loader Fehler:", err?.message);
+    console.error("GraphQL Errors:", JSON.stringify(graphQLErrors, null, 2));
+
+    const allMessages = [
+      err?.message ?? "",
+      ...graphQLErrors.map(e => e?.message ?? ""),
+    ].join(" ").toLowerCase();
+
+    if (allMessages.includes("access") || allMessages.includes("denied") || allMessages.includes("unauthorized")) {
       return { orders: [], accessDenied: true };
     }
-    return { orders: [], error: err?.message ?? "Unbekannter Fehler" };
+
+    const firstGqlMsg = graphQLErrors[0]?.message;
+    const errorMsg = firstGqlMsg ?? err?.message ?? "Unbekannter Fehler";
+    return { orders: [], error: String(errorMsg) };
   }
 
   const orders = edges.map(({ node }) => ({
