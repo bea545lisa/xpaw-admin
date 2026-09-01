@@ -33,6 +33,7 @@ export default function ProductDetailSeo({ product, fetcher, shop, setToast, ren
     background: isDark ? "rgba(255,255,255,0.2)" : "var(--p-color-bg-surface-secondary)",
   };
   const [editing, setEditing] = useState(false);
+  const [previewExpanded, setPreviewExpanded] = useState(false);
   const [seoDraft, setSeoDraft] = useState({
     seoTitle: product.seo?.title ?? product.title ?? "",
     seoDescription: product.seo?.description ?? "",
@@ -175,9 +176,26 @@ export default function ProductDetailSeo({ product, fetcher, shop, setToast, ren
             <span style={{ wordBreak: "break-word" }}>{previewUrl}</span>
           </Text>
           <Text variant="headingSm">{seoDraft.seoTitle || product.title}</Text>
-          <Text variant="bodySm" tone="subdued">
-            {seoDraft.seoDescription || product.description || "Keine Meta Description hinterlegt."}
-          </Text>
+          {(() => {
+            const previewText = seoDraft.seoDescription || product.description || "Keine Meta Description hinterlegt.";
+            return (
+              <>
+                <div
+                  style={previewExpanded ? {} : {
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Text variant="bodySm" tone="subdued">{previewText}</Text>
+                </div>
+                <Button variant="plain" size="micro" onClick={() => setPreviewExpanded((v) => !v)}>
+                  {previewExpanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+                </Button>
+              </>
+            );
+          })()}
         </BlockStack>
       </BlockStack>
     </Card>

@@ -71,7 +71,7 @@ export const loader = async ({ request, params }) => {
           edges {
             node {
               id namespace key type value
-              definition { id name }
+              definition { id name description }
               references(first: 50) {
                 edges {
                   node {
@@ -94,7 +94,7 @@ export const loader = async ({ request, params }) => {
               image { id url altText }
               inventoryItem { id requiresShipping tracked }
               metafields(first: 10, namespace: "custom") {
-                edges { node { id namespace key type value definition { id name } } }
+                edges { node { id namespace key type value definition { id name description } } }
               }
             }
           }
@@ -259,6 +259,8 @@ export const action = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const type = formData.get("action");
+
+  try {
 
   if (type === "saveMetafieldOrder") {
     const scope = formData.get("scope"); // "default" (store-weit) oder "product" (nur dieses Produkt)
@@ -1065,8 +1067,11 @@ export const action = async ({ request }) => {
     // Definition anlegen, damit das Metafield im Storefront/Theme verfügbar ist
     // (ohne Definition mit Storefront-Zugriff bleibt ein per API gesetztes Metafield
     // in der Storefront API unsichtbar). Falls die Definition schon existiert,
-    // liefert Shopify einen userError ("TAKEN"), den wir ignorieren.
-    await admin.graphql(`
+    // liefert Shopify einen userError mit Code "TAKEN", den ignorieren wir gezielt -
+    // alle anderen Fehler (z.B. ungültiger Typ) werden zurückgegeben, statt sie
+    // stillschweigend zu verschlucken (das führte früher dazu, dass Metafields ohne
+    // Definition landeten, obwohl "erfolgreich erstellt" gemeldet wurde).
+    const defRes = await admin.graphql(`
       mutation($definition: MetafieldDefinitionInput!) {
         metafieldDefinitionCreate(definition: $definition) {
           createdDefinition { id }
@@ -1085,6 +1090,9 @@ export const action = async ({ request }) => {
         },
       },
     });
+    const defJson = await defRes.json();
+    const defErrors = (defJson.data?.metafieldDefinitionCreate?.userErrors ?? [])
+      .filter((e) => e.code !== "TAKEN");
 
     const res = await admin.graphql(`
       mutation($metafields: [MetafieldsSetInput!]!) {
@@ -1106,7 +1114,22 @@ export const action = async ({ request }) => {
     });
     const json = await res.json();
     const metafield = json.data?.metafieldsSet?.metafields?.[0] ?? null;
-    return { ok: true, type: "createMetafield", metafield };
+    // metafieldsSet gibt keine Definition zurueck - ohne die faellt die
+    // Anzeige direkt nach dem Anlegen (vor einem Seiten-Reload) auf den
+    // rohen Key als Name zurueck, obwohl die Definition oben schon mit dem
+    // richtigen Namen angelegt wurde. Selbst ergaenzen, damit die optimistische
+    // Anzeige sofort stimmt statt erst nach Neuladen.
+    if (metafield && defErrors.length === 0) {
+      metafield.definition = { id: null, name, description: null };
+    }
+    const valueErrors = json.data?.metafieldsSet?.userErrors ?? [];
+    const allErrors = [...defErrors, ...valueErrors];
+    return {
+      ok: allErrors.length === 0,
+      type: "createMetafield",
+      metafield,
+      error: allErrors.length ? allErrors.map((e) => e.message).join(", ") : null,
+    };
   }
 
   // Varianten-Metafields — gleiche Mechanik wie Produkt-Metafields, aber ownerId = Variante und
@@ -1441,6 +1464,30 @@ export const action = async ({ request }) => {
     }
   }
 
+  // Konfigurator-Bild hochladen (Maske, Hintergrund hell/dunkel, Shading-Overlay) — wie
+  // Swatch-Uploads eigenständig über die Files-API, landet NICHT in der Produkt-Bildergalerie.
+  // Die URL wird danach manuell in ein canvas_*-Metafield eingetragen (siehe CONFIGURATOR.md),
+  // nicht automatisch verknüpft - anders als Swatch-Bilder gibt es hier keine feste Zuordnung
+  // zu einer einzelnen Optionswert-Auswahl.
+  if (type === "uploadConfiguratorFile") {
+    const step = formData.get("step");
+
+    if (step === "stage") {
+      const stagedTarget = await createStagedUpload(admin, formData.get("filename"), formData.get("mimeType"));
+      return { ok: true, type: "uploadConfiguratorFile", step: "stage", stagedTarget };
+    }
+
+    if (step === "link") {
+      const result = await createStandaloneFile(admin, formData.get("resourceUrl"));
+      if (result.error) return { ok: false, type: "uploadConfiguratorFile", step: "link", error: result.error };
+      return {
+        ok: true, type: "uploadConfiguratorFile", step: "link",
+        fileId: result.file?.id ?? null,
+        fileUrl: result.file?.image?.url ?? null,
+      };
+    }
+  }
+
   // Dark-Mode-Bild hochladen — wie Swatch-Uploads eigenständig über die Files-API, landet
   // NICHT in der normalen Produkt-Bildergalerie.
   if (type === "uploadDarkModeImageFile") {
@@ -1767,8 +1814,9 @@ export const action = async ({ request }) => {
     });
 
     const name = formData.get("name");
+    let nameError = null;
     if (name) {
-      await admin.graphql(`
+      const nameRes = await admin.graphql(`
         mutation($definition: MetafieldDefinitionUpdateInput!) {
           metafieldDefinitionUpdate(definition: $definition) {
             updatedDefinition { id name }
@@ -1785,9 +1833,14 @@ export const action = async ({ request }) => {
           },
         },
       });
+      const nameData = await nameRes.json();
+      const userErrors = nameData.data?.metafieldDefinitionUpdate?.userErrors;
+      if (userErrors?.length) {
+        nameError = userErrors.map((e) => e.message).join(", ");
+      }
     }
 
-    return { ok: true, type: "updateMetafield", metafieldId, value, name };
+    return { ok: true, type: "updateMetafield", metafieldId, value, name: nameError ? null : name, nameError };
   }
 
   // Bilder ---------------------------------------------------
@@ -1831,6 +1884,16 @@ export const action = async ({ request }) => {
   }
 
   return null;
+
+  } catch (e) {
+    // Ohne dieses Fangnetz crasht eine Exception in irgendeiner der obigen
+    // Verzweigungen die ganze Anfrage ohne gueltiges JSON - der Client sieht
+    // dann weder Toast noch Fehlermeldung, weil fetcher.data nicht die
+    // erwartete Form hat (Ursache mehrerer "speichert nichts, kein Toast"-
+    // Faelle). Immer valides JSON zurueckgeben, egal was schiefgeht.
+    console.error("Action error:", type, e);
+    return { ok: false, type: "actionError", action: type, error: e?.message || String(e) };
+  }
 };
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────────
@@ -2410,6 +2473,11 @@ export default function ProductDetail() {
   useEffect(() => {
 
     if (!fetcher.data) return;
+
+    if (fetcher.data.type === "actionError") {
+      setToast(`Fehler bei "${fetcher.data.action}": ${fetcher.data.error}`);
+      return;
+    }
 
     if (fetcher.data.type === "delete") {
       setToast(`${titleValue} *** KOPIE *** erstellt 🎉`);

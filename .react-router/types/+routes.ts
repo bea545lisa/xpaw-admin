@@ -14,7 +14,13 @@ type Pages = {
   "/": {
     params: {};
   };
+  "/webhooks/customers/data_request": {
+    params: {};
+  };
   "/webhooks/app/scopes_update": {
+    params: {};
+  };
+  "/webhooks/customers/redact": {
     params: {};
   };
   "/webhooks/app/uninstalled": {
@@ -24,6 +30,9 @@ type Pages = {
     params: {
       "id": string;
     };
+  };
+  "/webhooks/shop/redact": {
+    params: {};
   };
   "/app/products/:id": {
     params: {
@@ -80,11 +89,19 @@ type Pages = {
 type RouteFiles = {
   "root.jsx": {
     id: "root";
-    page: "/" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/app/collections/:id" | "/app/products/:id" | "/app/orders/:id" | "/app/tags/:tag" | "/auth/login" | "/auth/*" | "/app" | "/app/collections" | "/app/additional" | "/app/metafields" | "/app/products" | "/app/settings" | "/app/orders" | "/app/upload" | "/app/tags";
+    page: "/" | "/webhooks/customers/data_request" | "/webhooks/app/scopes_update" | "/webhooks/customers/redact" | "/webhooks/app/uninstalled" | "/app/collections/:id" | "/webhooks/shop/redact" | "/app/products/:id" | "/app/orders/:id" | "/app/tags/:tag" | "/auth/login" | "/auth/*" | "/app" | "/app/collections" | "/app/additional" | "/app/metafields" | "/app/products" | "/app/settings" | "/app/orders" | "/app/upload" | "/app/tags";
+  };
+  "routes/webhooks.customers.data_request.jsx": {
+    id: "routes/webhooks.customers.data_request";
+    page: "/webhooks/customers/data_request";
   };
   "routes/webhooks.app.scopes_update.jsx": {
     id: "routes/webhooks.app.scopes_update";
     page: "/webhooks/app/scopes_update";
+  };
+  "routes/webhooks.customers.redact.jsx": {
+    id: "routes/webhooks.customers.redact";
+    page: "/webhooks/customers/redact";
   };
   "routes/webhooks.app.uninstalled.jsx": {
     id: "routes/webhooks.app.uninstalled";
@@ -93,6 +110,10 @@ type RouteFiles = {
   "routes/app_.collections.$id.jsx": {
     id: "routes/app_.collections.$id";
     page: "/app/collections/:id";
+  };
+  "routes/webhooks.shop.redact.jsx": {
+    id: "routes/webhooks.shop.redact";
+    page: "/webhooks/shop/redact";
   };
   "routes/app_.products.$id.jsx": {
     id: "routes/app_.products.$id";
@@ -162,9 +183,12 @@ type RouteFiles = {
 
 type RouteModules = {
   "root": typeof import("./app/root.jsx");
+  "routes/webhooks.customers.data_request": typeof import("./app/routes/webhooks.customers.data_request.jsx");
   "routes/webhooks.app.scopes_update": typeof import("./app/routes/webhooks.app.scopes_update.jsx");
+  "routes/webhooks.customers.redact": typeof import("./app/routes/webhooks.customers.redact.jsx");
   "routes/webhooks.app.uninstalled": typeof import("./app/routes/webhooks.app.uninstalled.jsx");
   "routes/app_.collections.$id": typeof import("./app/routes/app_.collections.$id.jsx");
+  "routes/webhooks.shop.redact": typeof import("./app/routes/webhooks.shop.redact.jsx");
   "routes/app_.products.$id": typeof import("./app/routes/app_.products.$id.jsx");
   "routes/app_.orders.$id": typeof import("./app/routes/app_.orders.$id.jsx");
   "routes/app_.tags.$tag": typeof import("./app/routes/app_.tags.$tag.jsx");

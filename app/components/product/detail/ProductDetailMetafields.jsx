@@ -1,13 +1,23 @@
 import { useState, useRef, useEffect } from "react";
 import { useFetcher } from "react-router";
-import { BlockStack, Text, Button, InlineStack, Divider, TextField, Icon, Modal } from "@shopify/polaris";
-import { EditIcon, XIcon, DeleteIcon, GlobeIcon } from "@shopify/polaris-icons";
+import { BlockStack, Text, Button, InlineStack, Divider, TextField, Icon, Modal, Tooltip, Link } from "@shopify/polaris";
+import { EditIcon, XIcon, DeleteIcon, GlobeIcon, InfoIcon } from "@shopify/polaris-icons";
 import PositionedDropdown from "../../ui/PositionedDropdown.jsx";
 import { useColorScheme } from "../../../context/ColorSchemeContext.js";
 import LocaleFlag from "../../shared/LocaleFlag.jsx";
+import { useConfiguratorUpload } from "../../../hooks/useConfiguratorUpload.jsx";
 
 function keyDerivedLabel(key) {
   return String(key ?? "").replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+// Faengt den haeufigen Tippfehler ab, den Namespace ("custom.") mit ins Key-Feld
+// zu schreiben - Namespace ist im Formular ein separates, festes Feld (immer
+// "custom"), sodass ein mitgetippter Punkt sonst woertlich Teil des Keys wird
+// (z.B. "custom.canvas_layers" statt "canvas_layers") und die Metafield-
+// Definition spaeter mit "Key enthaelt ungueltige Zeichen" scheitert.
+function stripNamespacePrefix(key) {
+  return key.includes(".") ? key.slice(key.lastIndexOf(".") + 1) : key;
 }
 
 const METAOBJECT_REFERENCE_LIST = "list.metaobject_reference";
@@ -555,6 +565,68 @@ function MetaobjectReferenceField({
   );
 }
 
+// Kleiner Uploader für Konfigurator-Bilder (Masken, Hintergrund, Shading) -
+// nutzt useConfiguratorUpload (eigenständige Shopify-Datei, kein Produktbild),
+// zeigt die fertige URL zum Kopieren an, damit sie manuell in das jeweilige
+// canvas_*-Metafield eingetragen werden kann. Kein automatisches Verknüpfen
+// mit einem bestimmten Feld - anders als bei Swatch-Bildern gibt es hier
+// keine 1:1-Zuordnung (eine Datei kann in canvas_layers an beliebiger Stelle
+// im JSON landen).
+function ConfiguratorFileUpload({ setToast }) {
+  const { upload, uploading, error, resultUrl, setResultUrl } = useConfiguratorUpload({ setToast });
+  const [pickedFile, setPickedFile] = useState(null);
+  const [filename, setFilename] = useState("");
+
+  const handleFilePick = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPickedFile(file);
+    setFilename(file.name);
+    setResultUrl(null);
+  };
+
+  const handleUpload = () => {
+    if (!pickedFile) return;
+    upload(pickedFile, filename);
+  };
+
+  const copyUrl = () => {
+    if (!resultUrl) return;
+    navigator.clipboard?.writeText(resultUrl);
+    setToast?.("URL kopiert");
+  };
+
+  return (
+    <div style={{
+      marginTop: 4, padding: 10, borderRadius: 6,
+      border: "1px dashed var(--p-color-border)",
+    }}>
+      <BlockStack gap="150">
+        <input type="file" accept="image/*" onChange={handleFilePick} style={{ fontSize: 12 }} />
+        {pickedFile && (
+          <InlineStack gap="150" blockAlign="end" wrap={false}>
+            <div style={{ flex: 1 }}>
+              <TextField label="Dateiname" labelHidden value={filename} onChange={setFilename} autoComplete="off" />
+            </div>
+            <Button size="slim" onClick={handleUpload} loading={uploading} disabled={uploading}>
+              Hochladen
+            </Button>
+          </InlineStack>
+        )}
+        {error && <Text variant="bodyXs" tone="critical" as="p">{error}</Text>}
+        {resultUrl && (
+          <InlineStack gap="150" blockAlign="center" wrap={false}>
+            <div style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <Text variant="bodyXs" as="span">{resultUrl}</Text>
+            </div>
+            <Button size="slim" onClick={copyUrl}>Kopieren</Button>
+          </InlineStack>
+        )}
+      </BlockStack>
+    </div>
+  );
+}
+
 export default function ProductDetailMetafields({ metafields, allMetafieldDefinitions = [], metaobjectTypeByFieldKey = {}, defaultMetafieldOrder = [], locales = [], shopId, fieldLabels: initialFieldLabels = {}, productId, fetcher, setToast }) {
 
   const orderFetcher = useFetcher();
@@ -578,6 +650,7 @@ export default function ProductDetailMetafields({ metafields, allMetafieldDefini
   const translationLocales = locales.filter((l) => !l.primary);
   const [showNew, setShowNew] = useState(false);
   const [showAddExisting, setShowAddExisting] = useState(false);
+  const [showConfiguratorHelp, setShowConfiguratorHelp] = useState(false);
   const [newField, setNewField] = useState(EMPTY_NEW);
   const [existingSearch, setExistingSearch] = useState("");
   const [showKeyDropdown, setShowKeyDropdown] = useState(false);
@@ -790,8 +863,9 @@ export default function ProductDetailMetafields({ metafields, allMetafieldDefini
 
   const handleCreate = () => {
     if (!newField.key.trim()) return;
+    const key = stripNamespacePrefix(newField.key.trim());
     fetcher.submit(
-      { action: "createMetafield", productId, namespace: "custom", name: newField.name || newField.key, key: newField.key, type: newField.type, value: newField.value },
+      { action: "createMetafield", productId, namespace: "custom", name: newField.name || key, key, type: newField.type, value: newField.value },
       { method: "POST" }
     );
     setShowNew(false);
@@ -800,8 +874,9 @@ export default function ProductDetailMetafields({ metafields, allMetafieldDefini
 
   const handleCreateExisting = () => {
     if (!newField.key.trim()) return;
+    const key = stripNamespacePrefix(newField.key.trim());
     fetcher.submit(
-      { action: "createMetafield", productId, namespace: "custom", name: newField.name, key: newField.key, type: newField.type, value: newField.value },
+      { action: "createMetafield", productId, namespace: "custom", name: newField.name, key, type: newField.type, value: newField.value },
       { method: "POST" }
     );
     closeAddExisting();
@@ -829,12 +904,18 @@ export default function ProductDetailMetafields({ metafields, allMetafieldDefini
             }
           : f
       ));
-      setToast?.("Metafield gespeichert");
+      if (fetcher.data.nameError) {
+        setToast?.(`Name nicht gespeichert: ${fetcher.data.nameError}`);
+      } else {
+        setToast?.("Metafield gespeichert");
+      }
     }
 
-    if (fetcher.data.type === "createMetafield" && fetcher.data.metafield) {
-      setLocalMetafields(prev => [...prev, fetcher.data.metafield]);
-      setToast?.("Metafield erstellt");
+    if (fetcher.data.type === "createMetafield") {
+      if (fetcher.data.metafield) {
+        setLocalMetafields(prev => [...prev, fetcher.data.metafield]);
+      }
+      setToast?.(fetcher.data.error ? `Fehler: ${fetcher.data.error}` : "Metafield erstellt");
     }
 
     if (fetcher.data.type === "deleteMetafield") {
@@ -859,32 +940,89 @@ return (
     <BlockStack gap="300">
       <InlineStack align="space-between" blockAlign="center">
         <Text variant="headingSm">Metafields</Text>
-        <InlineStack gap="150">
-          {availableDefinitions.length > 0 && (
+        <InlineStack gap="400" blockAlign="center">
+          <Link monochrome removeUnderline={false} onClick={() => setShowConfiguratorHelp((v) => !v)}>
+            <Text variant="bodyXs" tone="subdued" as="span">
+              {showConfiguratorHelp ? "Anleitung ausblenden" : "Wie richte ich Konfigurator ein?"}
+            </Text>
+          </Link>
+          <InlineStack gap="150">
+            {availableDefinitions.length > 0 && (
+              <Button
+                size="micro"
+                onClick={() => { showAddExisting ? closeAddExisting() : setShowAddExisting(true); setShowNew(false); }}
+              >
+                {showAddExisting ? "Abbrechen" : "+ Vorhandenes"}
+              </Button>
+            )}
             <Button
               size="micro"
-              onClick={() => { showAddExisting ? closeAddExisting() : setShowAddExisting(true); setShowNew(false); }}
+              onClick={() => {
+                if (showNew) { setShowNew(false); return; }
+                setShowNew(true);
+                closeAddExisting();
+              }}
             >
-              {showAddExisting ? "Abbrechen" : "+ Vorhandenes"}
+              {showNew ? "Abbrechen" : "+ Neu"}
             </Button>
-          )}
-          <Button
-            size="micro"
-            onClick={() => {
-              if (showNew) { setShowNew(false); return; }
-              setShowNew(true);
-              closeAddExisting();
-            }}
-          >
-            {showNew ? "Abbrechen" : "+ Neu"}
-          </Button>
-          {defaultMetafieldOrder.length > 0 && (
-            <Button size="micro" onClick={loadDefaultOrder}>
-              Standardreihenfolge laden
-            </Button>
-          )}
+            {defaultMetafieldOrder.length > 0 && (
+              <Button size="micro" onClick={loadDefaultOrder}>
+                Standardreihenfolge laden
+              </Button>
+            )}
+          </InlineStack>
         </InlineStack>
       </InlineStack>
+
+      {showConfiguratorHelp && (
+        <div style={{
+          padding: "14px 14px 14px 0", borderRadius: 8,
+        }}>
+          <BlockStack gap="200">
+            <Text variant="headingXs" tone="subdued">Neues Konfigurator-Produkt einrichten</Text>
+            <Text variant="bodyXs" tone="subdued" as="p">
+              Das <code>custom.</code> vor den Feldnamen unten ist nur die Code-Schreibweise (Liquid/Theme) — beim Anlegen einer Definition in Shopify ist Namespace (<code>custom</code>) und Schlüssel getrennt, "custom." also nicht mit eintippen.
+            </Text>
+            <Text variant="bodyXs" tone="subdued" as="p">
+              <strong>1. Produkt anlegen</strong> — ganz normal (Titel, Beschreibung, Preis, mind. eine Variante). Kein Foto nötig, das übernimmt der Konfigurator.
+            </Text>
+            <Text variant="bodyXs" tone="subdued" as="p">
+              <strong>2. Bilder hochladen</strong> — Masken (eine Silhouette pro einfärbbarer Ebene, Rest transparent), optional Hintergrund hell/dunkel und Shading-Overlay. Direkt hier hochladen (landet nicht in der Produkt-Bildergalerie, nur als Datei mit URL). Dateinamen immer mit <code>canvas-</code>-Präfix, damit man sie später in Shopifys Dateiliste (Einstellungen → Dateien) wiederfindet, z. B. zum Löschen/Ersetzen: <code>canvas-&lt;produkt&gt;-mask-koerper.png</code>, <code>canvas-&lt;produkt&gt;-hintergrund-hell.png</code>, <code>canvas-&lt;produkt&gt;-hintergrund-dunkel.png</code>, <code>canvas-&lt;produkt&gt;-shading.png</code>. Nach dem Upload URL kopieren und weiter unten ins passende Feld einfügen.
+            </Text>
+            <ConfiguratorFileUpload setToast={setToast} />
+            <Text variant="bodyXs" tone="subdued" as="p">
+              <strong>3. Aktivierung</strong> — <code>custom.canvas_configurator</code> = <code>true</code> und <code>custom.canvas_engine</code> = <code>generic</code> setzen (kein anderer Wert vorgesehen — leer/falsch = altes, Geschirr-spezifisches System mit falschen Masken für jedes andere Produkt). Ohne beide zeigt das Theme keine Canvas-Vorschau bzw. nutzt den falschen Pfad.
+            </Text>
+            <Text variant="bodyXs" tone="subdued" as="p">
+              <strong>4. Ebenen</strong> — <code>custom.canvas_layers</code> (JSON), ein Eintrag pro Ebene:
+            </Text>
+            <pre style={{
+              fontSize: 10, lineHeight: 1.4, margin: 0, padding: 8, borderRadius: 6,
+              background: "var(--p-color-bg-surface-secondary)",
+              overflowX: "auto", whiteSpace: "pre",
+            }}>
+{`[{"key":"gurt","property":"Gurtband Farbe","mask":"https://.../mask-gurt.png",
+  "outline":true,"shadingCutout":false,"metallic":false,
+  "options":[
+    {"name":"Weiss","hex":"#FFFFFF","title":"Weiss"},
+    {"name":"Pink","hex":"#F06EB0","default":true},
+    {"name":"Camo","pattern":"https://.../muster.jpg","scale":0.5}
+  ]}]`}
+            </pre>
+            <Text variant="bodyXs" tone="subdued" as="p">
+              Pro Ebene: <code>key</code> eindeutige ID, <code>property</code> Anzeigename (weglassen = nicht wählbar), <code>mask</code> Maskenbild aus Schritt 2, <code>outline</code> trägt zum Schatten-Umriss bei, <code>shadingCutout</code> aus <code>canvas_shading</code> aussparen, <code>metallic</code> Ring-Glanz statt Flachfarbe. Pro Option: entweder <code>hex</code> (Flachfarbe) oder <code>pattern</code> (Muster-URL), nie beides. Reihenfolge im Array = Zeichenreihenfolge (unten drüber). Ausführliches Schema mit allen Details: <code>CONFIGURATOR.md</code> im rexpaw-storefront-Repo (für Entwickler-Zugriff).
+            </Text>
+            <Text variant="bodyXs" tone="subdued" as="p">
+              <strong>5. Optional</strong> — <code>custom.canvas_shading</code> (reine Bild-URL, kein JSON), <code>custom.canvas_background</code> (<code>{'{"light":"URL","dark":"URL"}'}</code>), <code>custom.canvas_outline_scale</code> (Dezimalzahl, Standard <code>1.035</code> — wirkt nur, wenn mindestens eine Ebene in <code>canvas_layers</code> <code>"outline": true</code> hat; sonst ohne Effekt und kann leer bleiben. Nicht nötig, wenn euer Hintergrundbild schon einen eigenen Schatten mitbringt).
+              {" "}<strong>Shading-Bild erstellen:</strong> Produktfoto (freigestellt) nehmen → entsättigen (Schwarzweiß) → mit Gradationskurven/Tonwertkorrektur aufhellen, bis fast alles weiß ist und nur echte Schatten (Kanten, Vertiefungen, Prägungen) grau sichtbar bleiben — Weiß = keine Wirkung, Dunkel = Abdunkelung (Multiply-Modus). Als PNG mit Transparenz exportieren.
+            </Text>
+            <Text variant="bodyXs" tone="subdued" as="p">
+              <strong>6. Prüfen</strong> — Produktseite im Storefront öffnen. Bei fehlerhafter/fehlender <code>canvas_layers</code>-Konfiguration bleibt die Vorschau einfach leer, kein Fehler auf der Seite.
+            </Text>
+          </BlockStack>
+        </div>
+      )}
+
       <Divider />
 
       {/* komplett neu anlegen */}
@@ -1123,8 +1261,16 @@ return (
                   <InlineStack gap="100" blockAlign="center" wrap={false}>
                     {dragHandle}
                     {!isEditing && (
-                      <div style={{ minWidth: 100 }}>
+                      <div style={{ minWidth: 100, display: "flex", alignItems: "center", gap: 4 }}>
                         <Text variant="bodySm" fontWeight="semibold" as="span">{field.definition?.name || field.key}</Text>
+                        <Text variant="bodyXs" tone="subdued" as="span"> ({field.key})</Text>
+                        {field.definition?.description && (
+                          <Tooltip content={field.definition.description} dismissOnMouseOut>
+                            <span style={{ display: "inline-flex", cursor: "help" }}>
+                              <Icon source={InfoIcon} tone="subdued" />
+                            </span>
+                          </Tooltip>
+                        )}
                       </div>
                     )}
                     {!isEditing && (
@@ -1187,7 +1333,7 @@ return (
                             />
                           </div>
                         </div>
-                        <div style={{ width: 150 }}>
+                        <div style={{ width: 150, flex: 1 }}>
                           <Text variant="bodyXs" tone="subdued" as="p">Wert</Text>
                           <div style={{ marginTop: 6 }}>
                             <TextField
