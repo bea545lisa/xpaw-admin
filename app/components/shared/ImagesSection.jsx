@@ -74,6 +74,7 @@ export default function ImagesSection({
                   <img
                     src={img.url}
                     alt={img.altText ?? ""}
+                    draggable={false}
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                   />
                 </div>
