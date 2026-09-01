@@ -12,6 +12,7 @@ function htmlToPlainText(html) {
 
 export default function ProductDetailDescription({ product, fetcher, productId, setToast, renderTranslationRows, primaryLocale, translatedLocales = [] }) {
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(htmlToPlainText(product.descriptionHtml) || product.description || "");
 
   const handleSave = () => {
@@ -77,9 +78,24 @@ export default function ProductDetailDescription({ product, fetcher, productId, 
             </InlineStack>
           </BlockStack>
         ) : product.description ? (
-          <div style={{ whiteSpace: "pre-wrap" }}>
-            <Text tone="subdued">{htmlToPlainText(product.descriptionHtml) || product.description}</Text>
-          </div>
+          <BlockStack gap="100">
+            <div
+              style={{
+                whiteSpace: "pre-wrap",
+                ...(expanded ? {} : {
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }),
+              }}
+            >
+              <Text tone="subdued">{htmlToPlainText(product.descriptionHtml) || product.description}</Text>
+            </div>
+            <Button variant="plain" size="micro" onClick={() => setExpanded((v) => !v)}>
+              {expanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+            </Button>
+          </BlockStack>
         ) : (
           <Text tone="subdued"><em>Keine Beschreibung</em></Text>
         )}
