@@ -70,11 +70,12 @@ export function useConfiguratorUpload({ setToast } = {}) {
       return;
     }
     if (linkFetcher.data.fileUrl) {
-      // ?v=... ist nur Shopifys Cache-Busting-Parameter - bei eigenstaendigen
-      // Files ohne praktischen Nutzen, da eine Datei nie in-place ersetzt wird
-      // (ein erneuter Upload erzeugt immer eine neue Datei). Fuers Metafield
-      // reicht die reine URL, kuerzer und weniger Fehleranfaellig beim Einfuegen.
-      setResultUrl(linkFetcher.data.fileUrl.split("?")[0]);
+      // ?v= drinlassen (wie bei den anderen Upload-Wegen/uploadSwatchFile
+      // etc.) - Dateien werden in der Praxis manchmal unter demselben Namen
+      // in Shopify Files ersetzt statt immer neu hochgeladen; ohne den
+      // Cache-Busting-Parameter zeigt der Browser dann dauerhaft die alte,
+      // gecachte Version.
+      setResultUrl(linkFetcher.data.fileUrl);
       setToast?.("Bild hochgeladen ✅");
     }
   }, [linkFetcher.state, linkFetcher.data]);
