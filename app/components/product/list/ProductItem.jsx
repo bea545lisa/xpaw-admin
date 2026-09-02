@@ -359,7 +359,7 @@ export default function ProductItem({
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "0.7fr 1.1fr 2.2fr",
+                      gridTemplateColumns: "0.9fr 0.9fr 2.2fr",
                       borderTop: "1px solid var(--p-color-border-subdued)",
                       paddingLeft: 18,
                     }}
@@ -373,7 +373,7 @@ export default function ProductItem({
                     >
                       <SectionHeading icon={CategoriesIcon} label="Kollektionen" />
                       {collectionNodes.length > 0 ? (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        <div style={{ display: "flex", flexWrap: "nowrap", gap: 4 }}>
                           {collectionNodes.slice(0, COL_PILL_CAP).map((c) => (
                             <span key={c.id} style={pillMuted(isDark)}>{c.title}</span>
                           ))}
@@ -413,7 +413,7 @@ export default function ProductItem({
                     >
                       <SectionHeading icon={HashtagIcon} label="Tags" />
                       {sortedTags.length > 0 ? (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        <div style={{ display: "flex", flexWrap: "nowrap", gap: 4 }}>
                           {sortedTags.slice(0, COL_PILL_CAP).map((tag) => (
                             <span key={tag} style={pillMuted(isDark)}>{tag}</span>
                           ))}
