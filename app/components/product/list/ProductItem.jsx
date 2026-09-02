@@ -198,7 +198,9 @@ export default function ProductItem({
     ?.filter((e) => !HIDDEN_LIST_PREVIEW_KEYS.includes(e.node.key) && e.node.type !== "json" && e.node.type !== "list.metaobject_reference" && e.node.type !== "list.file_reference")
     ?.slice(0, 3)
     .map((e) => e.node) ?? [];
-  const showMetaRow = metaFields.length > 0;
+  const canvasConfiguratorField = product.node.metafields?.edges?.find((e) => e.node.key === "canvas_configurator")?.node;
+  const isConfigurator = canvasConfiguratorField?.value === "true";
+  const showMetaRow = metaFields.length > 0 || isConfigurator;
   const zeroStockValues =
     variants
       ?.filter((e) => (e.node.inventoryQuantity ?? 0) === 0)
@@ -341,6 +343,9 @@ export default function ProductItem({
                             // mit mehreren Werten) war die einzeilige Variante mit
                             // horizontalem Scroll unuebersichtlich.
                             <span style={{ display: "flex", flexDirection: "column", gap: 0, lineHeight: 1.3, fontSize: "10px", color: isDark ? "#b0b7c3" : "#9ca3af", minWidth: 0 }}>
+                              {isConfigurator && (
+                                <span style={{ color: isDark ? "#7eb8e8" : "#1e40af", fontWeight: 600 }}>Konfigurator aktiv</span>
+                              )}
                               {metaFields.map((f) => (
                                 <span key={f.id} style={{ overflowWrap: "break-word" }}>
                                   <strong style={{ color: isDark ? "#b0b7c3" : "#6b7280" }}>{f.key}</strong>: {f.displayValue ?? f.value}
