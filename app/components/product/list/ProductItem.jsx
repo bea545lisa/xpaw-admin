@@ -340,7 +340,7 @@ export default function ProductItem({
                             // bei mehreren/langen Metafields (z.B. "eigenschaften"
                             // mit mehreren Werten) war die einzeilige Variante mit
                             // horizontalem Scroll unuebersichtlich.
-                            <span style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: "10px", color: isDark ? "#b0b7c3" : "#9ca3af", minWidth: 0 }}>
+                            <span style={{ display: "flex", flexDirection: "column", gap: 0, lineHeight: 1.3, fontSize: "10px", color: isDark ? "#b0b7c3" : "#9ca3af", minWidth: 0 }}>
                               {metaFields.map((f) => (
                                 <span key={f.id} style={{ overflowWrap: "break-word" }}>
                                   <strong style={{ color: isDark ? "#b0b7c3" : "#6b7280" }}>{f.key}</strong>: {f.displayValue ?? f.value}
