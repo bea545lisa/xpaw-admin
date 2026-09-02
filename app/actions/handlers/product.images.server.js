@@ -20,7 +20,19 @@ export async function handleUploadImage(admin, formData) {
     const { reorderProductMedia } = await import("../../services/product.server");
     const productId = formData.get("productId");
     const mediaIds = JSON.parse(formData.get("mediaIds"));
-    const result = await reorderProductMedia(admin, productId, mediaIds);
+    let result;
+    try {
+      result = await reorderProductMedia(admin, productId, mediaIds);
+    } catch (e) {
+      // Ohne try/catch liess eine werfende GraphQL-Anfrage (z.B. falsches
+      // ID-Format) den gesamten Fetcher ohne jede Antwort haengen - kein
+      // Toast, kein Fehler, einfach nichts, wirkte wie "Sortieren macht
+      // gar nichts".
+      return Response.json(
+        { ok: false, type: "reorderImages", error: e?.message || String(e) },
+        { status: 500 }
+      );
+    }
     if (result?.userErrors?.length > 0) {
       return Response.json(
         { ok: false, type: "reorderImages", error: result.userErrors.map(e => e.message).join(", ") },

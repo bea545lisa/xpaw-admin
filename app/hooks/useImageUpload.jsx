@@ -79,8 +79,14 @@ export function useImageUpload({ productId, initialImages, setLocalProducts, set
   }, [handleImagesUpload]);
 
   const reorderImages = useCallback((images) => {
+    // mediaId statt id - deleteImage nutzt dasselbe Fallback-Muster
+    // (img.mediaId ?? img.id), da Bilder unter zwei verschiedenen IDs
+    // gefuehrt werden. Mit der falschen ID haette productReorderMedia
+    // vermutlich mit einer GraphQL-User-Error-Antwort reagiert statt
+    // stillschweigend nichts zu tun - trotzdem hier zur Sicherheit
+    // dasselbe Muster wie beim Loeschen verwenden.
     const mediaIds = images
-      .map(img => img.id)
+      .map(img => img.mediaId ?? img.id)
       .filter(id => !String(id).startsWith("temp-"));
     if (mediaIds.length < 2) return;
     // Vorherige Reihenfolge merken, um sie bei einem fehlgeschlagenen

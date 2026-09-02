@@ -38,6 +38,12 @@ export default function ImagesSection({
       // zu weit rechts liegt (landete effektiv hinter dem eigentlichen Ziel,
       // im Extremfall immer ganz am Ende statt an der gezogenen Stelle).
       const adjustedTargetIndex = payload.index < targetIndex ? targetIndex - 1 : targetIndex;
+      // moveDarkImage bewusst NICHT mehr mitrufen: die Index-Kopplung
+      // zwischen Light- und Dark-Bild-Array ist fragil (verrutscht bei
+      // mehreren/verschachtelten Reorders leicht) und hat schon einmal
+      // Dark-Bilder den falschen Light-Bildern zugeordnet. Dark-Zuordnungen
+      // bleiben nach einem Umsortieren einfach an ihrer alten Position
+      // stehen - bei Bedarf manuell per Mond-Symbol neu ziehen.
       setLocalImages(prev => {
         const updated = [...prev];
         const [moved] = updated.splice(payload.index, 1);
@@ -45,7 +51,6 @@ export default function ImagesSection({
         reorderImages(updated);
         return updated;
       });
-      moveDarkImage?.(payload.index, adjustedTargetIndex);
     } else if (payload.type === "dark") {
       // Ein Dark-Bild wurde auf ein (anderes) Light-Bild gezogen → dort neu zuordnen,
       // ersetzt automatisch das Light-Bild links davon als neuen Partner.
