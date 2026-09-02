@@ -96,6 +96,10 @@ export function useImageUpload({ productId, initialImages, setLocalProducts, set
 
   useEffect(() => {
     if (reorderFetcher.state !== "idle" || !reorderFetcher.data) return;
+    if (reorderFetcher.data.ok) {
+      setToast?.("Reihenfolge gespeichert ✅");
+      return;
+    }
     if (!reorderFetcher.data.ok) {
       if (prevImagesBeforeReorder.current) {
         setLocalImages(prevImagesBeforeReorder.current);

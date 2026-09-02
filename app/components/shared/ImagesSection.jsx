@@ -32,14 +32,20 @@ export default function ImagesSection({
     if (!payload) return;
     if (payload.type === "light") {
       if (payload.index === targetIndex) return;
+      // Nach dem Entfernen an payload.index verschieben sich alle folgenden
+      // Indizes um 1 nach vorn - beim Verschieben NACH HINTEN (payload.index
+      // < targetIndex) zeigte targetIndex danach auf eine Position, die um 1
+      // zu weit rechts liegt (landete effektiv hinter dem eigentlichen Ziel,
+      // im Extremfall immer ganz am Ende statt an der gezogenen Stelle).
+      const adjustedTargetIndex = payload.index < targetIndex ? targetIndex - 1 : targetIndex;
       setLocalImages(prev => {
         const updated = [...prev];
         const [moved] = updated.splice(payload.index, 1);
-        updated.splice(targetIndex, 0, moved);
+        updated.splice(adjustedTargetIndex, 0, moved);
         reorderImages(updated);
         return updated;
       });
-      moveDarkImage?.(payload.index, targetIndex);
+      moveDarkImage?.(payload.index, adjustedTargetIndex);
     } else if (payload.type === "dark") {
       // Ein Dark-Bild wurde auf ein (anderes) Light-Bild gezogen → dort neu zuordnen,
       // ersetzt automatisch das Light-Bild links davon als neuen Partner.
