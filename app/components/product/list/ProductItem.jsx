@@ -447,7 +447,7 @@ export default function ProductItem({
                                   // padding "0 8px" von pillMuted verschwindet hier
                                   // optisch wegen des engen lineHeight (1.2) auf dem
                                   // Elternelement - etwas vertikales Padding ergaenzt.
-                                  padding: "2px 8px",
+                                  padding: "4px 8px",
                                   color: zeroStockValues.includes(v) ? "#f97316" : (isDark ? "#b0b7c3" : "#52525b"),
                                 }}
                               >
