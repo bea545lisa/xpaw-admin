@@ -360,7 +360,7 @@ export default function ProductItem({
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                      gridTemplateColumns: "0.75fr 0.75fr 2fr 0.4fr",
                       borderTop: "1px solid var(--p-color-border-subdued)",
                       paddingLeft: 18,
                     }}
@@ -415,23 +415,21 @@ export default function ProductItem({
                       }}
                     >
                       <SectionHeading icon={VariantIcon} label="Varianten" />
-                      <div style={{ display: "flex", flexDirection: "column", fontSize: "10px", lineHeight: 1.45, color: "var(--p-color-text-secondary)", gap: 4 }}>
+                      <div style={{ display: "flex", flexDirection: "column", fontSize: "10px", lineHeight: 1.2, color: "var(--p-color-text-secondary)", gap: 2 }}>
                         {optionGroups.map(({ name, values }) => (
-                          <div key={name} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+                          <div key={name} style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
                             <strong style={{ marginRight: 2, fontSize: "10px", fontWeight: 600 }}>{name}:</strong>
                             {values.map((v, vi) => (
+                              // Spalte ist jetzt breit genug fuer alle Werte in
+                              // einer Zeile - Pill-Rahmen brauchte es dafuer
+                              // nicht mehr, einfacher Komma-getrennter Text.
                               <span
                                 key={`${name}-${v}-${vi}`}
                                 style={{
-                                  display: "inline-block",
-                                  padding: "1px 6px",
-                                  borderRadius: 999,
-                                  border: `1px solid ${zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)"}`,
                                   color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
-                                  whiteSpace: "nowrap",
                                 }}
                               >
-                                {v}
+                                {v}{vi < values.length - 1 ? "," : ""}
                               </span>
                             ))}
                           </div>
