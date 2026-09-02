@@ -415,7 +415,7 @@ export default function ProductItem({
                       }}
                     >
                       <SectionHeading icon={VariantIcon} label="Varianten" />
-                      <div style={{ display: "flex", flexDirection: "column", fontSize: "11px", lineHeight: 1.45, color: "var(--p-color-text-secondary)", gap: 4 }}>
+                      <div style={{ display: "flex", flexDirection: "column", fontSize: "10px", lineHeight: 1.45, color: "var(--p-color-text-secondary)", gap: 4 }}>
                         {optionGroups.map(({ name, values }) => (
                           <div key={name} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
                             <strong style={{ marginRight: 2 }}>{name}:</strong>
@@ -426,7 +426,6 @@ export default function ProductItem({
                                   display: "inline-block",
                                   padding: "1px 6px",
                                   borderRadius: 999,
-                                  fontSize: "10px",
                                   border: `1px solid ${zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)"}`,
                                   color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
                                   whiteSpace: "nowrap",
