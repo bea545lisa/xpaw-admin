@@ -11,6 +11,7 @@ export function useImageUpload({ productId, initialImages, setLocalProducts, set
   const deleteFetcher = useFetcher();
   const fileInputRef = useRef(null);
   const pendingFile = useRef(null);
+  const prevImagesBeforeReorder = useRef(null);
   const uploadQueue = useRef([]);
   const isProcessing = useRef(false);  // ← State-unabhängiger Flag
   const totalFiles = useRef(0);  // ← neu in useImageUpload
@@ -82,11 +83,26 @@ export function useImageUpload({ productId, initialImages, setLocalProducts, set
       .map(img => img.id)
       .filter(id => !String(id).startsWith("temp-"));
     if (mediaIds.length < 2) return;
+    // Vorherige Reihenfolge merken, um sie bei einem fehlgeschlagenen
+    // Server-Aufruf zurueckzusetzen - sonst zeigt die UI optimistisch die
+    // neue Sortierung, obwohl sie serverseitig nie uebernommen wurde, und
+    // ein Reload wirkt dann wie "Sortieren wird nicht gespeichert".
+    prevImagesBeforeReorder.current = localImages;
     reorderFetcher.submit(
       { action: "reorderImages", productId, mediaIds: JSON.stringify(mediaIds) },
       { method: "POST" }
     );
-  }, [productId]);
+  }, [productId, localImages]);
+
+  useEffect(() => {
+    if (reorderFetcher.state !== "idle" || !reorderFetcher.data) return;
+    if (!reorderFetcher.data.ok) {
+      if (prevImagesBeforeReorder.current) {
+        setLocalImages(prevImagesBeforeReorder.current);
+      }
+      setToast?.(`Sortieren fehlgeschlagen: ${reorderFetcher.data.error || "Unbekannter Fehler"} ❌`);
+    }
+  }, [reorderFetcher.state, reorderFetcher.data]);
 
   const deleteImage = useCallback((img, index) => {
     setLocalImages(prev => prev.filter((_, i) => i !== index));
