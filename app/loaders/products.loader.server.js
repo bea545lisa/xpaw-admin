@@ -29,8 +29,11 @@ const LIST_QUERY = `
             id name values
             optionValues { id name }
           }
-          metafields(first: 20) {
+          metafields(first: 5) {
             edges { node { id namespace key value } }
+          }
+          canvasConfigurator: metafield(namespace: "custom", key: "canvas_configurator") {
+            value
           }
         }
       }
