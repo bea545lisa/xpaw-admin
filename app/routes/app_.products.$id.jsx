@@ -2297,10 +2297,16 @@ export default function ProductDetail() {
     if (fromIndex === toIndex) return;
     setDarkImages((prev) => {
       const next = [...prev];
+      // Vorher: next[fromIndex] blieb stehen -> dieselbe Dark-Datei war
+      // danach an ZWEI Light-Bildern zugleich zugeordnet ("Duplikat"), musste
+      // von Hand wieder entfernt werden. Jetzt ein echtes Verschieben statt
+      // Kopieren: alte Position wird geleert.
       next[toIndex] = next[fromIndex];
+      next[fromIndex] = null;
       persistDarkImages(next);
       return next;
     });
+    setToast?.("Dark-Bild verschoben ✅");
   };
 
   // Dark-Bilder folgen mit, wenn die Light-Bilder per Drag&Drop umsortiert werden - sonst
@@ -2845,11 +2851,13 @@ export default function ProductDetail() {
 
         {toast && (
           <div style={{
-            position: "fixed", bottom: 20,
+            position: "fixed", bottom: 32,
             left: "50%",
             transform: "translateX(-50%)",
             background: "#303030", color: "white",
-            padding: "12px 16px", borderRadius: 8,
+            padding: "18px 28px", borderRadius: 10,
+            fontSize: 16, fontWeight: 500,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
             zIndex: 9999,
             whiteSpace: "nowrap",
           }}>
