@@ -394,7 +394,7 @@ export default function ProductItem({
                               color: isDark ? "#f87171" : "#dc2626",
                               borderRadius: 999,
                               padding: "0 8px",
-                              fontWeight: 600,
+                              fontWeight: 500,
                               letterSpacing: "0.3px",
                               display: "inline-block",
                             }}
