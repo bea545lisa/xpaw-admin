@@ -62,9 +62,9 @@ function StatusBadge({ status, onClick }) {
     >
       <span style={{
         display: "inline-block",
-        fontSize: "12px",
+        fontSize: "9px",
         fontWeight: 500,
-        padding: "3px 10px",
+        padding: "2px 6px",
         borderRadius: 999,
         ...style,
       }}>
