@@ -20,7 +20,13 @@ export async function handleUploadImage(admin, formData) {
     const { reorderProductMedia } = await import("../../services/product.server");
     const productId = formData.get("productId");
     const mediaIds = JSON.parse(formData.get("mediaIds"));
-    await reorderProductMedia(admin, productId, mediaIds);
+    const result = await reorderProductMedia(admin, productId, mediaIds);
+    if (result?.userErrors?.length > 0) {
+      return Response.json(
+        { ok: false, type: "reorderImages", error: result.userErrors.map(e => e.message).join(", ") },
+        { status: 400 }
+      );
+    }
     return Response.json({ ok: true, type: "reorderImages" });
   }
   

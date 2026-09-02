@@ -177,6 +177,19 @@ export default function ImagesSection({
               )}
             </div>
           ))}
+          {/* Eigene Drop-Zone ans Ende der Liste - ohne sie liess sich ein
+              Bild nur VOR ein anderes ziehen (jede Kachel droppt "vor sich
+              selbst"), nie hinter das letzte Bild. */}
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => handleLightDrop(e, localImages.length)}
+            title="Hierher ziehen, um ans Ende zu verschieben"
+            style={{
+              width: 80, height: 80, borderRadius: 8, flexShrink: 0,
+              border: `2px dashed ${isDark ? "#5a5a5a" : "#c4c4c4"}`,
+              opacity: 0.5,
+            }}
+          />
         </div>
       )}
 
