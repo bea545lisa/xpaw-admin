@@ -432,7 +432,31 @@ export async function reorderProductMedia(admin, productId, mediaIds) {
     }
   });
   const data = await res.json();
-  return data.data.productReorderMedia;
+  const result = data.data.productReorderMedia;
+
+  // productReorderMedia stoesst nur einen Job an, statt die Reihenfolge
+  // synchron zu aendern - ohne hier auf den Job zu warten, sah ein direkt
+  // danach nachgeladenes Produkt (z.B. Reload der Seite) noch die alte
+  // Reihenfolge, obwohl die Mutation selbst fehlerfrei durchlief.
+  if (result?.job?.id && !(result?.userErrors?.length > 0)) {
+    await waitForJob(admin, result.job.id);
+  }
+
+  return result;
+}
+
+async function waitForJob(admin, jobId, { maxAttempts = 10, delayMs = 500 } = {}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const res = await admin.graphql(`
+      query jobStatus($id: ID!) {
+        job(id: $id) { id done }
+      }
+    `, { variables: { id: jobId } });
+    const data = await res.json();
+    if (data.data?.job?.done) return true;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return false;
 }
 
 export async function deleteProductMedia(admin, productId, mediaIds) {
