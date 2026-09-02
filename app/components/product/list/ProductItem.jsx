@@ -22,7 +22,7 @@ const pillMuted = (isDark) => ({
   background: isDark ? "#2a2d35" : "#f4f4f5",
   color: isDark ? "#b0b7c3" : "#52525b",
   borderRadius: 999,
-  padding: "1px 5px",
+  padding: "0 8px",
   fontWeight: 500,
 });
 
@@ -393,7 +393,7 @@ export default function ProductItem({
                               background: isDark ? "#3a1a1a" : "#fee2e2",
                               color: isDark ? "#f87171" : "#dc2626",
                               borderRadius: 999,
-                              padding: "1px 5px",
+                              padding: "0 8px",
                               fontWeight: 600,
                               letterSpacing: "0.3px",
                               display: "inline-block",
