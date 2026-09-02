@@ -198,8 +198,7 @@ export default function ProductItem({
     ?.filter((e) => !HIDDEN_LIST_PREVIEW_KEYS.includes(e.node.key) && e.node.type !== "json" && e.node.type !== "list.metaobject_reference" && e.node.type !== "list.file_reference")
     ?.slice(0, 3)
     .map((e) => e.node) ?? [];
-  const canvasConfiguratorField = product.node.metafields?.edges?.find((e) => e.node.key === "canvas_configurator")?.node;
-  const isConfigurator = canvasConfiguratorField?.value === "true";
+  const isConfigurator = product.node.canvasConfigurator?.value === "true";
   const showMetaRow = metaFields.length > 0 || isConfigurator;
   const zeroStockValues =
     variants
