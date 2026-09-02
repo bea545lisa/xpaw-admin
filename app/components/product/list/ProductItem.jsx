@@ -14,7 +14,6 @@ import {
   CategoriesIcon,
   HashtagIcon,
   VariantIcon,
-  CartSaleIcon,
   AlertTriangleIcon, XIcon,
 } from "@shopify/polaris-icons";
 
@@ -360,7 +359,7 @@ export default function ProductItem({
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "0.75fr 0.75fr 2fr 0.4fr",
+                      gridTemplateColumns: "0.7fr 1.1fr 2.2fr",
                       borderTop: "1px solid var(--p-color-border-subdued)",
                       paddingLeft: 18,
                     }}
@@ -384,6 +383,25 @@ export default function ProductItem({
                         </div>
                       ) : (
                         <span style={{ fontSize: "11px", color: isDark ? "#b0b7c3" : "#9ca3af" }}>—</span>
+                      )}
+                      {hasSale && (
+                        <div style={{ marginTop: 4 }}>
+                          <span
+                            title="Im Sale"
+                            style={{
+                              fontSize: "9px",
+                              background: isDark ? "#3a1a1a" : "#fee2e2",
+                              color: isDark ? "#f87171" : "#dc2626",
+                              borderRadius: 999,
+                              padding: "2px 7px",
+                              fontWeight: 600,
+                              letterSpacing: "0.3px",
+                              display: "inline-block",
+                            }}
+                          >
+                            SALE
+                          </span>
+                        </div>
                       )}
                     </div>
                     <div
@@ -436,29 +454,6 @@ export default function ProductItem({
                         ))}
                         {variantCountLabel && (
                           <div style={{ color: isDark ? "#b0b7c3" : "#9ca3af", marginTop: 2 }}>{variantCountLabel}</div>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ padding: "8px 12px", minWidth: 0 }}>
-                      <SectionHeading icon={CartSaleIcon} label="Sale" />
-                      <div style={{ marginTop: 4 }}>
-                        {hasSale ? (
-                          <span
-                            style={{
-                              fontSize: "10px",
-                              background: isDark ? "#3a1a1a" : "#fee2e2",
-                              color: isDark ? "#f87171" : "#dc2626",
-                              borderRadius: 999,
-                              padding: "3px 8px",
-                              fontWeight: 600,
-                              letterSpacing: "0.3px",
-                              display: "inline-block",
-                            }}
-                          >
-                            SALE
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: "11px", color: isDark ? "#b0b7c3" : "#9ca3af" }}>—</span>
                         )}
                       </div>
                     </div>
