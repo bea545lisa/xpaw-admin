@@ -418,7 +418,7 @@ export default function ProductItem({
                       <div style={{ display: "flex", flexDirection: "column", fontSize: "10px", lineHeight: 1.45, color: "var(--p-color-text-secondary)", gap: 4 }}>
                         {optionGroups.map(({ name, values }) => (
                           <div key={name} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-                            <strong style={{ marginRight: 2 }}>{name}:</strong>
+                            <strong style={{ marginRight: 2, fontSize: "10px", fontWeight: 600 }}>{name}:</strong>
                             {values.map((v, vi) => (
                               <span
                                 key={`${name}-${v}-${vi}`}
