@@ -426,7 +426,8 @@ export default function ProductItem({
                                   display: "inline-block",
                                   padding: "1px 6px",
                                   borderRadius: 999,
-                                  border: "1px solid var(--p-color-border-subdued)",
+                                  fontSize: "10px",
+                                  border: `1px solid ${zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)"}`,
                                   color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
                                   whiteSpace: "nowrap",
                                 }}
