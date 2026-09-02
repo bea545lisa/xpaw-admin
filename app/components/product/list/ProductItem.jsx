@@ -438,16 +438,16 @@ export default function ProductItem({
                           <div key={name} style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
                             <strong style={{ marginRight: 2, fontSize: "10px", fontWeight: 600 }}>{name}:</strong>
                             {values.map((v, vi) => (
-                              // Spalte ist jetzt breit genug fuer alle Werte in
-                              // einer Zeile - Pill-Rahmen brauchte es dafuer
-                              // nicht mehr, einfacher Komma-getrennter Text.
+                              // Testweise wieder als Pill, gleiche Groesse wie
+                              // Kollektionen/Tags/SALE (pillMuted).
                               <span
                                 key={`${name}-${v}-${vi}`}
                                 style={{
-                                  color: zeroStockValues.includes(v) ? "#f97316" : "var(--p-color-text-secondary)",
+                                  ...pillMuted(isDark),
+                                  color: zeroStockValues.includes(v) ? "#f97316" : (isDark ? "#b0b7c3" : "#52525b"),
                                 }}
                               >
-                                {v}{vi < values.length - 1 ? "," : ""}
+                                {v}
                               </span>
                             ))}
                           </div>
