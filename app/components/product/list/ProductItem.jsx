@@ -185,7 +185,15 @@ export default function ProductItem({
   const templateBadge = formatTemplateSuffix(product.node.templateSuffix);
   // Interne/technische Felder (SEO, App-eigene Verwaltungsdaten, JSON-Rohdaten) nie in der
   // Listenvorschau anzeigen — die sind für Endnutzer nicht lesbar (z.B. rohes JSON).
-  const HIDDEN_LIST_PREVIEW_KEYS = ["title_tag", "description_tag", "metafields_order", "option_abbreviations", "option_swatches", "dark_mode_images", "dark_mode_images_light_ids"];
+  const HIDDEN_LIST_PREVIEW_KEYS = [
+    "title_tag", "description_tag", "metafields_order", "option_abbreviations", "option_swatches",
+    "dark_mode_images", "dark_mode_images_light_ids",
+    // Konfigurator-interne Felder (siehe CONFIGURATOR.md) - nie fuer Endnutzer
+    // lesbar, canvas_layers kam trotz type!=="json"-Filter unten durch (bei
+    // manchen Produkten offenbar als anderer Feldtyp angelegt), deshalb hier
+    // zusaetzlich explizit nach Key ausgeschlossen.
+    "canvas_configurator", "canvas_layers", "canvas_engine", "canvas_shading", "canvas_background", "canvas_outline_scale", "use_canvas",
+  ];
   const metaFields = product.node.metafields?.edges
     ?.filter((e) => !HIDDEN_LIST_PREVIEW_KEYS.includes(e.node.key) && e.node.type !== "json" && e.node.type !== "list.metaobject_reference" && e.node.type !== "list.file_reference")
     ?.slice(0, 3)
@@ -316,12 +324,10 @@ export default function ProductItem({
                             display: "flex",
                             flexDirection: "row",
                             flexWrap: "nowrap",
-                            alignItems: "center",
+                            alignItems: "flex-start",
                             gap: 12,
                             minWidth: 0,
                             maxWidth: "100%",
-                            overflowX: "auto",
-                            scrollbarWidth: "thin",
                           }}
                         >
                           {templateBadge && (
@@ -330,10 +336,13 @@ export default function ProductItem({
                             </span>
                           )}
                           {showMetaRow && (
-                            <span style={{ flexShrink: 0, fontSize: "10px", color: isDark ? "#b0b7c3" : "#9ca3af", whiteSpace: "nowrap" }}>
-                              {metaFields.map((f, i) => (
-                                <span key={f.id}>
-                                  {i > 0 && "  ·  "}
+                            // Untereinander statt in einer scrollbaren Zeile -
+                            // bei mehreren/langen Metafields (z.B. "eigenschaften"
+                            // mit mehreren Werten) war die einzeilige Variante mit
+                            // horizontalem Scroll unuebersichtlich.
+                            <span style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: "10px", color: isDark ? "#b0b7c3" : "#9ca3af", minWidth: 0 }}>
+                              {metaFields.map((f) => (
+                                <span key={f.id} style={{ overflowWrap: "break-word" }}>
                                   <strong style={{ color: isDark ? "#b0b7c3" : "#6b7280" }}>{f.key}</strong>: {f.displayValue ?? f.value}
                                 </span>
                               ))}
