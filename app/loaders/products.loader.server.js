@@ -29,7 +29,7 @@ const LIST_QUERY = `
             id name values
             optionValues { id name }
           }
-          metafields(first: 5) {
+          metafields(first: 20) {
             edges { node { id namespace key value } }
           }
         }
