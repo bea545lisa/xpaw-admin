@@ -51,7 +51,11 @@ export default function Root() {
       <head>
         <meta charSet="utf-8" />
         <meta name="shopify-api-key" content={apiKey} />
-        {/* App Bridge via CDN deaktiviert — wird von AppProvider geladen */}
+        {/* @shopify/app-bridge-react (useAppBridge etc.) braucht dieses
+            Script-Tag zwingend selbst - Polaris' AppProvider laedt nur
+            UI-Komponenten, kein App Bridge. Ohne dieses Tag wirft jeder
+            useAppBridge-Aufruf "The shopify global is not defined". */}
+        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
         <Meta />
         <Links />
       </head>
