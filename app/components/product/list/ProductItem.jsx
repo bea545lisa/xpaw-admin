@@ -18,11 +18,11 @@ import {
 } from "@shopify/polaris-icons";
 
 const pillMuted = (isDark) => ({
-  fontSize: "10px",
+  fontSize: "9px",
   background: isDark ? "#2a2d35" : "#f4f4f5",
   color: isDark ? "#b0b7c3" : "#52525b",
   borderRadius: 999,
-  padding: "3px 8px",
+  padding: "2px 6px",
   fontWeight: 500,
 });
 
